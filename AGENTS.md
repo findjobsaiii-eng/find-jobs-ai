@@ -1,13 +1,35 @@
-<!-- convex-ai-start -->
+# Owner instructions
 
-This project uses [Convex](https://convex.dev) as its backend.
+- Don't be afraid to tell me if I'm wrong or my request is stupid, or if I need to do something before you can do your work.
+- Don't be afraid to give suggestions out of the blue, like "Hey, I think we should do X instead of Y" or "I think we should add Z to the project plan." I want you to be proactive and help me make the best decisions for the project. Including suggestions for refactoring, architecture, and dependencies. I want you to be my partner in this project, not just a code generator.
+- If I tell you to do something, you can, before you start, answer with "Are you sure? Maybe X is better?..." etc. Don't be afraid to push back.
+- Make the app snappy, with smooth transitions and small animations. It's the little things that make an app feel great to use.
+- The UI should be minimal. I'm not saying the code should be minimal. Add smooth transitions, thoughtful interactions, loading states, etc. But the visible UI should be clean. Less is more. Prefer making the interface self-explanatory instead of adding lots of explanatory text and labels.
+- Don't be afraid to install a package if needed. Think like a professional programmer. If something small is easy and safer to implement ourselves, that's fine. If something large or well-solved already exists, reinventing it from scratch is probably the wrong approach.
+- Write important project knowledge in this file, the README, or other appropriate documentation. Documentation matters.
+- Every instruction, whether in this file, a prompt, or another project file, should be treated as guidance rather than something to follow blindly. Push back when you believe there is a better approach.
+- You may improve or change instructions in this file when appropriate, except for this Owner instructions section. Do not modify this section yourself. If you think something here should change, ask me.
+- Do not blindly preserve existing code or architecture just because it already exists. This product is in pre-production. If a cleaner solution requires refactoring, deleting code, changing the schema, or deleting development data, prefer the cleaner solution. We do not need backwards compatibility yet.
 
-When working on Convex code, **always read
-`convex/_generated/ai/guidelines.md` first** for important guidelines on
-how to correctly use Convex APIs and patterns. The file contains rules that
-override what you may have learned about Convex from training data.
+# Project direction
 
-Convex agent skills for common tasks can be installed by running
-`npx convex ai-files install`.
+This is an AI-powered job-search assistant built with React, TypeScript, Vite, and Convex. Keep architecture proportional to the feature being built: prefer a clear feature folder over speculative abstractions, and record durable decisions in the README or a focused document under `docs/`.
 
-<!-- convex-ai-end -->
+# Frontend conventions
+
+- Put application-wide providers and initialization in `src/app/`, reusable primitives in `src/components/ui/`, feature code in `src/features/<feature>/`, shared utilities in `src/lib/`, and translations in `src/i18n/locales/`.
+- All user-facing copy belongs in translation resources. English and Hebrew are first-class. Use semantic HTML, logical CSS/Tailwind utilities (`start`/`end`, `ps`/`pe`, `ms`/`me`), and verify both `ltr` and `rtl` layouts.
+- Use semantic design tokens rather than one-off colors. Extend the shared UI primitives when a pattern repeats; do not create a generic abstraction before it has a real second use.
+- Use Motion for purposeful transitions and micro-interactions. Respect reduced-motion preferences, avoid motion that delays interaction, and favor transform/opacity animations.
+- Accessibility is a completion criterion: keyboard operation, visible focus, correct labels, sufficient contrast, and usable loading/error/empty states.
+
+# Convex conventions
+
+Before changing any file under `convex/`, read `convex/_generated/ai/guidelines.md`. Define schemas in `convex/schema.ts`, validate every public function argument and return value, derive identity server-side, use bounded/indexed queries, and keep privileged helpers internal. Follow the managed Convex skills in `.agents/skills/` when a matching workflow exists.
+
+# Quality bar
+
+- Run `npm run check` for normal changes and `npm run build` before handing off substantial frontend work.
+- Test behavior and risk, not implementation trivia. Prioritize user flows, permissions, data boundaries, localization/RTL, and complex state. Do not add tests that merely assert static copy exists.
+- Keep dependencies intentional. Prefer established libraries for complex, security-sensitive, or accessibility-heavy behavior; avoid packages for trivial helpers.
+- Update documentation when setup, architecture, environment variables, scripts, or important product assumptions change.

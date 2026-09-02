@@ -1,6 +1,8 @@
 import { defineConfig } from "eslint/config";
+import eslintConfigPrettier from "eslint-config-prettier";
 import js from "@eslint/js";
 import globals from "globals";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
@@ -21,6 +23,7 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
+      jsxA11y.flatConfigs.recommended,
     ],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
@@ -47,34 +50,16 @@ export default defineConfig([
         "warn",
         { allowConstantExport: true },
       ],
-      // All of these overrides ease getting into
-      // TypeScript, and can be removed for stricter
-      // linting down the line.
-
-      // Only warn on unused variables, and ignore variables starting with `_`
       "@typescript-eslint/no-unused-vars": [
-        "warn",
+        "error",
         { varsIgnorePattern: "^_", argsIgnorePattern: "^_" },
       ],
 
-      // Allow escaping the compiler
       "@typescript-eslint/ban-ts-comment": "error",
-
-      // Allow explicit `any`s
-      "@typescript-eslint/no-explicit-any": "off",
-
-      // START: Allow implicit `any`s
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-return": "off",
-      // END: Allow implicit `any`s
-
-      // Allow async functions without await
-      // for consistency (esp. Convex `handler`s)
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/require-await": "off",
     },
   },
   ...convexPlugin.configs.recommended,
+  eslintConfigPrettier,
 ]);

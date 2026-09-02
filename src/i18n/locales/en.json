@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "title": "Find Jobs AI"
+  },
+  "brand": {
+    "name": "Find Jobs AI"
+  },
+  "language": {
+    "switchLabel": "Switch language to Hebrew",
+    "otherLanguage": "עברית"
+  },
+  "foundation": {
+    "eyebrow": "Foundation ready",
+    "title": "A calmer, smarter job search is taking shape.",
+    "description": "The technical foundation is in place. Next, we can focus on building an experience that helps every opportunity feel clear and actionable.",
+    "status": "Ready for the first product feature"
+  }
+}

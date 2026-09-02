@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "title": "Find Jobs AI"
+  },
+  "brand": {
+    "name": "Find Jobs AI"
+  },
+  "language": {
+    "switchLabel": "החלפת שפה לאנגלית",
+    "otherLanguage": "English"
+  },
+  "foundation": {
+    "eyebrow": "התשתית מוכנה",
+    "title": "חיפוש עבודה רגוע וחכם יותר מתחיל כאן.",
+    "description": "התשתית הטכנית מוכנה. עכשיו אפשר להתמקד בחוויה שתהפוך כל הזדמנות לברורה וקלה לפעולה.",
+    "status": "מוכנים לפיצ׳ר הראשון"
+  }
+}

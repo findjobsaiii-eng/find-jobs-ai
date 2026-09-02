@@ -1,40 +1,68 @@
-# Welcome to your Convex + React (Vite) app
+# Find Jobs AI
 
-This is a [Convex](https://convex.dev/) project created with [`npm create convex`](https://www.npmjs.com/package/create-convex).
+An AI-powered job-search assistant in its foundation phase. The product will eventually help people discover and rank relevant roles, manage applications, compare opportunities with their profile, and improve their CVs. Product functionality has intentionally not been started yet.
 
-After the initial setup (<2 minutes) you'll have a working full-stack app using:
+## Stack
 
-- Convex as your backend (database, server logic)
-- [React](https://react.dev/) as your frontend (web page interactivity)
-- [Vite](https://vitest.dev/) for optimized web hosting
-- [Tailwind](https://tailwindcss.com/) for building great looking accessible UI
+- React 19 and TypeScript
+- Vite
+- Convex
+- Tailwind CSS v4 and shadcn/Base UI primitives
+- Motion for transitions and micro-interactions
+- i18next and react-i18next for English/Hebrew localization
 
-## Get started
+## Getting started
 
-If you just cloned this codebase and didn't use `npm create convex`, run:
+Requirements: Node.js 22+ and npm.
 
-```
+```sh
 npm install
 npm run dev
 ```
 
-If you're reading this README on GitHub and want to use this template, run:
+The Convex setup creates the local environment configuration used by `VITE_CONVEX_URL`. Do not commit local environment files.
 
+## Commands
+
+```sh
+npm run dev          # Start Convex and Vite
+npm run typecheck    # Check TypeScript
+npm run lint         # Run ESLint, including accessibility rules
+npm run format       # Format supported files
+npm run format:check # Verify formatting without changing files
+npm run check        # Run typecheck, lint, and format checks
+npm run build        # Typecheck and create a production build
+npm run preview      # Preview the production build
 ```
-npm create convex@latest -- -t react-vite
+
+## Project structure
+
+```text
+src/
+  app/           Application-wide providers and initialization
+  components/ui/ Reusable, accessible UI primitives
+  features/      Product features, grouped by domain as they are built
+  i18n/          i18next configuration and locale resources
+  lib/           Small shared utilities
+convex/          Schema and server functions
 ```
 
-## Learn more
+Do not create empty architecture for hypothetical features. Add a `src/features/<feature>` folder when that feature begins, and keep its components, hooks, and supporting logic together until something is genuinely shared.
 
-To learn more about developing your project with Convex, check out:
+## Localization and direction
 
-- The [Tour of Convex](https://docs.convex.dev/get-started) for a thorough introduction to Convex principles.
-- The rest of [Convex docs](https://docs.convex.dev/) to learn about all Convex features.
-- [Stack](https://stack.convex.dev/) for in-depth articles on advanced topics.
+English (`en`) and Hebrew (`he`) are first-class languages. User-facing text belongs in `src/i18n/locales/*.json`; components use translation keys. The i18n setup synchronizes the document's `lang` and `dir` attributes and remembers the selected language.
 
-## Join the community
+Use logical direction utilities such as `text-start`, `ps-*`, `pe-*`, `ms-*`, and `me-*`. Avoid `left`/`right` positioning unless the direction is intentionally physical. Check every new screen in both languages.
 
-Join thousands of developers building full-stack apps with Convex:
+## UI foundation
 
-- Join the [Convex Discord community](https://convex.dev/community) to get help in real-time.
-- Follow [Convex on GitHub](https://github.com/get-convex/), star and contribute to the open-source implementation of Convex.
+Theme values are semantic CSS variables in `src/index.css`. Reusable primitives live in `src/components/ui`; prefer extending them over repeating interaction and accessibility behavior. Motion is configured globally to respect the user's reduced-motion setting.
+
+The screenshots supplied during setup are product-direction references, not a specification. The visual system should stay clean, responsive, calm, and content-led as real workflows are designed.
+
+## Convex
+
+Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed Convex agent skills are installed under `.agents/skills/`. Keep queries bounded and indexed, validate public inputs and outputs, derive authenticated identity server-side, and keep privileged functions internal.
+
+The schema is intentionally empty until the first product feature establishes real data requirements.

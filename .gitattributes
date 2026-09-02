@@ -1,2 +1,11 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Keep repository text deterministic across Windows and Unix environments.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
