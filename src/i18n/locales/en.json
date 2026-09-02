@@ -9,10 +9,16 @@
     "switchLabel": "Switch language to Hebrew",
     "otherLanguage": "עברית"
   },
-  "foundation": {
-    "eyebrow": "Foundation ready",
-    "title": "A calmer, smarter job search is taking shape.",
-    "description": "The technical foundation is in place. Next, we can focus on building an experience that helps every opportunity feel clear and actionable.",
-    "status": "Ready for the first product feature"
+  "auth": {
+    "eyebrow": "Welcome",
+    "title": "Your next opportunity starts here.",
+    "description": "Sign in to build a job search that stays focused, organized, and yours.",
+    "continueWithGoogle": "Continue with Google",
+    "connecting": "Connecting…",
+    "checkingSession": "Checking your session…",
+    "error": "We couldn't connect to Google. Please try again.",
+    "welcomeTitle": "You're signed in.",
+    "welcomeDescription": "Your workspace is ready. We'll build the first job-search tools here next.",
+    "signOut": "Sign out"
   }
 }

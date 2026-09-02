@@ -61,6 +61,21 @@ Theme values are semantic CSS variables in `src/index.css`. Reusable primitives 
 
 The screenshots supplied during setup are product-direction references, not a specification. The visual system should stay clean, responsive, calm, and content-led as real workflows are designed.
 
+## Authentication
+
+Authentication uses Convex Auth with Google OAuth. The Convex deployment needs
+`AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and
+`SITE_URL`. For local development, set `SITE_URL` to `http://localhost:5173`.
+
+The Google OAuth client must allow this callback URL:
+
+```text
+https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google
+```
+
+For this project's current development deployment, `YOUR-DEPLOYMENT` is
+`optimistic-quail-311`.
+
 ## Convex
 
 Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed Convex agent skills are installed under `.agents/skills/`. Keep queries bounded and indexed, validate public inputs and outputs, derive authenticated identity server-side, and keep privileged functions internal.
