@@ -13,8 +13,6 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "locations:prepare": "node scripts/prepare-israel-locations.mjs",
-    "locations:import": "convex import --table locations --replace data/generated/israel-locations.jsonl",
     "catalog:seed": "convex run referenceData:seedCatalog",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "preview": "vite preview"

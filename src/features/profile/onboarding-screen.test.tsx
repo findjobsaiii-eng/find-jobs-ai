@@ -31,16 +31,7 @@ vi.mock("convex/react", () => ({
             isCustom: false,
           },
         ]
-      : args.kind === "skill"
-        ? []
-        : [
-            {
-              code: "locality:5000",
-              nameEn: "Tel Aviv - Yafo",
-              nameHe: "תל אביב - יפו",
-              kind: "locality",
-            },
-          ],
+      : [],
 }));
 
 vi.mock("@convex-dev/auth/react", () => ({

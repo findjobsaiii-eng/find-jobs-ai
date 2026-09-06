@@ -38,8 +38,6 @@ npm run check        # Run typecheck, lint, and format checks
 npm run build        # Typecheck and create a production build
 npm run preview      # Preview the production build
 npm run catalog:seed # Idempotently seed curated job titles and skills
-npm run locations:prepare # Build import data from the tracked locality CSV
-npm run locations:import  # Replace locations in the development deployment
 ```
 
 ## Project structure
@@ -138,7 +136,7 @@ Editable profile data is normalized and bounded on the server:
 
 Drafts may omit or clear fields so onboarding remains resumable. Completion is a separate server-validated transition and records created, updated, and completed timestamps. The profile contains only the stated onboarding and Google identity fields; no CV, generated content, mailbox data, job data, or profile score is stored.
 
-### Onboarding reference data
+### Onboarding options
 
 Job titles and skills use a searchable bilingual catalog. If a value is missing,
 an authenticated user can add a normalized custom value that is visible only to
@@ -150,21 +148,5 @@ The onboarding UI now searches Google Places for Israeli cities and regions.
 Only Place IDs and the selected radius are stored. Google labels are fetched for
 display, while optional browser geolocation is used only as a temporary search
 bias and is never written to Convex.
-
-The normalized UTF-8 locality source is retained as an offline reference at
-`data/reference/israel-localities.csv`. The generated JSON Lines import is
-ignored because it is reproducible. To replace the source with a newly downloaded
-version and optionally refresh the reference table in a development deployment:
-
-```sh
-npm run locations:prepare -- /absolute/path/to/new-localities.csv
-npm run locations:import -- --yes
-```
-
-The preparation script accepts UTF-8 or Windows-1255 input, validates the
-expected columns, overwrites the tracked normalized CSV, deduplicates localities
-by code, derives districts, and generates a content-based source version. Review
-the CSV diff before importing. The import replaces only the unused fallback
-`locations` reference table in the selected Convex development deployment; it
-does not alter saved Google Place IDs. Curated job titles and skills can be
-updated idempotently with `npm run catalog:seed`.
+Curated job titles and skills can be updated idempotently with
+`npm run catalog:seed`.

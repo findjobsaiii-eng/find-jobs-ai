@@ -110,23 +110,14 @@ advancing.
 
 Status: Accepted
 
-Evidence: `convex/referenceData.ts`, `convex/referenceCatalogData.ts`,
-`convex/schema.ts`, and `scripts/prepare-israel-locations.mjs`.
+Evidence: `convex/referenceData.ts`, `convex/referenceCatalogData.ts`, and
+`convex/schema.ts`.
 
 Target job titles and skills are selected from a bilingual searchable catalog.
 An authenticated user may add a missing value, but that value is normalized,
 deduplicated, bounded, and visible only to its owner. It is never promoted to the
 shared catalog automatically. This avoids both shared spam and a moderation
 queue in the MVP. OpenAI and embeddings are not needed for this workflow.
-
-Locations are selected with Google's Place Autocomplete widget, restricted to
-regional results in Israel. Candidate profiles store only Place IDs and a
-bounded search radius. Labels are re-fetched for display, and optional browser
-geolocation only biases the current search; coordinates are not persisted. This
-supports cities, broader regions, localization, radius-based matching, and a
-simple “near me” interaction without maintaining a second canonical geography
-database. The tracked government locality CSV and repeatable importer remain an
-offline development reference, not the active picker.
 
 ### D-013: Google Places browser access uses a restricted public key
 
@@ -139,7 +130,9 @@ The Places widget loads lazily only on the location step using
 `VITE_GOOGLE_MAPS_API_KEY`. The value is necessarily public in the browser and
 must be protected with exact HTTP-referrer and API restrictions in Google Cloud.
 The official widget owns autocomplete sessions, accessibility behavior, and
-Google attribution. OpenAI and embeddings are not involved in location search.
+Google attribution. Google Places is the single source of location options; the
+app does not maintain a parallel locality table or import pipeline. OpenAI and
+embeddings are not involved in location search.
 
 ### D-012: Development data may be reset instead of migrated
 

@@ -108,11 +108,6 @@
       "location": "לדוגמה, תל אביב",
       "proficiency": "בחירת רמה"
     },
-    "locationKinds": {
-      "locality": "יישוב",
-      "region": "נפה",
-      "nationwide": "כל הארץ"
-    },
     "location": {
       "loading": "טוענים את חיפוש המיקומים…",
       "loadingSaved": "טוענים מיקום שמור…",

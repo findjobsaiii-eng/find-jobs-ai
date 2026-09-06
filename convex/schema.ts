@@ -56,28 +56,6 @@ const schema = defineSchema({
       searchField: "searchText",
       filterFields: ["kind", "visibility", "ownerUserId", "active"],
     }),
-  locations: defineTable({
-    code: v.string(),
-    kind: v.union(
-      v.literal("locality"),
-      v.literal("region"),
-      v.literal("nationwide"),
-    ),
-    nameHe: v.string(),
-    nameEn: v.optional(v.string()),
-    searchText: v.string(),
-    parentRegionCode: v.optional(v.string()),
-    source: v.string(),
-    sourceVersion: v.string(),
-    priority: v.number(),
-    active: v.boolean(),
-  })
-    .index("by_code", ["code"])
-    .index("by_active_and_priority", ["active", "priority"])
-    .searchIndex("search_locations", {
-      searchField: "searchText",
-      filterFields: ["active"],
-    }),
   candidateProfiles: defineTable({
     userId: v.id("users"),
     email: v.string(),

@@ -36,7 +36,6 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
 - Searchable bilingual job-title and skill catalogs, with bounded per-user private additions that cannot leak across accounts or become shared automatically.
 - Google Places autocomplete for Israeli cities and regions, with multiple saved Place IDs, a bounded radius, localized results, and optional current-location search bias that does not persist coordinates.
-- A tracked normalized government locality CSV and repeatable importer retained as an offline development reference.
 - Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 

@@ -14,17 +14,6 @@ const catalogOptionValidator = v.object({
   isCustom: v.boolean(),
 });
 
-const locationOptionValidator = v.object({
-  code: v.string(),
-  nameEn: v.union(v.string(), v.null()),
-  nameHe: v.string(),
-  kind: v.union(
-    v.literal("locality"),
-    v.literal("region"),
-    v.literal("nationwide"),
-  ),
-});
-
 const CUSTOM_LIMITS = {
   jobTitle: { maxItems: 10, minLength: 2, maxLength: 80 },
   skill: { maxItems: 50, minLength: 1, maxLength: 50 },
@@ -206,33 +195,6 @@ export const addCustomCatalogItem = mutation({
     const created = await ctx.db.get("catalogItems", id);
     if (!created) throw new Error("Catalog item creation failed");
     return toCatalogOption(created);
-  },
-});
-
-export const searchLocations = query({
-  args: { search: v.string() },
-  returns: v.array(locationOptionValidator),
-  handler: async (ctx, args) => {
-    await requireUserId(ctx);
-    const search = normalizeSearch(args.search);
-    const locations = search
-      ? await ctx.db
-          .query("locations")
-          .withSearchIndex("search_locations", (q) =>
-            q.search("searchText", search).eq("active", true),
-          )
-          .take(20)
-      : await ctx.db
-          .query("locations")
-          .withIndex("by_active_and_priority", (q) => q.eq("active", true))
-          .order("desc")
-          .take(15);
-    return locations.map((location) => ({
-      code: location.code,
-      nameEn: location.nameEn ?? null,
-      nameHe: location.nameHe,
-      kind: location.kind,
-    }));
   },
 });
 

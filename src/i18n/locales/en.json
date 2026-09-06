@@ -108,11 +108,6 @@
       "location": "e.g. Tel Aviv",
       "proficiency": "Select a level"
     },
-    "locationKinds": {
-      "locality": "City",
-      "region": "Region",
-      "nationwide": "Nationwide"
-    },
     "location": {
       "loading": "Loading location search…",
       "loadingSaved": "Loading saved location…",
