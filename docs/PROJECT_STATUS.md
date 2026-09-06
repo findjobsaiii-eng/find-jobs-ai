@@ -63,6 +63,18 @@ npm install
 npm run dev
 ```
 
+Local authentication uses the exact frontend origin
+`http://localhost:5173`. Vite is configured with port `5173` and strict port
+handling, so it exits with a clear error instead of switching to another port
+when `5173` is occupied. The Convex development deployment's `SITE_URL` must
+remain `http://localhost:5173`, and local testing must use the `localhost`
+hostname rather than a different hostname or port.
+
+If startup reports that port `5173` is already in use, return to the terminal
+running the existing local app and stop it with `Ctrl+C`. Then restart with
+`npm run dev`. Do not start a second local instance on `5174`, because that
+origin is intentionally rejected by Convex Auth.
+
 Run the available checks:
 
 ```sh
