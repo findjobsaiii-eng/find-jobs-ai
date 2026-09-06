@@ -17,9 +17,10 @@ const hooks = vi.hoisted(() => ({
   >(),
 }));
 vi.mock("convex/react", () => ({
-  useQuery: (_ref: unknown, args?: { kind: string }) =>
-    args ? [] : hooks.data,
+  useQuery: (_ref: unknown, args?: { kind?: string }) =>
+    args?.kind ? [] : args ? { jobs: [] } : hooks.data,
   useMutation: () => hooks.save,
+  useAction: () => vi.fn(),
 }));
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => ({ signOut: vi.fn() }),
