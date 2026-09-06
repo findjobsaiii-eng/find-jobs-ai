@@ -34,6 +34,8 @@ type Env = {
   readonly AUTH_GOOGLE_SECRET: string;
   readonly JWKS: string;
   readonly JWT_PRIVATE_KEY: string;
+  readonly OPENAI_API_KEY: string;
+  readonly OPENAI_JOB_SEARCH_MODEL: string;
   readonly SITE_URL: string;
 };
 

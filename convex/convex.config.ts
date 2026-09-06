@@ -7,6 +7,8 @@ export default defineApp({
     AUTH_GOOGLE_SECRET: v.string(),
     JWKS: v.string(),
     JWT_PRIVATE_KEY: v.string(),
+    OPENAI_API_KEY: v.string(),
+    OPENAI_JOB_SEARCH_MODEL: v.string(),
     SITE_URL: v.string(),
   },
 });
