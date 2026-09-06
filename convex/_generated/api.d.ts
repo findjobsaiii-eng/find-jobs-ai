@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as authEnvironment from "../authEnvironment.js";
 import type * as http from "../http.js";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  authEnvironment: typeof authEnvironment;
   http: typeof http;
 }>;
 

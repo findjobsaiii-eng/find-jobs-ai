@@ -32,12 +32,12 @@ npm run typecheck    # Check TypeScript
 npm run lint         # Run ESLint, including accessibility rules
 npm run format       # Format supported files
 npm run format:check # Verify formatting without changing files
+npm test             # Run the focused Vitest suite once
+npm run test:watch   # Run Vitest in watch mode
 npm run check        # Run typecheck, lint, and format checks
 npm run build        # Typecheck and create a production build
 npm run preview      # Preview the production build
 ```
-
-There is no automated test command in the repository yet.
 
 ## Project structure
 
@@ -70,6 +70,8 @@ The screenshots supplied during setup are product-direction references, not a sp
 Authentication uses Convex Auth with Google OAuth. The Convex deployment needs
 `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and
 `SITE_URL`. For local development, set `SITE_URL` to `http://localhost:5173`.
+Only the variable names belong in documentation and source control; their values
+must remain in the Convex deployment environment.
 
 The Google OAuth client must allow this callback URL:
 
@@ -78,6 +80,15 @@ https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google
 ```
 
 Deployment-specific URLs and credential values are intentionally not stored in repository documentation.
+
+The browser receives only the public `VITE_CONVEX_URL`. OAuth credentials are
+read by Convex server code and are never passed through a `VITE_` variable. The
+client removes the one-time OAuth callback code from the address bar before
+exchanging it, presents a recoverable callback-error state, and delegates session
+storage and invalidation to Convex Auth.
+
+Exact manual Google OAuth smoke-test steps and the latest external configuration
+status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 ## Convex
 

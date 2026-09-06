@@ -2,7 +2,11 @@ import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AuthShell } from "./auth-shell";
 
-export function AuthLoadingScreen() {
+export function AuthLoadingScreen({
+  variant,
+}: {
+  variant: "session" | "callback";
+}) {
   const { t } = useTranslation();
 
   return (
@@ -12,7 +16,11 @@ export function AuthLoadingScreen() {
         role="status"
       >
         <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
-        {t("auth.checkingSession")}
+        {t(
+          variant === "callback"
+            ? "auth.completingSignIn"
+            : "auth.checkingSession",
+        )}
       </div>
     </AuthShell>
   );

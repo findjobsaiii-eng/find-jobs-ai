@@ -9,10 +9,18 @@ export function AuthenticatedHome() {
   const { t } = useTranslation();
   const { signOut } = useAuthActions();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
-    await signOut();
+    setError(null);
+
+    try {
+      await signOut();
+    } catch {
+      setError(t("auth.signOutError"));
+      setIsSigningOut(false);
+    }
   };
 
   return (
@@ -46,6 +54,9 @@ export function AuthenticatedHome() {
           )}
           {t("auth.signOut")}
         </Button>
+        <div aria-live="polite" className="min-h-6 pt-3 text-sm">
+          {error ? <p className="text-destructive">{error}</p> : null}
+        </div>
       </section>
     </AuthShell>
   );

@@ -16,9 +16,16 @@
     "continueWithGoogle": "Continue with Google",
     "connecting": "Connecting…",
     "checkingSession": "Checking your session…",
+    "completingSignIn": "Finishing your secure sign-in…",
     "error": "We couldn't connect to Google. Please try again.",
+    "callbackErrorTitle": "Sign-in wasn't completed.",
+    "callbackErrorDescription": "Google didn't complete the sign-in request. No account changes were made.",
+    "tryAgain": "Try again",
+    "configurationErrorTitle": "Authentication isn't configured.",
+    "configurationErrorDescription": "The app is missing its public Convex connection. Check the local setup and reload the page.",
     "welcomeTitle": "You're signed in.",
     "welcomeDescription": "Your workspace is ready. We'll build the first job-search tools here next.",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signOutError": "We couldn't sign you out. Please try again."
   }
 }
