@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 
 const projectRoot = resolve(import.meta.dirname, "..");
@@ -199,6 +199,7 @@ for (const location of allLocations) {
     );
   }
 }
+mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(
   outputPath,
   `${allLocations.map((location) => JSON.stringify(location)).join("\n")}\n`,
