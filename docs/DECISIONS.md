@@ -134,6 +134,11 @@ Google attribution. Google Places is the single source of location options; the
 app does not maintain a parallel locality table or import pipeline. OpenAI and
 embeddings are not involved in location search.
 
+Onboarding presents one primary Google Place and a separate radius control. New
+selections use the 5, 10, 15, 25, 40, 60, or 100 km presets and default to 25 km.
+The existing array storage is retained for compatibility with earlier drafts,
+and the server continues accepting previously stored 50 km and 200 km radii.
+
 ### D-012: Development data may be reset instead of migrated
 
 Status: Accepted while the product remains pre-production
