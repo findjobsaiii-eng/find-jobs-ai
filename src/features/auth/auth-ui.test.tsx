@@ -22,6 +22,7 @@ vi.mock("@convex-dev/auth/react", () => ({
 
 vi.mock("convex/react", () => ({
   useQuery: convexHooks.useQuery,
+  useMutation: () => vi.fn(),
 }));
 
 describe("authentication UI", () => {
@@ -40,6 +41,7 @@ describe("authentication UI", () => {
         profileImage: null,
       },
       profile: { onboardingCompleted: true },
+      selections: { targetJobTitles: [], skills: [] },
     });
     await i18n.changeLanguage("en");
   });
@@ -114,6 +116,7 @@ describe("authentication UI", () => {
         onDismissCallbackError={onDismiss}
       />,
     );
+    await userEvent.click(screen.getByLabelText("User menu"));
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();

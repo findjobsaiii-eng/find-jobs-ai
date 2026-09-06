@@ -6,7 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { AuthShell } from "@/features/auth/auth-shell";
-import { AuthenticatedHome } from "@/features/auth/authenticated-home";
+import { DashboardWorkspace } from "@/features/dashboard/dashboard-screen";
 import { OnboardingScreen } from "./onboarding-screen";
 
 type ErrorBoundaryProps = {
@@ -39,7 +39,7 @@ function ProfileRoute() {
     return <AuthLoadingScreen variant="profile" />;
   }
   return profileState.profile?.onboardingCompleted ? (
-    <AuthenticatedHome />
+    <DashboardWorkspace data={profileState} />
   ) : (
     <OnboardingScreen initialData={profileState} />
   );

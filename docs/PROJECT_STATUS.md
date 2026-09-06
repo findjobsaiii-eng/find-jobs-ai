@@ -38,12 +38,17 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Google Places autocomplete for one primary Israeli city or region, with a compact selected-location summary, accessible 5–100 km radius presets (25 km by default), localized results, and optional current-location search bias that does not persist coordinates. Earlier multi-location drafts remain readable, but onboarding presents and replaces only the primary location.
 - Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
+- Completed onboarding now opens the responsive Worky dashboard. Incomplete profiles still open onboarding, within the existing authentication boundary.
+- Profile editing remains available from the completion card, saved-preferences summary, user menu, and mobile Profile navigation. The existing four-step form is prefilled, validates all fields on Save, and uses the existing owner-scoped mutation with completion preserved. Edits stay local until saved; Cancel and browser unload warn only for unsaved field changes.
+- Completion is calculated from the eleven saved field groups using existing validation, with the next missing field identified. Form defaults and Google display-name fallbacks do not count as saved profile completion.
+- Search filters are initialized from the saved profile but remain temporary. An explicit save action updates only role, location/radius, salary, work arrangement, and employment preferences; query text is not saved. Clear all affects only temporary filters.
+- The dashboard uses the current design tokens, English/LTR and Hebrew/RTL localization, horizontally scrolling mobile filter chips, and fixed mobile navigation. Job results are an empty state and unavailable tools are marked coming soon.
 
 ## Incomplete or unknown areas
 
 - A live redirect reached Google on 2026-09-06, but Google returned `disabled_client`. Successful account selection, callback completion, refresh persistence, and live sign-out remain blocked until the configured OAuth client is enabled or replaced.
 - No CV upload, job discovery, ranking, application tracking, AI generation, automatic applications, scraping, Gmail access, or profile scoring exists.
-- The post-onboarding authenticated screen remains a placeholder; there is no product dashboard or job-domain data model.
+- There is no job-domain data model or discovery provider. Update results acknowledges the temporary filters and explains availability; it does not call a job search service or display invented jobs.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
 ## Current risks
@@ -56,11 +61,24 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 
 ## Next recommended milestone
 
-Restore a usable development Google OAuth client and manually smoke-test both
-new-profile and resumed-profile onboarding in English and Hebrew. After that,
-replace the authenticated placeholder with the first focused job-search
-workspace while keeping CV ingestion and automated applications out of scope
-until their data and consent boundaries are designed.
+Choose a permitted jobs data source and define its refresh, attribution, and
+filtering contract before connecting live results to the dashboard. Keep CV
+ingestion and automated applications out of scope until their data and consent
+boundaries are designed.
+
+## Dashboard verification
+
+Four focused tests cover completed/incomplete profile routing and a prefilled
+Hebrew editor, saving edits and returning to the updated dashboard, actual saved
+field completion, and the existing backend mutation preserving identity and the
+original completion timestamp. Existing tests are retained. No Convex backend
+files or schema changed for this milestone.
+
+Desktop and mobile browser visual checks remain manual; browser automation was
+excluded from this task. Check the dashboard at a desktop width and around
+390 px, including filter scrolling, the bottom navigation, and editing/saving a
+profile. Google Places labels and suggestions require the existing configured
+browser key. No live visual or Places result is claimed by the mocked tests.
 
 ## Local development and validation
 
