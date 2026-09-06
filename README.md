@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The product will eventually help people discover and rank relevant roles, manage applications, compare opportunities with their profile, and improve their CVs. Product functionality has intentionally not been started yet.
+An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, and a Google OAuth flow built with Convex Auth. Job discovery, application management, AI assistance, scraping, Gmail integration, and user-profile features have not been implemented.
 
 ## Stack
 
@@ -22,6 +22,8 @@ npm run dev
 
 The Convex setup creates the local environment configuration used by `VITE_CONVEX_URL`. Do not commit local environment files.
 
+Current implementation status, known gaps, and the recommended next milestone are tracked in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md). Durable technical choices and pending decisions are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
 ## Commands
 
 ```sh
@@ -34,6 +36,8 @@ npm run check        # Run typecheck, lint, and format checks
 npm run build        # Typecheck and create a production build
 npm run preview      # Preview the production build
 ```
+
+There is no automated test command in the repository yet.
 
 ## Project structure
 
@@ -73,11 +77,10 @@ The Google OAuth client must allow this callback URL:
 https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google
 ```
 
-For this project's current development deployment, `YOUR-DEPLOYMENT` is
-`optimistic-quail-311`.
+Deployment-specific URLs and credential values are intentionally not stored in repository documentation.
 
 ## Convex
 
 Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed Convex agent skills are installed under `.agents/skills/`. Keep queries bounded and indexed, validate public inputs and outputs, derive authenticated identity server-side, and keep privileged functions internal.
 
-The schema is intentionally empty until the first product feature establishes real data requirements.
+The schema currently contains only the tables supplied by Convex Auth. No product-domain tables have been added.
