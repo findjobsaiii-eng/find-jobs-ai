@@ -151,6 +151,26 @@ when needed. Do not add compatibility or migration machinery solely to preserve
 disposable development records. Production data will require an explicit
 migration and rollback policy before this decision changes.
 
+### D-014: Dashboard editing reuses onboarding and search filters are temporary
+
+Status: Accepted
+
+Evidence: `src/features/dashboard/`, `src/features/profile/profile-gate.tsx`,
+and the editing mode in `src/features/profile/onboarding-screen.tsx`.
+
+The existing authenticated profile boundary selects onboarding or the dashboard.
+Profile editing is a dedicated in-app screen, using the existing four form steps,
+draft conversion, validation, and `candidateProfiles.saveCurrent` mutation. Save
+uses `complete: true`; the server retains the original completion timestamp and
+derives Google identity. Cancel discards local changes. No router dependency,
+second profile model, or backend mutation is introduced.
+
+Dashboard filters are local to the current visit and start from the saved profile.
+Only an explicit save-preferences action writes the editable search preferences;
+query text remains temporary. Profile completion weights the eleven existing
+field groups equally and uses their validation, rather than estimating job-match
+quality. Jobs and unavailable tools remain visibly pending until implemented.
+
 ## Pending decisions
 
 ### P-003: Node.js version enforcement
