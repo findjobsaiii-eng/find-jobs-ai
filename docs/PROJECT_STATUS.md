@@ -32,12 +32,18 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - A GitHub Actions quality gate using the committed npm lockfile and Node.js 22.
 - English and Hebrew UI copy, document language/direction synchronization, and persisted language detection.
 - A shared button primitive, semantic theme tokens, local font packages, responsive layout, focus styles, and reduced-motion handling.
+- A secure, four-step candidate-profile onboarding flow after sign-in, with read-only Google identity, field validation, progress, Back/Continue/Save draft/Finish actions, duplicate-submit protection, and responsive LTR/RTL behavior.
+- One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
+- Searchable bilingual job-title and skill catalogs, with bounded per-user private additions that cannot leak across accounts or become shared automatically.
+- Google Places autocomplete for Israeli cities and regions, with multiple saved Place IDs, a bounded radius, localized results, and optional current-location search bias that does not persist coordinates.
+- Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
+- Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 
 ## Incomplete or unknown areas
 
 - A live redirect reached Google on 2026-09-06, but Google returned `disabled_client`. Successful account selection, callback completion, refresh persistence, and live sign-out remain blocked until the configured OAuth client is enabled or replaced.
-- No job discovery, ranking, application tracking, AI, scraping, Gmail, or user-profile workflow exists.
-- The authenticated screen is a placeholder; there is no product dashboard or domain data model.
+- No CV upload, job discovery, ranking, application tracking, AI generation, automatic applications, scraping, Gmail access, or profile scoring exists.
+- The post-onboarding authenticated screen remains a placeholder; there is no product dashboard or job-domain data model.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
 ## Current risks
@@ -46,13 +52,15 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - The documented Node.js requirement is not machine-enforced, which can lead to local and CI version drift.
 - Convex Auth stores browser session and refresh tokens in `localStorage` by default. This provides reload and browser-restart persistence but makes application XSS prevention a security boundary; the product owner should explicitly accept this persistence model or request a different storage policy.
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
+- Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
 
 ## Next recommended milestone
 
-Restore a usable development Google OAuth client, then complete the manual smoke
-test below. Before product features begin, define the minimum authenticated user
-identity and decide whether Convex Auth's default browser token persistence is
-acceptable.
+Restore a usable development Google OAuth client and manually smoke-test both
+new-profile and resumed-profile onboarding in English and Hebrew. After that,
+replace the authenticated placeholder with the first focused job-search
+workspace while keeping CV ingestion and automated applications out of scope
+until their data and consent boundaries are designed.
 
 ## Local development and validation
 
@@ -113,6 +121,18 @@ logs, screenshots, or documentation.
    direction respectively.
 9. Cancel or deny a Google attempt and confirm the app presents a recoverable
    authentication error without displaying credentials or a callback code.
+10. With a new authenticated user, confirm onboarding appears, Google email is
+    read-only, draft progress survives refresh, and Finish routes to the
+    authenticated application screen.
+11. Repeat onboarding in English/LTR and Hebrew/RTL at mobile and desktop widths.
+12. Search for a job title, skill, and city; add a missing title or skill and
+    confirm it remains available after refresh. Confirm work arrangement allows
+    multiple selections and languages can be added and removed.
+13. Confirm Google Places suggestions are limited to Israel and appear in the
+    selected interface language. Select multiple places, change the radius,
+    refresh, and confirm the labels reload. Try **Near me**, allow and deny
+    browser permission in separate checks, and confirm neither path blocks
+    manual search.
 
 On 2026-09-06, steps 1 through the initial Google redirect were checked against
 the available development configuration. Google stopped the flow with

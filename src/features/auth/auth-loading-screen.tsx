@@ -5,7 +5,7 @@ import { AuthShell } from "./auth-shell";
 export function AuthLoadingScreen({
   variant,
 }: {
-  variant: "session" | "callback";
+  variant: "session" | "callback" | "profile";
 }) {
   const { t } = useTranslation();
 
@@ -19,7 +19,9 @@ export function AuthLoadingScreen({
         {t(
           variant === "callback"
             ? "auth.completingSignIn"
-            : "auth.checkingSession",
+            : variant === "profile"
+              ? "onboarding.loadingProfile"
+              : "auth.checkingSession",
         )}
       </div>
     </AuthShell>

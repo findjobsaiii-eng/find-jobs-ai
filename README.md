@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, and a Google OAuth flow built with Convex Auth. Job discovery, application management, AI assistance, scraping, Gmail integration, and user-profile features have not been implemented.
+An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, and secure candidate-profile onboarding. Job discovery, application management, AI assistance, scraping, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -37,6 +37,7 @@ npm run test:watch   # Run Vitest in watch mode
 npm run check        # Run typecheck, lint, and format checks
 npm run build        # Typecheck and create a production build
 npm run preview      # Preview the production build
+npm run catalog:seed # Idempotently seed curated job titles and skills
 ```
 
 ## Project structure
@@ -90,8 +91,62 @@ storage and invalidation to Convex Auth.
 Exact manual Google OAuth smoke-test steps and the latest external configuration
 status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
+### Google Places location search
+
+Candidate location search uses Google's new Place Autocomplete widget. Put the
+public browser key in the ignored `.env.local` file and restart Vite after any
+change:
+
+```text
+VITE_GOOGLE_MAPS_API_KEY=your-browser-key
+```
+
+In the Google Cloud project, enable billing, **Maps JavaScript API**, and
+**Places API (New)**. Restrict the key to websites, including
+`http://localhost:5173/*` for local development and the exact production origin
+before deployment. Also apply API restrictions for those two APIs. A `VITE_`
+key is intentionally visible to the browser, so HTTP-referrer and API
+restrictions are the security boundary; never reuse a server-side secret here.
+
 ## Convex
 
 Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed Convex agent skills are installed under `.agents/skills/`. Keep queries bounded and indexed, validate public inputs and outputs, derive authenticated identity server-side, and keep privileged functions internal.
 
-The schema currently contains only the tables supplied by Convex Auth. No product-domain tables have been added.
+### Candidate profiles
+
+After Google sign-in, the authenticated boundary loads the current user's candidate profile. Users with no completed profile enter a four-step onboarding flow; completed profiles continue to the current authenticated application screen. Every Continue action saves progress, and Save draft preserves the current step explicitly.
+
+Candidate ownership and Google identity fields are derived exclusively in Convex. The client never sends a user ID, email, Google display name, or profile image. All profile reads and writes reject unauthenticated callers and query the indexed profile belonging to the server-derived auth user.
+
+Editable profile data is normalized and bounded on the server:
+
+| Field                        | Stored limits                                                      |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Preferred display name       | 2–80 characters to complete                                        |
+| Target job titles            | 1–5 validated catalog references                                   |
+| Professional summary         | 40–1,200 characters to complete                                    |
+| Years of experience          | Whole number from 0–60                                             |
+| Skills                       | 1–30 validated catalog references                                  |
+| Preferred locations          | 1–10 normalized Google Place IDs, each at most 512 characters      |
+| Location radius              | One of 5, 10, 25, 50, 100, or 200 km                               |
+| Work arrangements            | One or more of onsite, hybrid, and remote                          |
+| Employment types             | One or more of full-time, part-time, and contract                  |
+| Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                |
+| Languages                    | 1–10 unique supported languages, each with a proficiency selection |
+
+Drafts may omit or clear fields so onboarding remains resumable. Completion is a separate server-validated transition and records created, updated, and completed timestamps. The profile contains only the stated onboarding and Google identity fields; no CV, generated content, mailbox data, job data, or profile score is stored.
+
+### Onboarding options
+
+Job titles and skills use a searchable bilingual catalog. If a value is missing,
+an authenticated user can add a normalized custom value that is visible only to
+that user. Private custom values are capped, URLs and control characters are
+rejected, and exact duplicates are reused. This keeps the MVP useful without
+publishing unreviewed input or creating a manual moderation queue.
+
+The onboarding UI now searches Google Places for Israeli cities and regions.
+Only Place IDs and the selected radius are stored. Google labels are fetched for
+display, while optional browser geolocation is used only as a temporary search
+bias and is never written to Convex.
+Curated job titles and skills can be updated idempotently with
+`npm run catalog:seed`.
