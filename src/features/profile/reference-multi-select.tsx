@@ -5,7 +5,7 @@ import { Check, LoaderCircle, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import type { CatalogOption, LocationOption } from "./profile-types";
+import type { CatalogOption } from "./profile-types";
 
 type PickerOption = {
   id: string;
@@ -313,63 +313,6 @@ export function CatalogMultiSelect({
       maxItems={maxItems}
       error={error}
       createError={createError}
-    />
-  );
-}
-
-export function LocationMultiSelect({
-  label,
-  hint,
-  placeholder,
-  values,
-  onChange,
-  maxItems,
-  error,
-}: {
-  label: string;
-  hint?: string;
-  placeholder: string;
-  values: LocationOption[];
-  onChange: (values: LocationOption[]) => void;
-  maxItems: number;
-  error?: string;
-}) {
-  const { i18n, t } = useTranslation();
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
-  const results = useQuery(api.referenceData.searchLocations, {
-    search: deferredSearch,
-  });
-  const toPicker = (option: LocationOption): PickerOption => ({
-    id: option.code,
-    label:
-      (i18n.language === "he" ? option.nameHe : option.nameEn) ?? option.nameHe,
-    isCustom: false,
-    kindLabel: t(`onboarding.locationKinds.${option.kind}`),
-  });
-  const byId = new Map(values.map((option) => [option.code, option]));
-
-  return (
-    <SharedPicker
-      label={label}
-      hint={hint}
-      placeholder={placeholder}
-      values={values.map(toPicker)}
-      results={results?.map(toPicker)}
-      search={search}
-      setSearch={setSearch}
-      onChange={(next) =>
-        onChange(
-          next.flatMap((item) => {
-            const existing =
-              byId.get(item.id) ??
-              results?.find((option) => option.code === item.id);
-            return existing ? [existing] : [];
-          }),
-        )
-      }
-      maxItems={maxItems}
-      error={error}
     />
   );
 }

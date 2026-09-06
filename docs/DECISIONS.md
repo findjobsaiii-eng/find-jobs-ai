@@ -119,10 +119,27 @@ deduplicated, bounded, and visible only to its owner. It is never promoted to th
 shared catalog automatically. This avoids both shared spam and a moderation
 queue in the MVP. OpenAI and embeddings are not needed for this workflow.
 
-Locations are selected from an imported reference table using stable locality
-codes. The tracked source CSV is normalized to UTF-8, and a repeatable script
-produces a replace-style Convex import containing localities, districts, and a
-nationwide option.
+Locations are selected with Google's Place Autocomplete widget, restricted to
+regional results in Israel. Candidate profiles store only Place IDs and a
+bounded search radius. Labels are re-fetched for display, and optional browser
+geolocation only biases the current search; coordinates are not persisted. This
+supports cities, broader regions, localization, radius-based matching, and a
+simple “near me” interaction without maintaining a second canonical geography
+database. The tracked government locality CSV and repeatable importer remain an
+offline development reference, not the active picker.
+
+### D-013: Google Places browser access uses a restricted public key
+
+Status: Accepted
+
+Evidence: `src/lib/google-maps.ts`,
+`src/features/profile/google-places-multi-select.tsx`, and `README.md`.
+
+The Places widget loads lazily only on the location step using
+`VITE_GOOGLE_MAPS_API_KEY`. The value is necessarily public in the browser and
+must be protected with exact HTTP-referrer and API restrictions in Google Cloud.
+The official widget owns autocomplete sessions, accessibility behavior, and
+Google attribution. OpenAI and embeddings are not involved in location search.
 
 ### D-012: Development data may be reset instead of migrated
 

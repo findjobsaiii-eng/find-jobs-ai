@@ -93,6 +93,23 @@ storage and invalidation to Convex Auth.
 Exact manual Google OAuth smoke-test steps and the latest external configuration
 status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
+### Google Places location search
+
+Candidate location search uses Google's new Place Autocomplete widget. Put the
+public browser key in the ignored `.env.local` file and restart Vite after any
+change:
+
+```text
+VITE_GOOGLE_MAPS_API_KEY=your-browser-key
+```
+
+In the Google Cloud project, enable billing, **Maps JavaScript API**, and
+**Places API (New)**. Restrict the key to websites, including
+`http://localhost:5173/*` for local development and the exact production origin
+before deployment. Also apply API restrictions for those two APIs. A `VITE_`
+key is intentionally visible to the browser, so HTTP-referrer and API
+restrictions are the security boundary; never reuse a server-side secret here.
+
 ## Convex
 
 Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed Convex agent skills are installed under `.agents/skills/`. Keep queries bounded and indexed, validate public inputs and outputs, derive authenticated identity server-side, and keep privileged functions internal.
@@ -112,7 +129,8 @@ Editable profile data is normalized and bounded on the server:
 | Professional summary         | 40–1,200 characters to complete                                    |
 | Years of experience          | Whole number from 0–60                                             |
 | Skills                       | 1–30 validated catalog references                                  |
-| Preferred locations          | 1–10 validated locality, district, or nationwide references        |
+| Preferred locations          | 1–10 normalized Google Place IDs, each at most 512 characters      |
+| Location radius              | One of 5, 10, 25, 50, 100, or 200 km                               |
 | Work arrangements            | One or more of onsite, hybrid, and remote                          |
 | Employment types             | One or more of full-time, part-time, and contract                  |
 | Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                |
@@ -128,10 +146,15 @@ that user. Private custom values are capped, URLs and control characters are
 rejected, and exact duplicates are reused. This keeps the MVP useful without
 publishing unreviewed input or creating a manual moderation queue.
 
-The normalized UTF-8 locality source is tracked at
+The onboarding UI now searches Google Places for Israeli cities and regions.
+Only Place IDs and the selected radius are stored. Google labels are fetched for
+display, while optional browser geolocation is used only as a temporary search
+bias and is never written to Convex.
+
+The normalized UTF-8 locality source is retained as an offline reference at
 `data/reference/israel-localities.csv`. The generated JSON Lines import is
 ignored because it is reproducible. To replace the source with a newly downloaded
-version and refresh the development deployment:
+version and optionally refresh the reference table in a development deployment:
 
 ```sh
 npm run locations:prepare -- /absolute/path/to/new-localities.csv
@@ -141,6 +164,7 @@ npm run locations:import -- --yes
 The preparation script accepts UTF-8 or Windows-1255 input, validates the
 expected columns, overwrites the tracked normalized CSV, deduplicates localities
 by code, derives districts, and generates a content-based source version. Review
-the CSV diff before importing. The import replaces only the `locations` table
-in the selected Convex development deployment. Curated job titles and skills can
-be updated idempotently with `npm run catalog:seed`.
+the CSV diff before importing. The import replaces only the unused fallback
+`locations` reference table in the selected Convex development deployment; it
+does not alter saved Google Place IDs. Curated job titles and skills can be
+updated idempotently with `npm run catalog:seed`.

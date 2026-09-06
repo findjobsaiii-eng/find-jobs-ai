@@ -22,6 +22,7 @@ export const SUPPORTED_LANGUAGES = [
   "ro",
   "yi",
 ] as const;
+export const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50, 100, 200] as const;
 
 export const PROFILE_LIMITS = {
   preferredDisplayName: { min: 2, max: 80 },
@@ -45,10 +46,12 @@ export type CurrentProfile = FunctionReturnType<
 export type CatalogOption = FunctionReturnType<
   typeof api.referenceData.searchCatalog
 >[number];
-export type LocationOption = FunctionReturnType<
-  typeof api.referenceData.searchLocations
->[number];
 type SaveProfileArgs = FunctionArgs<typeof api.candidateProfiles.saveCurrent>;
+
+export type SelectedPlace = {
+  placeId: string;
+  label: string;
+};
 
 export type DraftLanguage = {
   languageCode: LanguageCode;
@@ -61,7 +64,8 @@ export type ProfileDraft = {
   professionalSummary: string;
   yearsOfExperience: string;
   skills: CatalogOption[];
-  preferredLocations: LocationOption[];
+  preferredLocations: SelectedPlace[];
+  locationRadiusKm: number;
   workArrangements: WorkArrangement[];
   employmentTypes: EmploymentType[];
   minimumMonthlySalaryIls: string;
@@ -83,7 +87,10 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
         ? ""
         : String(profile.yearsOfExperience),
     skills: data.selections.skills,
-    preferredLocations: data.selections.locations,
+    preferredLocations:
+      profile?.preferredPlaceIds?.map((placeId) => ({ placeId, label: "" })) ??
+      [],
+    locationRadiusKm: profile?.locationRadiusKm ?? 25,
     workArrangements: profile?.workArrangements ?? [],
     employmentTypes: profile?.employmentTypes ?? [],
     minimumMonthlySalaryIls:
@@ -110,7 +117,8 @@ export function profileDraftToValues(
     yearsOfExperience:
       draft.yearsOfExperience === "" ? null : Number(draft.yearsOfExperience),
     skillIds: draft.skills.map((item) => item.id),
-    preferredLocationCodes: draft.preferredLocations.map((item) => item.code),
+    preferredPlaceIds: draft.preferredLocations.map((item) => item.placeId),
+    locationRadiusKm: draft.locationRadiusKm,
     workArrangements: draft.workArrangements,
     employmentTypes: draft.employmentTypes,
     minimumMonthlySalaryIls:
@@ -187,6 +195,13 @@ export function validateProfileStep(
       draft.preferredLocations.length > PROFILE_LIMITS.preferredLocations.max
     ) {
       errors.preferredLocations = "onboarding.errors.locations";
+    }
+    if (
+      !LOCATION_RADIUS_OPTIONS_KM.includes(
+        draft.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
+      )
+    ) {
+      errors.locationRadiusKm = "onboarding.errors.locationRadius";
     }
     if (draft.workArrangements.length === 0) {
       errors.workArrangements = "onboarding.errors.workArrangements";

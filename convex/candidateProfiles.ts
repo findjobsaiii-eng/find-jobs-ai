@@ -34,12 +34,15 @@ export const PROFILE_LIMITS = {
   yearsOfExperience: { min: 0, max: 60 },
   skills: { min: 1, max: 30 },
   preferredLocations: { min: 1, max: 10 },
+  placeId: { max: 512 },
   workArrangements: { min: 1, max: 3 },
   employmentTypes: { min: 1, max: 3 },
   languages: { min: 1, max: 10 },
   minimumMonthlySalaryIls: { min: 1_000, max: 200_000 },
   onboardingStep: { min: 1, max: 4 },
 } as const;
+
+const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50, 100, 200] as const;
 
 const workArrangementValidator = v.union(
   v.literal("onsite"),
@@ -69,7 +72,8 @@ const editableFieldsValidator = v.object({
   professionalSummary: v.optional(v.union(v.string(), v.null())),
   yearsOfExperience: v.optional(v.union(v.number(), v.null())),
   skillIds: v.optional(v.array(v.id("catalogItems"))),
-  preferredLocationCodes: v.optional(v.array(v.string())),
+  preferredPlaceIds: v.optional(v.array(v.string())),
+  locationRadiusKm: v.optional(v.union(v.number(), v.null())),
   workArrangements: v.optional(v.array(workArrangementValidator)),
   employmentTypes: v.optional(v.array(employmentTypeValidator)),
   minimumMonthlySalaryIls: v.optional(v.union(v.number(), v.null())),
@@ -83,7 +87,8 @@ type EditableProfile = Pick<
   | "professionalSummary"
   | "yearsOfExperience"
   | "skillIds"
-  | "preferredLocationCodes"
+  | "preferredPlaceIds"
+  | "locationRadiusKm"
   | "workArrangements"
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
@@ -96,7 +101,8 @@ type EditableProfileInput = {
   professionalSummary?: string | null;
   yearsOfExperience?: number | null;
   skillIds?: Id<"catalogItems">[];
-  preferredLocationCodes?: string[];
+  preferredPlaceIds?: string[];
+  locationRadiusKm?: number | null;
   workArrangements?: EditableProfile["workArrangements"];
   employmentTypes?: EditableProfile["employmentTypes"];
   minimumMonthlySalaryIls?: number | null;
@@ -110,6 +116,7 @@ type ProfileField =
   | "yearsOfExperience"
   | "skills"
   | "preferredLocations"
+  | "locationRadiusKm"
   | "workArrangements"
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
@@ -200,12 +207,29 @@ function normalizeEditableFields(
       PROFILE_LIMITS.skills.max,
     );
   }
-  if (values.preferredLocationCodes !== undefined) {
-    normalized.preferredLocationCodes = normalizeIds(
-      values.preferredLocationCodes,
+  if (values.preferredPlaceIds !== undefined) {
+    const placeIds = values.preferredPlaceIds.map((value) =>
+      normalizeText(value, "preferredLocations", PROFILE_LIMITS.placeId.max),
+    );
+    if (placeIds.some((value) => value.length === 0)) {
+      validationError("preferredLocations", "invalid_reference");
+    }
+    normalized.preferredPlaceIds = normalizeIds(
+      placeIds,
       "preferredLocations",
       PROFILE_LIMITS.preferredLocations.max,
     );
+  }
+  if (values.locationRadiusKm !== undefined) {
+    if (
+      values.locationRadiusKm === null ||
+      !LOCATION_RADIUS_OPTIONS_KM.includes(
+        values.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
+      )
+    ) {
+      validationError("locationRadiusKm", "invalid_option");
+    }
+    normalized.locationRadiusKm = values.locationRadiusKm;
   }
   if (values.workArrangements !== undefined) {
     const unique = [...new Set(values.workArrangements)];
@@ -265,8 +289,17 @@ async function assertReferences(
   userId: Id<"users">,
   profile: EditableProfilePatch,
 ) {
-  for (const id of profile.targetJobTitleIds ?? []) {
-    const item = await ctx.db.get("catalogItems", id);
+  const [titles, skills] = await Promise.all([
+    Promise.all(
+      (profile.targetJobTitleIds ?? []).map((id) =>
+        ctx.db.get("catalogItems", id),
+      ),
+    ),
+    Promise.all(
+      (profile.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
+    ),
+  ]);
+  for (const item of titles) {
     if (
       !item ||
       item.kind !== "jobTitle" ||
@@ -276,8 +309,7 @@ async function assertReferences(
       validationError("targetJobTitles", "invalid_reference");
     }
   }
-  for (const id of profile.skillIds ?? []) {
-    const item = await ctx.db.get("catalogItems", id);
+  for (const item of skills) {
     if (
       !item ||
       item.kind !== "skill" ||
@@ -285,15 +317,6 @@ async function assertReferences(
       (item.visibility === "private" && item.ownerUserId !== userId)
     ) {
       validationError("skills", "invalid_reference");
-    }
-  }
-  for (const code of profile.preferredLocationCodes ?? []) {
-    const location = await ctx.db
-      .query("locations")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique();
-    if (!location?.active) {
-      validationError("preferredLocations", "invalid_reference");
     }
   }
 }
@@ -325,10 +348,17 @@ function assertComplete(profile: EditableProfilePatch) {
     validationError("skills", "list_size");
   }
   if (
-    (profile.preferredLocationCodes?.length ?? 0) <
+    (profile.preferredPlaceIds?.length ?? 0) <
     PROFILE_LIMITS.preferredLocations.min
   ) {
     validationError("preferredLocations", "list_size");
+  }
+  if (
+    !LOCATION_RADIUS_OPTIONS_KM.includes(
+      profile.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
+    )
+  ) {
+    validationError("locationRadiusKm", "invalid_option");
   }
   if (
     (profile.workArrangements?.length ?? 0) <
@@ -376,17 +406,6 @@ const catalogSelectionValidator = v.object({
   labelHe: v.union(v.string(), v.null()),
   isCustom: v.boolean(),
 });
-const locationSelectionValidator = v.object({
-  code: v.string(),
-  nameEn: v.union(v.string(), v.null()),
-  nameHe: v.string(),
-  kind: v.union(
-    v.literal("locality"),
-    v.literal("region"),
-    v.literal("nationwide"),
-  ),
-});
-
 export const getCurrent = query({
   args: {},
   returns: v.object({
@@ -400,7 +419,6 @@ export const getCurrent = query({
     selections: v.object({
       targetJobTitles: v.array(catalogSelectionValidator),
       skills: v.array(catalogSelectionValidator),
-      locations: v.array(locationSelectionValidator),
     }),
   }),
   handler: async (ctx) => {
@@ -418,20 +436,19 @@ export const getCurrent = query({
           (item.visibility === "public" || item.ownerUserId === userId),
         ),
     );
-    const locationSelections = await Promise.all(
-      (profile?.preferredLocationCodes ?? []).map((code) =>
-        ctx.db
-          .query("locations")
-          .withIndex("by_code", (q) => q.eq("code", code))
-          .unique(),
-      ),
-    );
     const toCatalogSelection = (item: Doc<"catalogItems">) => ({
       id: item._id,
       labelEn: item.labelEn ?? null,
       labelHe: item.labelHe ?? null,
       isCustom: item.visibility === "private",
     });
+    const targetJobTitles = [];
+    const skills = [];
+    for (const item of visibleCatalog) {
+      const selection = toCatalogSelection(item);
+      if (item.kind === "jobTitle") targetJobTitles.push(selection);
+      else skills.push(selection);
+    }
     return {
       identity: {
         userId,
@@ -441,22 +458,8 @@ export const getCurrent = query({
       },
       profile,
       selections: {
-        targetJobTitles: visibleCatalog
-          .filter((item) => item.kind === "jobTitle")
-          .map(toCatalogSelection),
-        skills: visibleCatalog
-          .filter((item) => item.kind === "skill")
-          .map(toCatalogSelection),
-        locations: locationSelections
-          .filter((location): location is Doc<"locations"> =>
-            Boolean(location?.active),
-          )
-          .map((location) => ({
-            code: location.code,
-            nameEn: location.nameEn ?? null,
-            nameHe: location.nameHe,
-            kind: location.kind,
-          })),
+        targetJobTitles,
+        skills,
       },
     };
   },

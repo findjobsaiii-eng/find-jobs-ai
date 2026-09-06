@@ -144,6 +144,13 @@
   ::selection {
     @apply bg-primary/20;
   }
+  gmp-place-autocomplete.google-places-input {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    color-scheme: light;
+    font: inherit;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

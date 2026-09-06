@@ -47,6 +47,11 @@ vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => ({ signOut: hooks.signOut }),
 }));
 
+vi.mock("@googlemaps/js-api-loader", () => ({
+  setOptions: vi.fn(),
+  importLibrary: vi.fn(() => new Promise(() => undefined)),
+}));
+
 const emptyProfile = {
   identity: {
     userId: "users:user-1",
@@ -58,7 +63,6 @@ const emptyProfile = {
   selections: {
     targetJobTitles: [],
     skills: [],
-    locations: [],
   },
 } as unknown as CurrentProfile;
 
@@ -143,7 +147,8 @@ describe("candidate profile onboarding", () => {
           "Experienced engineer focused on reliable and accessible product experiences.",
         yearsOfExperience: 5,
         skillIds: [],
-        preferredLocationCodes: [],
+        preferredPlaceIds: [],
+        locationRadiusKm: 25,
         workArrangements: [],
         employmentTypes: [],
         languages: [],
@@ -155,7 +160,6 @@ describe("candidate profile onboarding", () => {
       selections: {
         targetJobTitles: [],
         skills: [],
-        locations: [],
       },
     } as unknown as CurrentProfile;
 

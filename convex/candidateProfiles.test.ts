@@ -64,19 +64,7 @@ async function createReferences(t: TestConvex<typeof schema>) {
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.insert("locations", {
-      code: "locality:5000",
-      kind: "locality",
-      nameHe: "תל אביב - יפו",
-      nameEn: "TEL AVIV - YAFO",
-      searchText: "תל אביב - יפו TEL AVIV - YAFO",
-      parentRegionCode: "region:51",
-      source: "test",
-      sourceVersion: "test",
-      priority: 900,
-      active: true,
-    });
-    return { titleId, skillId, locationCode: "locality:5000" };
+    return { titleId, skillId };
   });
 }
 
@@ -188,7 +176,7 @@ describe("candidate profiles", () => {
 
   it("requires valid references and complete fields before completion", async () => {
     const t = convexTest(schema, modules);
-    const { titleId, skillId, locationCode } = await createReferences(t);
+    const { titleId, skillId } = await createReferences(t);
     const userId = await createUser(t, "candidate@example.com", "Candidate");
     const user = asUser(t, userId);
 
@@ -208,7 +196,8 @@ describe("candidate profiles", () => {
           "Frontend engineer focused on accessible, responsive product experiences.",
         yearsOfExperience: 7,
         skillIds: [skillId],
-        preferredLocationCodes: [locationCode],
+        preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
+        locationRadiusKm: 25,
         workArrangements: ["hybrid", "remote"],
         employmentTypes: ["full-time"],
         minimumMonthlySalaryIls: 30_000,
@@ -224,7 +213,32 @@ describe("candidate profiles", () => {
 
     expect(completed.onboardingCompleted).toBe(true);
     expect(completed.workArrangements).toEqual(["hybrid", "remote"]);
+    expect(completed.preferredPlaceIds).toEqual([
+      "ChIJH3w7GaZMHRURkD-WwKJy-8E",
+    ]);
+    expect(completed.locationRadiusKm).toBe(25);
     expect(completed.languages).toHaveLength(3);
     expect(completed.completedAt).toEqual(expect.any(Number));
+  });
+
+  it("rejects unsupported radii and empty place identifiers", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t, "candidate@example.com", "Candidate");
+    const user = asUser(t, userId);
+
+    await expect(
+      user.mutation(api.candidateProfiles.saveCurrent, {
+        values: { preferredPlaceIds: ["   "] },
+        onboardingStep: 3,
+        complete: false,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      user.mutation(api.candidateProfiles.saveCurrent, {
+        values: { locationRadiusKm: 17 },
+        onboardingStep: 3,
+        complete: false,
+      }),
+    ).rejects.toThrow();
   });
 });

@@ -33,6 +33,7 @@ import {
   EMPLOYMENT_TYPES,
   getInitialStep,
   LANGUAGE_PROFICIENCIES,
+  LOCATION_RADIUS_OPTIONS_KM,
   PROFILE_LIMITS,
   profileDraftToValues,
   type CurrentProfile,
@@ -46,10 +47,8 @@ import {
   type WorkArrangement,
   SUPPORTED_LANGUAGES,
 } from "./profile-types";
-import {
-  CatalogMultiSelect,
-  LocationMultiSelect,
-} from "./reference-multi-select";
+import { GooglePlacesMultiSelect } from "./google-places-multi-select";
+import { CatalogMultiSelect } from "./reference-multi-select";
 
 const FIELD_STEP: Record<ProfileField, number> = {
   preferredDisplayName: 1,
@@ -58,6 +57,7 @@ const FIELD_STEP: Record<ProfileField, number> = {
   yearsOfExperience: 2,
   skills: 2,
   preferredLocations: 3,
+  locationRadiusKm: 3,
   workArrangements: 3,
   employmentTypes: 3,
   minimumMonthlySalaryIls: 3,
@@ -235,7 +235,7 @@ function StepThree({ draft, setDraft, errors }: StepProps) {
   };
   return (
     <div className="space-y-6">
-      <LocationMultiSelect
+      <GooglePlacesMultiSelect
         label={t("onboarding.fields.locations")}
         hint={t("onboarding.hints.locations")}
         placeholder={t("onboarding.placeholders.location")}
@@ -244,8 +244,43 @@ function StepThree({ draft, setDraft, errors }: StepProps) {
           setDraft((current) => ({ ...current, preferredLocations }))
         }
         maxItems={PROFILE_LIMITS.preferredLocations.max}
+        radiusKm={draft.locationRadiusKm}
         error={errors.preferredLocations && t(errors.preferredLocations)}
       />
+      <div>
+        <label
+          htmlFor="location-radius"
+          className="mb-2 block text-sm font-medium"
+        >
+          {t("onboarding.fields.locationRadius")}
+        </label>
+        <select
+          id="location-radius"
+          value={draft.locationRadiusKm}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              locationRadiusKm: Number(event.target.value),
+            }))
+          }
+          aria-invalid={Boolean(errors.locationRadiusKm)}
+          className="border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full rounded-xl border px-3 text-sm outline-none focus:ring-3"
+        >
+          {LOCATION_RADIUS_OPTIONS_KM.map((radius) => (
+            <option key={radius} value={radius}>
+              {t("onboarding.location.radiusOption", { radius })}
+            </option>
+          ))}
+        </select>
+        <p className="text-muted-foreground mt-1.5 text-xs">
+          {t("onboarding.hints.locationRadius")}
+        </p>
+        {errors.locationRadiusKm ? (
+          <p className="text-destructive mt-1 text-sm" role="alert">
+            {t(errors.locationRadiusKm)}
+          </p>
+        ) : null}
+      </div>
       <ChoiceGroup
         label={t("onboarding.fields.workArrangement")}
         hint={t("onboarding.hints.multipleChoice")}
@@ -551,8 +586,9 @@ export function OnboardingScreen({
               aria-label={t("onboarding.progressLabel")}
             >
               <motion.div
-                className="bg-primary h-full rounded-full"
-                animate={{ width: `${(step / PROFILE_LIMITS.steps) * 100}%` }}
+                className="bg-primary h-full w-full rounded-full"
+                style={{ transformOrigin: isRtl ? "right" : "left" }}
+                animate={{ scaleX: step / PROFILE_LIMITS.steps }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
               />
             </div>

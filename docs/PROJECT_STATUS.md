@@ -35,7 +35,8 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - A secure, four-step candidate-profile onboarding flow after sign-in, with read-only Google identity, field validation, progress, Back/Continue/Save draft/Finish actions, duplicate-submit protection, and responsive LTR/RTL behavior.
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
 - Searchable bilingual job-title and skill catalogs, with bounded per-user private additions that cannot leak across accounts or become shared automatically.
-- Searchable locality, district, and nationwide options generated from the tracked normalized locality CSV.
+- Google Places autocomplete for Israeli cities and regions, with multiple saved Place IDs, a bounded radius, localized results, and optional current-location search bias that does not persist coordinates.
+- A tracked normalized government locality CSV and repeatable importer retained as an offline development reference.
 - Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 
@@ -52,6 +53,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - The documented Node.js requirement is not machine-enforced, which can lead to local and CI version drift.
 - Convex Auth stores browser session and refresh tokens in `localStorage` by default. This provides reload and browser-restart persistence but makes application XSS prevention a security boundary; the product owner should explicitly accept this persistence model or request a different storage policy.
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
+- Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
 
 ## Next recommended milestone
 
@@ -127,6 +129,11 @@ logs, screenshots, or documentation.
 12. Search for a job title, skill, and city; add a missing title or skill and
     confirm it remains available after refresh. Confirm work arrangement allows
     multiple selections and languages can be added and removed.
+13. Confirm Google Places suggestions are limited to Israel and appear in the
+    selected interface language. Select multiple places, change the radius,
+    refresh, and confirm the labels reload. Try **Near me**, allow and deny
+    browser permission in separate checks, and confirm neither path blocks
+    manual search.
 
 On 2026-09-06, steps 1 through the initial Google redirect were checked against
 the available development configuration. Google stopped the flow with
