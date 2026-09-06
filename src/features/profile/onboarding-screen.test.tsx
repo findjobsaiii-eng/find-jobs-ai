@@ -160,4 +160,37 @@ describe("candidate profile onboarding", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
   });
+
+  it("changes the radius by keyboard in the Hebrew RTL location step", async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage("he");
+    const resumed = {
+      ...emptyProfile,
+      profile: {
+        _id: "candidateProfiles:profile-1",
+        _creationTime: 1,
+        userId: "users:user-1",
+        email: "candidate@example.com",
+        preferredPlaceIds: ["place-rishon"],
+        locationRadiusKm: 25,
+        onboardingStep: 3,
+        onboardingCompleted: false,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+      selections: { targetJobTitles: [], skills: [] },
+    } as unknown as CurrentProfile;
+
+    render(<OnboardingScreen initialData={resumed} />);
+
+    expect(document.documentElement).toHaveAttribute("dir", "rtl");
+    const radius = screen.getByRole("button", { name: "40 ק״מ" });
+    radius.focus();
+    await user.keyboard("{Enter}");
+
+    expect(radius).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByText("נחפש משרות עד 40 ק״מ ממיקום שמור."),
+    ).toBeInTheDocument();
+  });
 });

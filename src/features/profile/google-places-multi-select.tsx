@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, LocateFixed, MapPin, X } from "lucide-react";
+import { LoaderCircle, LocateFixed, MapPin, PencilLine, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { hasGoogleMapsApiKey, loadGooglePlaces } from "@/lib/google-maps";
@@ -13,7 +13,6 @@ type Props = {
   placeholder: string;
   values: SelectedPlace[];
   onChange: (values: SelectedPlace[]) => void;
-  maxItems: number;
   radiusKm: number;
   error?: string;
 };
@@ -30,7 +29,6 @@ export function GooglePlacesMultiSelect({
   placeholder,
   values,
   onChange,
-  maxItems,
   radiusKm,
   error,
 }: Props) {
@@ -52,8 +50,11 @@ export function GooglePlacesMultiSelect({
   const [isSelecting, setIsSelecting] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
+  const [isChanging, setIsChanging] = useState(false);
   const [searchCenter, setSearchCenter] =
     useState<google.maps.LatLngLiteral | null>(null);
+  const selectedPlace = values[0];
+  const showSearch = !selectedPlace || isChanging;
 
   useEffect(() => {
     valuesRef.current = values;
@@ -81,11 +82,11 @@ export function GooglePlacesMultiSelect({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!placesLibrary || !host || loadState !== "ready") return;
+    if (!placesLibrary || !host || loadState !== "ready" || !showSearch) return;
 
     const autocomplete = new placesLibrary.PlaceAutocompleteElement({
       description: hint,
-      disabled: valuesRef.current.length >= maxItems,
+      disabled: false,
       includedPrimaryTypes: ["(regions)"],
       includedRegionCodes: ["il"],
       maxlength: 120,
@@ -106,11 +107,6 @@ export function GooglePlacesMultiSelect({
       event: google.maps.places.PlacePredictionSelectEvent,
     ) => {
       setSelectionError(null);
-      const current = valuesRef.current;
-      if (current.length >= maxItems) {
-        setSelectionError(t("onboarding.listLimitReached"));
-        return;
-      }
 
       setIsSelecting(true);
       try {
@@ -120,14 +116,16 @@ export function GooglePlacesMultiSelect({
         });
         const placeId = place.id?.trim();
         if (!placeId) throw new Error("Selected place has no Place ID");
-        if (current.some((item) => item.placeId === placeId)) {
+        if (valuesRef.current[0]?.placeId === placeId) {
           autocomplete.value = "";
+          setIsChanging(false);
           return;
         }
         const label = placeLabel(place, event.placePrediction.text.toString());
         labelCacheRef.current.set(`${language}:${placeId}`, label);
-        onChangeRef.current([...current, { placeId, label }]);
+        onChangeRef.current([{ placeId, label }]);
         autocomplete.value = "";
+        setIsChanging(false);
       } catch {
         setSelectionError(t("onboarding.errors.placeSelection"));
       } finally {
@@ -142,15 +140,27 @@ export function GooglePlacesMultiSelect({
     ) => {
       void selectPlace(event);
     };
+    const handleInput = () => {
+      setSelectionError(null);
+    };
+    const handleBlur = () => {
+      if (autocomplete.value.trim()) {
+        setSelectionError(t("onboarding.errors.selectPlaceSuggestion"));
+      }
+    };
 
     autocomplete.addEventListener("gmp-select", handleSelect);
     autocomplete.addEventListener("gmp-error", handleGoogleError);
+    autocomplete.addEventListener("input", handleInput);
+    autocomplete.addEventListener("blur", handleBlur);
     host.replaceChildren(autocomplete);
     autocompleteRef.current = autocomplete;
 
     return () => {
       autocomplete.removeEventListener("gmp-select", handleSelect);
       autocomplete.removeEventListener("gmp-error", handleGoogleError);
+      autocomplete.removeEventListener("input", handleInput);
+      autocomplete.removeEventListener("blur", handleBlur);
       autocompleteRef.current = null;
       host.replaceChildren();
     };
@@ -158,10 +168,10 @@ export function GooglePlacesMultiSelect({
     hint,
     language,
     loadState,
-    maxItems,
     placeholder,
     placesLibrary,
     radiusKm,
+    showSearch,
     searchCenter,
     t,
   ]);
@@ -216,12 +226,6 @@ export function GooglePlacesMultiSelect({
     };
   }, [language, loadState, placesLibrary, t, values]);
 
-  useEffect(() => {
-    const autocomplete = autocompleteRef.current;
-    if (!autocomplete) return;
-    autocomplete.disabled = values.length >= maxItems;
-  }, [maxItems, values.length]);
-
   const locate = () => {
     if (!("geolocation" in navigator)) {
       setLocationStatus(t("onboarding.location.unavailable"));
@@ -249,108 +253,139 @@ export function GooglePlacesMultiSelect({
     );
   };
 
-  const combinedError = error ?? selectionError;
+  const combinedError = selectionError ?? error;
+  const selectedLabel =
+    selectedPlace?.label || t("onboarding.location.loadingSaved");
 
   return (
     <fieldset>
       <legend className="text-sm font-medium">{label}</legend>
       <p className="text-muted-foreground mt-1.5 text-xs">{hint}</p>
 
-      <div className="mt-2 flex items-center gap-2">
+      {selectedPlace ? (
         <div
-          ref={hostRef}
-          className="border-input bg-background min-h-12 min-w-0 flex-1 rounded-xl"
-          aria-busy={loadState === "loading" || isSelecting}
+          role="group"
+          className="border-primary/20 bg-primary/5 mt-3 flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center sm:justify-between"
+          aria-label={t("onboarding.location.summary", {
+            location: selectedLabel,
+            radius: radiusKm,
+          })}
         >
-          {loadState === "loading" ? (
-            <div className="text-muted-foreground flex h-12 items-center gap-2 px-3 text-sm">
-              <LoaderCircle
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-              {t("onboarding.location.loading")}
-            </div>
-          ) : null}
-          {loadState === "error" || loadState === "missing-key" ? (
-            <div className="border-destructive/40 bg-destructive/5 rounded-xl border p-3">
-              <p className="text-destructive text-sm" role="alert">
-                {t(
-                  loadState === "missing-key"
-                    ? "onboarding.errors.placesConfiguration"
-                    : "onboarding.errors.placesUnavailable",
-                )}
-              </p>
-              {loadState === "error" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() => {
-                    setLoadState("loading");
-                    setRetryKey((value) => value + 1);
-                  }}
-                >
-                  {t("onboarding.retry")}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="bg-primary/10 text-primary grid size-9 shrink-0 place-items-center rounded-full">
+              <MapPin className="size-4" aria-hidden="true" />
+            </span>
+            <p className="min-w-0 truncate text-sm font-medium">
+              <span>{selectedLabel}</span>
+              <span className="text-muted-foreground mx-1.5" aria-hidden="true">
+                ·
+              </span>
+              <span>
+                {t("onboarding.location.radiusOption", { radius: radiusKm })}
+              </span>
+            </p>
+          </div>
+          <div className="flex items-center gap-1 sm:shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => {
+                setSelectionError(null);
+                setIsChanging((value) => !value);
+              }}
+            >
+              <PencilLine aria-hidden="true" />
+              {t(
+                isChanging
+                  ? "onboarding.location.cancelChange"
+                  : "onboarding.location.change",
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground flex-1 sm:flex-none"
+              onClick={() => {
+                onChange([]);
+                setSelectionError(null);
+                setIsChanging(false);
+              }}
+            >
+              <X aria-hidden="true" />
+              {t("onboarding.location.clear")}
+            </Button>
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12 px-3"
-          onClick={locate}
-          disabled={isLocating || loadState !== "ready"}
-          aria-label={t("onboarding.location.useCurrent")}
-          title={t("onboarding.location.useCurrent")}
-        >
-          {isLocating ? (
-            <LoaderCircle className="animate-spin" aria-hidden="true" />
-          ) : (
-            <LocateFixed aria-hidden="true" />
-          )}
-          <span className="hidden sm:inline">
+      ) : null}
+
+      {showSearch ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start">
+          <div
+            ref={hostRef}
+            className="border-input bg-background min-h-12 min-w-0 flex-1 rounded-xl"
+            aria-busy={loadState === "loading" || isSelecting}
+          >
+            {loadState === "loading" ? (
+              <div className="text-muted-foreground flex h-12 items-center gap-2 px-3 text-sm">
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                {t("onboarding.location.loading")}
+              </div>
+            ) : null}
+            {loadState === "error" || loadState === "missing-key" ? (
+              <div className="border-destructive/40 bg-destructive/5 rounded-xl border p-3">
+                <p className="text-destructive text-sm" role="alert">
+                  {t(
+                    loadState === "missing-key"
+                      ? "onboarding.errors.placesConfiguration"
+                      : "onboarding.errors.placesUnavailable",
+                  )}
+                </p>
+                {loadState === "error" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => {
+                      setLoadState("loading");
+                      setRetryKey((value) => value + 1);
+                    }}
+                  >
+                    {t("onboarding.retry")}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full px-3 sm:w-auto"
+            onClick={locate}
+            disabled={isLocating || loadState !== "ready"}
+            aria-label={t("onboarding.location.useCurrent")}
+            title={t("onboarding.location.useCurrent")}
+          >
+            {isLocating ? (
+              <LoaderCircle className="animate-spin" aria-hidden="true" />
+            ) : (
+              <LocateFixed aria-hidden="true" />
+            )}
             {t("onboarding.location.nearMe")}
-          </span>
-        </Button>
-      </div>
+          </Button>
+        </div>
+      ) : null}
 
       {locationStatus ? (
         <p className="text-muted-foreground mt-1.5 text-xs" aria-live="polite">
           {locationStatus}
         </p>
-      ) : null}
-
-      {values.length > 0 ? (
-        <ul className="mt-3 flex flex-wrap gap-2" aria-label={label}>
-          {values.map((item) => (
-            <li
-              key={item.placeId}
-              className="bg-primary/10 text-primary flex max-w-full items-center gap-1.5 rounded-full py-1 ps-2.5 pe-1 text-sm"
-            >
-              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">
-                {item.label || t("onboarding.location.loadingSaved")}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  onChange(
-                    values.filter((value) => value.placeId !== item.placeId),
-                  )
-                }
-                className="hover:bg-primary/10 focus-visible:ring-ring/40 grid size-7 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-3"
-                aria-label={t("onboarding.removeItem", {
-                  item: item.label || t("onboarding.savedLocationFallback"),
-                })}
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
       ) : null}
 
       <p className="text-muted-foreground mt-2 text-[0.6875rem]">

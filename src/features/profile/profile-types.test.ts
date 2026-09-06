@@ -44,6 +44,10 @@ describe("profile location draft", () => {
       preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
       locationRadiusKm: 50,
     });
+
+    expect(
+      createProfileDraft({ ...profileData(), profile: null }),
+    ).toMatchObject({ locationRadiusKm: 25 });
   });
 
   it("requires a selected location and an approved radius on step three", () => {

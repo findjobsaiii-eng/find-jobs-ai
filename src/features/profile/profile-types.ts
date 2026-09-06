@@ -22,7 +22,12 @@ export const SUPPORTED_LANGUAGES = [
   "ro",
   "yi",
 ] as const;
-export const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50, 100, 200] as const;
+export const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 15, 25, 40, 60, 100] as const;
+const SUPPORTED_LOCATION_RADIUS_OPTIONS_KM = [
+  ...LOCATION_RADIUS_OPTIONS_KM,
+  50,
+  200,
+] as const;
 
 export const PROFILE_LIMITS = {
   preferredDisplayName: { min: 2, max: 80 },
@@ -197,8 +202,8 @@ export function validateProfileStep(
       errors.preferredLocations = "onboarding.errors.locations";
     }
     if (
-      !LOCATION_RADIUS_OPTIONS_KM.includes(
-        draft.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
+      !SUPPORTED_LOCATION_RADIUS_OPTIONS_KM.includes(
+        draft.locationRadiusKm as (typeof SUPPORTED_LOCATION_RADIUS_OPTIONS_KM)[number],
       )
     ) {
       errors.locationRadiusKm = "onboarding.errors.locationRadius";
