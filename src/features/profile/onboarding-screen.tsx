@@ -216,7 +216,7 @@ function StepTwo({ draft, setDraft, errors }: StepProps) {
   );
 }
 
-function StepThree({ draft, setDraft, errors }: StepProps) {
+export function StepThree({ draft, setDraft, errors }: StepProps) {
   const { t } = useTranslation();
   const primaryLocation = draft.preferredLocations[0];
   const toggleWorkArrangement = (value: WorkArrangement) => {
@@ -482,14 +482,24 @@ function StepFour({ draft, setDraft, errors }: StepProps) {
 
 export function OnboardingScreen({
   initialData,
+  editing,
 }: {
   initialData: CurrentProfile;
+  editing?: {
+    onCancel: () => void;
+    onSaved: () => void;
+  };
 }) {
   const { i18n, t } = useTranslation();
   const { signOut } = useAuthActions();
   const saveProfile = useMutation(api.candidateProfiles.saveCurrent);
   const [draft, setDraft] = useState(() => createProfileDraft(initialData));
-  const [step, setStep] = useState(() => getInitialStep(initialData));
+  const [step, setStep] = useState(() =>
+    editing ? 1 : getInitialStep(initialData),
+  );
+  const [baseline] = useState(() =>
+    JSON.stringify(profileDraftToValues(createProfileDraft(initialData))),
+  );
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -499,6 +509,17 @@ export function OnboardingScreen({
   const submittingRef = useRef(false);
   const signingOutRef = useRef(false);
   const isRtl = i18n.dir() === "rtl";
+  const isDirty = baseline !== JSON.stringify(profileDraftToValues(draft));
+
+  useEffect(() => {
+    if (!editing || !isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editing, isDirty]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -542,10 +563,28 @@ export function OnboardingScreen({
     if (Object.keys(nextErrors).length > 0) return;
     if (step < PROFILE_LIMITS.steps) {
       const nextStep = step + 1;
-      if (await save(nextStep, false)) setStep(nextStep);
+      if (editing || (await save(nextStep, false))) setStep(nextStep);
       return;
     }
-    await save(PROFILE_LIMITS.steps, true);
+    if (editing) await saveEdits();
+    else await save(PROFILE_LIMITS.steps, true);
+  };
+
+  const saveEdits = async () => {
+    const allErrors: ProfileErrors = {};
+    let firstInvalidStep = 0;
+    for (let index = 1; index <= PROFILE_LIMITS.steps; index++) {
+      const stepErrors = validateProfileStep(index, draft);
+      Object.assign(allErrors, stepErrors);
+      if (!firstInvalidStep && Object.keys(stepErrors).length)
+        firstInvalidStep = index;
+    }
+    setErrors(allErrors);
+    if (firstInvalidStep) {
+      setStep(firstInvalidStep);
+      return;
+    }
+    if (await save(PROFILE_LIMITS.steps, true)) editing?.onSaved();
   };
 
   const handleSignOut = async () => {
@@ -608,20 +647,22 @@ export function OnboardingScreen({
               />
             </div>
           </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={() => void handleSignOut()}
-            disabled={isSigningOut || isSubmitting}
-            aria-label={t("auth.signOut")}
-          >
-            {isSigningOut ? (
-              <LoaderCircle aria-hidden="true" className="animate-spin" />
-            ) : (
-              <LogOut aria-hidden="true" />
-            )}
-          </Button>
+          {!editing ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => void handleSignOut()}
+              disabled={isSigningOut || isSubmitting}
+              aria-label={t("auth.signOut")}
+            >
+              {isSigningOut ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <LogOut aria-hidden="true" />
+              )}
+            </Button>
+          ) : null}
         </div>
 
         <form
@@ -639,7 +680,9 @@ export function OnboardingScreen({
               id="onboarding-title"
               className="mt-1 text-2xl font-semibold tracking-tight outline-none sm:text-3xl"
             >
-              {t(`onboarding.steps.${step}.title`)}
+              {editing
+                ? t("dashboard.editProfile")
+                : t(`onboarding.steps.${step}.title`)}
             </h1>
             <p className="text-muted-foreground mt-2 leading-6">
               {t(`onboarding.steps.${step}.description`)}
@@ -654,14 +697,14 @@ export function OnboardingScreen({
               exit={{ opacity: 0, x: isRtl ? 12 : -12 }}
               transition={{ duration: 0.2 }}
             >
-              {stepContent}
+              <fieldset disabled={isSubmitting}>{stepContent}</fieldset>
             </motion.div>
           </AnimatePresence>
 
           <div aria-live="polite" className="min-h-8 pt-4 text-sm">
             {serverError ? (
               <p className="text-destructive">{serverError}</p>
-            ) : saved ? (
+            ) : saved && !editing ? (
               <p className="text-muted-foreground inline-flex items-center gap-1.5">
                 <Check aria-hidden="true" className="text-primary size-4" />
                 {t("onboarding.saved")}
@@ -691,28 +734,48 @@ export function OnboardingScreen({
               type="button"
               variant="outline"
               className="ms-auto"
-              onClick={() => void save(step, false)}
+              onClick={() =>
+                editing ? void saveEdits() : void save(step, false)
+              }
               disabled={isSubmitting}
             >
-              {t("onboarding.saveDraft")}
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
+              {editing && isSubmitting ? (
                 <LoaderCircle aria-hidden="true" className="animate-spin" />
-              ) : step === PROFILE_LIMITS.steps ? (
-                <Check aria-hidden="true" />
               ) : null}
-              {step === PROFILE_LIMITS.steps
-                ? t("onboarding.finish")
-                : t("onboarding.continue")}
-              {step < PROFILE_LIMITS.steps ? (
-                isRtl ? (
-                  <ArrowLeft aria-hidden="true" />
-                ) : (
-                  <ArrowRight aria-hidden="true" />
-                )
-              ) : null}
+              {t(editing ? "dashboard.saveProfile" : "onboarding.saveDraft")}
             </Button>
+            {editing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!isDirty || window.confirm(t("dashboard.discardChanges")))
+                    editing.onCancel();
+                }}
+              >
+                {t("dashboard.cancel")}
+              </Button>
+            ) : null}
+            {!editing || step < PROFILE_LIMITS.steps ? (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" />
+                ) : step === PROFILE_LIMITS.steps ? (
+                  <Check aria-hidden="true" />
+                ) : null}
+                {step === PROFILE_LIMITS.steps
+                  ? t("onboarding.finish")
+                  : t("onboarding.continue")}
+                {step < PROFILE_LIMITS.steps ? (
+                  isRtl ? (
+                    <ArrowLeft aria-hidden="true" />
+                  ) : (
+                    <ArrowRight aria-hidden="true" />
+                  )
+                ) : null}
+              </Button>
+            ) : null}
           </div>
         </form>
       </section>
