@@ -86,6 +86,19 @@ export type NormalizedJob = OpenAIJob & {
   contentHash: string;
 };
 
+const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  am: "Amharic",
+  ar: "Arabic",
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  he: "Hebrew",
+  ro: "Romanian",
+  ru: "Russian",
+  uk: "Ukrainian",
+  yi: "Yiddish",
+};
+
 function hashText(value: string) {
   const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
   return seeds
@@ -152,6 +165,9 @@ export function buildSearchPlan(profile: SearchProfile) {
     criteria.experienceBand !== "entry" ? criteria.experienceBand : "junior",
     ...workArrangements.slice(0, 1),
     ...employmentTypes.slice(0, 1),
+    ...languages
+      .slice(0, 2)
+      .map(({ languageCode }) => LANGUAGE_NAMES[languageCode] ?? languageCode),
     "Israel",
   ].join(" ");
   const generatedQueries = targetJobTitles
