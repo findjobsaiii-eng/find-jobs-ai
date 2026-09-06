@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, and secure candidate-profile onboarding. Job discovery, application management, AI assistance, scraping, and Gmail integration have not been implemented.
+An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and a manual server-side job-discovery slice. Application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -153,3 +153,29 @@ with a single primary location when the user changes the selection. Previously
 stored 50 km and 200 km radii remain valid and can be changed to a current preset.
 Curated job titles and skills can be updated idempotently with
 `npm run catalog:seed`.
+
+### Manual job discovery
+
+Completed profiles can start a manual job search from the authenticated
+dashboard. Convex derives the current user and saved search profile, creates at
+most two deterministic queries, and calls the OpenAI Responses API with Web
+Search from a server action. The browser never receives the API key, selected
+model, prompts, or raw provider response.
+
+The Convex deployment requires these additional server-only variables:
+
+```text
+OPENAI_API_KEY
+OPENAI_JOB_SEARCH_MODEL
+```
+
+The model must support the Responses API, Web Search, and Structured Outputs.
+The initial recommended development value is `gpt-5.6-luna`; keep the model in
+deployment configuration so it can be changed without shipping frontend code.
+Do not create a browser-prefixed copy of either variable.
+
+Each run accepts at most ten citation-backed public job postings, validates and
+normalizes them on the server, and stores them in the central `jobs` table.
+Identical search criteria reuse a successful result from the previous 24 hours;
+otherwise each user has a one-hour manual-search cooldown. Search criteria do
+not contain the candidate's name, email, summary, or other identifying text.
