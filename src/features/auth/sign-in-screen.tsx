@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./auth-shell";
 import { GoogleMark } from "./google-mark";
+import {
+  clearOAuthAttemptPending,
+  markOAuthAttemptPending,
+} from "./oauth-callback";
 
 export function SignInScreen() {
   const { t } = useTranslation();
@@ -15,10 +19,12 @@ export function SignInScreen() {
   const signInWithGoogle = async () => {
     setIsSubmitting(true);
     setError(null);
+    markOAuthAttemptPending(window.sessionStorage);
 
     try {
       await signIn("google", { redirectTo: window.location.origin });
     } catch {
+      clearOAuthAttemptPending(window.sessionStorage);
       setError(t("auth.error"));
       setIsSubmitting(false);
     }

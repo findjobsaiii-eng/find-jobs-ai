@@ -16,9 +16,16 @@
     "continueWithGoogle": "המשך עם Google",
     "connecting": "מתחברים…",
     "checkingSession": "בודקים את החיבור…",
+    "completingSignIn": "מסיימים את ההתחברות המאובטחת…",
     "error": "לא הצלחנו להתחבר ל-Google. אפשר לנסות שוב.",
+    "callbackErrorTitle": "ההתחברות לא הושלמה.",
+    "callbackErrorDescription": "Google לא השלימה את בקשת ההתחברות. לא בוצעו שינויים בחשבון.",
+    "tryAgain": "ניסיון נוסף",
+    "configurationErrorTitle": "ההתחברות אינה מוגדרת.",
+    "configurationErrorDescription": "חסר החיבור הציבורי של האפליקציה ל-Convex. יש לבדוק את ההגדרה המקומית ולטעון מחדש את העמוד.",
     "welcomeTitle": "התחברת בהצלחה.",
     "welcomeDescription": "סביבת העבודה שלך מוכנה. כאן נבנה בהמשך את כלי חיפוש העבודה הראשונים.",
-    "signOut": "התנתקות"
+    "signOut": "התנתקות",
+    "signOutError": "לא הצלחנו לנתק אותך. אפשר לנסות שוב."
   }
 }

@@ -1,20 +1,17 @@
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
-import { AuthenticatedHome } from "@/features/auth/authenticated-home";
-import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
-import { SignInScreen } from "@/features/auth/sign-in-screen";
+import { useConvexAuth } from "convex/react";
+import { AuthGate } from "@/features/auth/auth-gate";
+import { useAuthFlow } from "@/features/auth/auth-flow-context";
 
 export default function App() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const authFlow = useAuthFlow();
+
   return (
-    <>
-      <AuthLoading>
-        <AuthLoadingScreen />
-      </AuthLoading>
-      <Unauthenticated>
-        <SignInScreen />
-      </Unauthenticated>
-      <Authenticated>
-        <AuthenticatedHome />
-      </Authenticated>
-    </>
+    <AuthGate
+      isAuthenticated={isAuthenticated}
+      isLoading={isLoading}
+      callbackStatus={authFlow.status}
+      onDismissCallbackError={authFlow.dismissCallbackError}
+    />
   );
 }
