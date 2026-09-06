@@ -197,7 +197,7 @@ describe("candidate profiles", () => {
         yearsOfExperience: 7,
         skillIds: [skillId],
         preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
-        locationRadiusKm: 25,
+        locationRadiusKm: 40,
         workArrangements: ["hybrid", "remote"],
         employmentTypes: ["full-time"],
         minimumMonthlySalaryIls: 30_000,
@@ -216,7 +216,7 @@ describe("candidate profiles", () => {
     expect(completed.preferredPlaceIds).toEqual([
       "ChIJH3w7GaZMHRURkD-WwKJy-8E",
     ]);
-    expect(completed.locationRadiusKm).toBe(25);
+    expect(completed.locationRadiusKm).toBe(40);
     expect(completed.languages).toHaveLength(3);
     expect(completed.completedAt).toEqual(expect.any(Number));
   });

@@ -35,7 +35,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - A secure, four-step candidate-profile onboarding flow after sign-in, with read-only Google identity, field validation, progress, Back/Continue/Save draft/Finish actions, duplicate-submit protection, and responsive LTR/RTL behavior.
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
 - Searchable bilingual job-title and skill catalogs, with bounded per-user private additions that cannot leak across accounts or become shared automatically.
-- Google Places autocomplete for Israeli cities and regions, with multiple saved Place IDs, a bounded radius, localized results, and optional current-location search bias that does not persist coordinates.
+- Google Places autocomplete for one primary Israeli city or region, with a compact selected-location summary, accessible 5–100 km radius presets (25 km by default), localized results, and optional current-location search bias that does not persist coordinates. Earlier multi-location drafts remain readable, but onboarding presents and replaces only the primary location.
 - Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 
@@ -129,10 +129,12 @@ logs, screenshots, or documentation.
     confirm it remains available after refresh. Confirm work arrangement allows
     multiple selections and languages can be added and removed.
 13. Confirm Google Places suggestions are limited to Israel and appear in the
-    selected interface language. Select multiple places, change the radius,
-    refresh, and confirm the labels reload. Try **Near me**, allow and deny
-    browser permission in separate checks, and confirm neither path blocks
-    manual search.
+    selected interface language. Type without selecting a suggestion and confirm
+    validation appears, then select one place, change its radius, refresh, and
+    confirm both values persist. Confirm **Change location** preserves the radius
+    and **Clear location** removes the selection. Try **Near me**, allow and deny
+    browser permission in separate checks, and confirm neither path blocks manual
+    search.
 
 On 2026-09-06, steps 1 through the initial Google redirect were checked against
 the available development configuration. Google stopped the flow with

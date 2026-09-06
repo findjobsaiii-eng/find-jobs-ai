@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
+import { cn } from "@/lib/utils";
 import {
   Choice,
   ChoiceGroup,
@@ -217,6 +218,7 @@ function StepTwo({ draft, setDraft, errors }: StepProps) {
 
 function StepThree({ draft, setDraft, errors }: StepProps) {
   const { t } = useTranslation();
+  const primaryLocation = draft.preferredLocations[0];
   const toggleWorkArrangement = (value: WorkArrangement) => {
     setDraft((current) => ({
       ...current,
@@ -243,44 +245,57 @@ function StepThree({ draft, setDraft, errors }: StepProps) {
         onChange={(preferredLocations) =>
           setDraft((current) => ({ ...current, preferredLocations }))
         }
-        maxItems={PROFILE_LIMITS.preferredLocations.max}
         radiusKm={draft.locationRadiusKm}
         error={errors.preferredLocations && t(errors.preferredLocations)}
       />
-      <div>
-        <label
-          htmlFor="location-radius"
-          className="mb-2 block text-sm font-medium"
-        >
-          {t("onboarding.fields.locationRadius")}
-        </label>
-        <select
-          id="location-radius"
-          value={draft.locationRadiusKm}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              locationRadiusKm: Number(event.target.value),
-            }))
-          }
-          aria-invalid={Boolean(errors.locationRadiusKm)}
-          className="border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full rounded-xl border px-3 text-sm outline-none focus:ring-3"
-        >
-          {LOCATION_RADIUS_OPTIONS_KM.map((radius) => (
-            <option key={radius} value={radius}>
-              {t("onboarding.location.radiusOption", { radius })}
-            </option>
-          ))}
-        </select>
-        <p className="text-muted-foreground mt-1.5 text-xs">
-          {t("onboarding.hints.locationRadius")}
-        </p>
-        {errors.locationRadiusKm ? (
-          <p className="text-destructive mt-1 text-sm" role="alert">
-            {t(errors.locationRadiusKm)}
+      {primaryLocation ? (
+        <fieldset>
+          <legend className="text-sm font-medium">
+            {t("onboarding.fields.locationRadius")}
+          </legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {LOCATION_RADIUS_OPTIONS_KM.map((radius) => {
+              const selected = draft.locationRadiusKm === radius;
+              return (
+                <button
+                  key={radius}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      locationRadiusKm: radius,
+                    }))
+                  }
+                  className={cn(
+                    "border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/40 flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-3",
+                    selected &&
+                      "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                  )}
+                >
+                  {selected ? <Check aria-hidden="true" /> : null}
+                  {t("onboarding.location.radiusOption", { radius })}
+                </button>
+              );
+            })}
+          </div>
+          <p
+            className="text-muted-foreground mt-2 text-sm leading-6"
+            aria-live="polite"
+          >
+            {t("onboarding.location.searchSummary", {
+              radius: draft.locationRadiusKm,
+              location:
+                primaryLocation.label || t("onboarding.savedLocationFallback"),
+            })}
           </p>
-        ) : null}
-      </div>
+          {errors.locationRadiusKm ? (
+            <p className="text-destructive mt-1 text-sm" role="alert">
+              {t(errors.locationRadiusKm)}
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
       <ChoiceGroup
         label={t("onboarding.fields.workArrangement")}
         hint={t("onboarding.hints.multipleChoice")}

@@ -127,8 +127,8 @@ Editable profile data is normalized and bounded on the server:
 | Professional summary         | 40–1,200 characters to complete                                    |
 | Years of experience          | Whole number from 0–60                                             |
 | Skills                       | 1–30 validated catalog references                                  |
-| Preferred locations          | 1–10 normalized Google Place IDs, each at most 512 characters      |
-| Location radius              | One of 5, 10, 25, 50, 100, or 200 km                               |
+| Preferred locations          | One primary Google Place ID in onboarding, at most 512 characters  |
+| Location radius              | One of 5, 10, 15, 25, 40, 60, or 100 km                            |
 | Work arrangements            | One or more of onsite, hybrid, and remote                          |
 | Employment types             | One or more of full-time, part-time, and contract                  |
 | Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                |
@@ -144,9 +144,12 @@ that user. Private custom values are capped, URLs and control characters are
 rejected, and exact duplicates are reused. This keeps the MVP useful without
 publishing unreviewed input or creating a manual moderation queue.
 
-The onboarding UI now searches Google Places for Israeli cities and regions.
-Only Place IDs and the selected radius are stored. Google labels are fetched for
-display, while optional browser geolocation is used only as a temporary search
-bias and is never written to Convex.
+The onboarding UI searches Google Places for one primary Israeli city or region,
+then asks for a search radius. Only Place IDs and the selected radius are stored.
+Google labels are fetched for display, while optional browser geolocation is used
+only as a temporary search bias and is never written to Convex. The stored field
+remains an array for compatibility with earlier drafts; onboarding replaces it
+with a single primary location when the user changes the selection. Previously
+stored 50 km and 200 km radii remain valid and can be changed to a current preset.
 Curated job titles and skills can be updated idempotently with
 `npm run catalog:seed`.

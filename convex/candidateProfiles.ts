@@ -42,7 +42,11 @@ export const PROFILE_LIMITS = {
   onboardingStep: { min: 1, max: 4 },
 } as const;
 
-const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50, 100, 200] as const;
+// 50 km and 200 km remain valid for profiles saved before the focused
+// onboarding presets were simplified.
+const LOCATION_RADIUS_OPTIONS_KM = [
+  5, 10, 15, 25, 40, 50, 60, 100, 200,
+] as const;
 
 const workArrangementValidator = v.union(
   v.literal("onsite"),
