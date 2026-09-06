@@ -34,6 +34,13 @@ Before changing any file under `convex/`, read `convex/_generated/ai/guidelines.
 - Keep dependencies intentional. Prefer established libraries for complex, security-sensitive, or accessibility-heavy behavior; avoid packages for trivial helpers.
 - Update documentation when setup, architecture, environment variables, scripts, or important product assumptions change.
 
+# Project control
+
+- Keep `docs/PROJECT_STATUS.md` aligned with what the repository can prove. Separate implemented, incomplete, and unknown work.
+- Record durable technical decisions in `docs/DECISIONS.md`. Mark unresolved choices as pending instead of presenting them as settled.
+- Use `.github/pull_request_template.md` for every pull request and report the validation commands actually run.
+- Never commit credentials or secret values. Local environment files remain ignored; documentation may name required variables but must not contain their values.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.
