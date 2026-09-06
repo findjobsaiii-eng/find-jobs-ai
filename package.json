@@ -13,6 +13,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "locations:prepare": "node scripts/prepare-israel-locations.mjs",
+    "locations:import": "convex import --table locations --replace data/generated/israel-locations.jsonl",
+    "catalog:seed": "convex run referenceData:seedCatalog",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "preview": "vite preview"
   },
@@ -38,6 +41,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^4.0.0",
+    "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "^9.39.5",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
@@ -48,6 +52,7 @@
     "@types/react-dom": "^19.2.4",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.0.5",
+    "convex-test": "^0.0.56",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsx-a11y": "^6.10.2",

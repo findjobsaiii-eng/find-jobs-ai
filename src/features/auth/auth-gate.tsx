@@ -1,7 +1,7 @@
 import { AuthCallbackErrorScreen } from "./auth-callback-error-screen";
 import type { AuthCallbackStatus } from "./auth-flow-context";
 import { AuthLoadingScreen } from "./auth-loading-screen";
-import { AuthenticatedHome } from "./authenticated-home";
+import { ProfileGate } from "@/features/profile/profile-gate";
 import { SignInScreen } from "./sign-in-screen";
 
 type AuthGateProps = {
@@ -32,5 +32,5 @@ export function AuthGate({
     return <AuthLoadingScreen variant="session" />;
   }
 
-  return isAuthenticated ? <AuthenticatedHome /> : <SignInScreen />;
+  return isAuthenticated ? <ProfileGate /> : <SignInScreen />;
 }

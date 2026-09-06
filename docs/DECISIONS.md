@@ -87,6 +87,55 @@ or blank, and `SITE_URL` must be a safe origin. Credential values must not be
 exposed through `VITE_` variables, client code, logs, or repository
 documentation.
 
+### D-010: Candidate profiles are one-to-one with server-derived auth users
+
+Status: Accepted
+
+Evidence: `convex/schema.ts`, `convex/candidateProfiles.ts`, and
+`convex/candidateProfiles.test.ts`.
+
+Each candidate profile stores the Convex Auth user ID and is looked up through
+the `by_userId` index. Public profile functions take no ownership or identity
+arguments: they derive the authenticated user on the server, reject missing
+sessions, and return or mutate only that user's indexed document. Google email,
+display name, and image are copied only from the server-side auth user record.
+
+Draft profile fields are optional so onboarding can resume. Server-side
+normalization applies bounded text, list, numeric, and enum validation; the
+completion mutation additionally requires every onboarding field and records a
+completion timestamp. The frontend uses four steps and persists progress before
+advancing.
+
+### D-011: Shared reference data is curated; user additions remain private
+
+Status: Accepted
+
+Evidence: `convex/referenceData.ts`, `convex/referenceCatalogData.ts`,
+`convex/schema.ts`, and `scripts/prepare-israel-locations.mjs`.
+
+Target job titles and skills are selected from a bilingual searchable catalog.
+An authenticated user may add a missing value, but that value is normalized,
+deduplicated, bounded, and visible only to its owner. It is never promoted to the
+shared catalog automatically. This avoids both shared spam and a moderation
+queue in the MVP. OpenAI and embeddings are not needed for this workflow.
+
+Locations are selected from an imported reference table using stable locality
+codes. The tracked source CSV is normalized to UTF-8, and a repeatable script
+produces a replace-style Convex import containing localities, districts, and a
+nationwide option.
+
+### D-012: Development data may be reset instead of migrated
+
+Status: Accepted while the product remains pre-production
+
+Evidence: `AGENTS.md`.
+
+Until a production-data milestone is explicitly declared, breaking schema
+changes should favor the clean target model and reset affected development data
+when needed. Do not add compatibility or migration machinery solely to preserve
+disposable development records. Production data will require an explicit
+migration and rollback policy before this decision changes.
+
 ## Pending decisions
 
 ### P-003: Node.js version enforcement
@@ -101,12 +150,6 @@ Status: Pending
 
 The repository does not document production hosting, environments, release promotion, monitoring, or rollback policy.
 
-### P-005: Product-domain model and first workflow
-
-Status: Pending
-
-No product-domain tables or job-search workflows exist. The first workflow and its data boundaries should be agreed before changing the schema.
-
 ### P-006: Browser session persistence policy
 
 Status: Pending
@@ -115,12 +158,3 @@ Convex Auth currently uses its default browser storage, which persists session
 and refresh tokens in `localStorage`. This supports refresh and browser-restart
 persistence but places greater weight on XSS prevention. The product owner must
 decide whether that tradeoff is acceptable before production launch.
-
-### P-007: Authenticated identity contract
-
-Status: Pending
-
-Authentication proves access to the current placeholder boundary, but the
-minimum server-derived identity fields and authorization rules required by the
-first product workflow have not been selected. No user-profile feature or
-product-domain schema should be inferred from the current auth tables.

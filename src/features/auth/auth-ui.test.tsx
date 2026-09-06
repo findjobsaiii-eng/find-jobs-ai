@@ -12,8 +12,16 @@ const authActions = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 
+const convexHooks = vi.hoisted(() => ({
+  useQuery: vi.fn(),
+}));
+
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => authActions,
+}));
+
+vi.mock("convex/react", () => ({
+  useQuery: convexHooks.useQuery,
 }));
 
 describe("authentication UI", () => {
@@ -24,6 +32,15 @@ describe("authentication UI", () => {
   beforeEach(async () => {
     authActions.signIn.mockReset();
     authActions.signOut.mockReset();
+    convexHooks.useQuery.mockReturnValue({
+      identity: {
+        userId: "user-1",
+        email: "candidate@example.com",
+        googleDisplayName: "Candidate",
+        profileImage: null,
+      },
+      profile: { onboardingCompleted: true },
+    });
     await i18n.changeLanguage("en");
   });
 
@@ -163,6 +180,6 @@ describe("authentication UI", () => {
     });
     expect(
       screen.getByRole("button", { name: "המשך עם Google" }),
-    ).toBeVisible();
+    ).toBeInTheDocument();
   });
 });

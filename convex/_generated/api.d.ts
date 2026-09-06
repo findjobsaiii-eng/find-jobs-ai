@@ -10,7 +10,10 @@
 
 import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
+import type * as candidateProfiles from "../candidateProfiles.js";
 import type * as http from "../http.js";
+import type * as referenceCatalogData from "../referenceCatalogData.js";
+import type * as referenceData from "../referenceData.js";
 
 import type {
   ApiFromModules,
@@ -21,7 +24,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authEnvironment: typeof authEnvironment;
+  candidateProfiles: typeof candidateProfiles;
   http: typeof http;
+  referenceCatalogData: typeof referenceCatalogData;
+  referenceData: typeof referenceData;
 }>;
 
 /**

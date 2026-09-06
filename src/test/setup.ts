@@ -22,8 +22,8 @@ afterEach(() => {
   cleanup();
 
   if (typeof window !== "undefined") {
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-    window.history.replaceState(null, "", "/");
+    window.localStorage?.clear();
+    window.sessionStorage?.clear();
+    window.history?.replaceState(null, "", "/");
   }
 });

@@ -27,5 +27,136 @@
     "welcomeDescription": "Your workspace is ready. We'll build the first job-search tools here next.",
     "signOut": "Sign out",
     "signOutError": "We couldn't sign you out. Please try again."
+  },
+  "onboarding": {
+    "loadingProfile": "Loading your profile…",
+    "loadErrorTitle": "We couldn't load your profile.",
+    "loadErrorDescription": "Check your connection and try again. Your saved progress is safe.",
+    "retry": "Try again",
+    "progress": "Step {{current}} of {{total}}",
+    "progressLabel": "Profile setup progress",
+    "googleAccount": "Google account",
+    "emailUnavailable": "Email unavailable",
+    "fromGoogle": "From Google",
+    "add": "Add",
+    "addItem": "Add to {{label}}",
+    "removeItem": "Remove {{item}}",
+    "listLimitReached": "Maximum reached",
+    "searching": "Searching…",
+    "noOptions": "No matching options",
+    "custom": "Yours",
+    "addMissing": "Add “{{value}}” for me",
+    "addLanguage": "Add another language",
+    "removeLanguage": "Remove {{language}}",
+    "back": "Back",
+    "continue": "Continue",
+    "saveDraft": "Save draft",
+    "finish": "Save & finish",
+    "saved": "Progress saved",
+    "readyTitle": "Ready to finish?",
+    "readyDescription": "We'll use these preferences to personalize the job-search tools added in future milestones. You can update your profile later.",
+    "steps": {
+      "1": {
+        "eyebrow": "About you",
+        "title": "Let's shape your candidate profile",
+        "description": "Start with how you'd like to be known and the roles you're targeting."
+      },
+      "2": {
+        "eyebrow": "Experience",
+        "title": "Tell us what you bring",
+        "description": "A concise overview helps keep future opportunities relevant."
+      },
+      "3": {
+        "eyebrow": "Preferences",
+        "title": "Define your ideal role",
+        "description": "Choose where and how you'd like to work."
+      },
+      "4": {
+        "eyebrow": "Languages",
+        "title": "One last detail",
+        "description": "Add the languages you use and your proficiency in each."
+      }
+    },
+    "fields": {
+      "displayName": "Preferred display name",
+      "targetJobTitles": "Target job titles",
+      "summary": "Professional summary",
+      "years": "Years of experience",
+      "skills": "Skills",
+      "locations": "Preferred locations",
+      "workArrangement": "Work arrangement",
+      "employmentTypes": "Employment types",
+      "salary": "Minimum monthly gross salary (ILS)",
+      "proficiency": "Proficiency"
+    },
+    "hints": {
+      "targetJobTitles": "Search and choose 1–5 roles. If one is missing, add it for yourself.",
+      "summary": "At least {{min}} characters. Focus on your experience and strengths.",
+      "skills": "Search the shared list. You can add a missing skill for yourself.",
+      "locations": "Search official cities and regions, or choose all of Israel.",
+      "multipleChoice": "Choose all that apply.",
+      "salary": "Gross monthly amount before tax, between ₪1,000 and ₪200,000.",
+      "languages": "Choose the level that best reflects your professional working ability."
+    },
+    "placeholders": {
+      "targetJobTitle": "e.g. Product Manager",
+      "summary": "Describe your background, strongest capabilities, and the work you want to do next…",
+      "skill": "e.g. TypeScript",
+      "location": "e.g. Tel Aviv",
+      "proficiency": "Select a level"
+    },
+    "locationKinds": {
+      "locality": "City",
+      "region": "Region",
+      "nationwide": "Nationwide"
+    },
+    "options": {
+      "workArrangement": {
+        "onsite": "Onsite",
+        "hybrid": "Hybrid",
+        "remote": "Remote"
+      },
+      "employmentType": {
+        "full-time": "Full-time",
+        "part-time": "Part-time",
+        "contract": "Contract"
+      },
+      "proficiency": {
+        "basic": "Basic",
+        "conversational": "Conversational",
+        "professional": "Professional",
+        "fluent": "Fluent",
+        "native": "Native"
+      },
+      "languages": {
+        "he": "Hebrew",
+        "en": "English",
+        "ar": "Arabic",
+        "ru": "Russian",
+        "fr": "French",
+        "am": "Amharic",
+        "es": "Spanish",
+        "uk": "Ukrainian",
+        "ro": "Romanian",
+        "yi": "Yiddish"
+      }
+    },
+    "errors": {
+      "displayName": "Enter a display name between 2 and 80 characters.",
+      "targetJobTitles": "Add between 1 and 5 target job titles.",
+      "summary": "Enter a professional summary between 40 and 1,200 characters.",
+      "years": "Enter a whole number from 0 to 60.",
+      "skills": "Add at least one skill (up to 30).",
+      "locations": "Add at least one preferred location (up to 10).",
+      "workArrangements": "Choose at least one work arrangement.",
+      "employmentTypes": "Choose at least one employment type.",
+      "salary": "Enter a whole monthly amount from ₪1,000 to ₪200,000.",
+      "languages": "Add at least one language and choose a proficiency for each.",
+      "addCustom": "We couldn't add that option. Try a shorter, plain-text value.",
+      "reviewFields": "Some profile details need attention. Review the highlighted field.",
+      "authentication": "Your session has expired. Sign in again and retry.",
+      "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",
+      "save": "We couldn't save your profile. Check your connection and try again."
+    }
   }
 }
