@@ -42,13 +42,18 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Profile editing remains available from the completion card, saved-preferences summary, user menu, and mobile Profile navigation. The existing four-step form is prefilled, validates all fields on Save, and uses the existing owner-scoped mutation with completion preserved. Edits stay local until saved; Cancel and browser unload warn only for unsaved field changes.
 - Completion is calculated from the eleven saved field groups using existing validation, with the next missing field identified. Form defaults and Google display-name fallbacks do not count as saved profile completion.
 - Search filters are initialized from the saved profile but remain temporary. An explicit save action updates only role, location/radius, salary, work arrangement, and employment preferences; query text is not saved. Clear all affects only temporary filters.
-- The dashboard uses the current design tokens, English/LTR and Hebrew/RTL localization, horizontally scrolling mobile filter chips, and fixed mobile navigation. Job results are an empty state and unavailable tools are marked coming soon.
+- The dashboard uses the current design tokens, English/LTR and Hebrew/RTL localization, horizontally scrolling mobile filter chips, and fixed mobile navigation. It shows a discovery empty/loading/error state or validated stored jobs; unavailable tools remain marked coming soon.
+- Completed profiles can start an authenticated manual job-discovery run from the dashboard. The server deterministically creates at most two bounded queries from non-identifying profile criteria and calls the OpenAI Responses API with Web Search and strict Structured Outputs.
+- Provider output is treated as untrusted: every accepted posting needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Valid jobs are stored centrally, associated with the requesting user through search-run discoveries, and rendered as plain React text with a link to the original source.
+- Exact normalized search criteria reuse completed results for 24 hours. New provider searches are limited to one active run per user, have a one-hour per-user cooldown, accept at most five jobs per query and ten per run, disable SDK retries, cap output tokens and tool calls, and store only aggregate token usage.
+- Central job records deduplicate first by normalized source URL and then by normalized company/title/location fingerprint. Rediscovery preserves the original discovery timestamp and updates the latest discovery timestamp.
 
 ## Incomplete or unknown areas
 
 - A live redirect reached Google on 2026-09-06, but Google returned `disabled_client`. Successful account selection, callback completion, refresh persistence, and live sign-out remain blocked until the configured OAuth client is enabled or replaced.
-- No CV upload, job discovery, ranking, application tracking, AI generation, automatic applications, scraping, Gmail access, or profile scoring exists.
-- There is no job-domain data model or discovery provider. Update results acknowledges the temporary filters and explains availability; it does not call a job search service or display invented jobs.
+- No CV upload, ranking or match score, application tracking, resume generation, automatic applications, scraping, Gmail access, scheduling, embeddings, or profile scoring exists.
+- Job discovery is manual only. There are no scheduled searches, background queues, semantic query reuse, semantic deduplication, job-activity rechecks, or deep per-user AI reviews.
+- The candidate profile persists a Google Place ID and radius, not its display label or coordinates. The first server search therefore includes Israel and the saved work criteria, and uses the Place ID/radius in the exact-cache fingerprint, but cannot express a city name or calculate true distance until normalized server-side location data is added.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
 ## Current risks
@@ -58,13 +63,28 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Convex Auth stores browser session and refresh tokens in `localStorage` by default. This provides reload and browser-restart persistence but makes application XSS prevention a security boundary; the product owner should explicitly accept this persistence model or request a different storage policy.
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
 - Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
+- Runtime job discovery depends on server-only `OPENAI_API_KEY` and `OPENAI_JOB_SEARCH_MODEL` configuration and on the selected model continuing to support Responses API Web Search plus Structured Outputs.
+- Web Search and model output can be incomplete or stale. Source URLs are evidence-backed and activity begins as `unknown`; the product does not yet revalidate whether a posting remains active.
 
 ## Next recommended milestone
 
-Choose a permitted jobs data source and define its refresh, attribution, and
-filtering contract before connecting live results to the dashboard. Keep CV
-ingestion and automated applications out of scope until their data and consent
-boundaries are designed.
+Add normalized server-side city/country data to the existing Place selection,
+then define job freshness and activity revalidation. Scheduling, embeddings,
+matching scores, CV ingestion, and automated applications remain separate
+milestones with their own cost, privacy, and consent decisions.
+
+## Job discovery verification
+
+Focused automated coverage verifies unauthenticated and incomplete-profile
+rejection, exact recent-result reuse, URL deduplication in the central jobs
+table, and the mocked OpenAI boundary rejecting postings whose URLs are absent
+from Web Search evidence. Automated tests never call the real OpenAI API.
+
+A single live development search requires an authenticated completed profile and
+both server variables named in the README. Start the app, choose **Search for new
+jobs**, and record only aggregate counts and usage shown by the safe action
+summary. Do not record the API key, generated queries, raw provider output, or
+private profile data. A live result is not claimed until that check is performed.
 
 ## Dashboard verification
 

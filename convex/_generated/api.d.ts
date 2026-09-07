@@ -12,6 +12,10 @@ import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
 import type * as http from "../http.js";
+import type * as jobDiscovery from "../jobDiscovery.js";
+import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
+import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
+import type * as openAIJobProvider from "../openAIJobProvider.js";
 import type * as referenceCatalogData from "../referenceCatalogData.js";
 import type * as referenceData from "../referenceData.js";
 
@@ -26,6 +30,10 @@ declare const fullApi: ApiFromModules<{
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;
   http: typeof http;
+  jobDiscovery: typeof jobDiscovery;
+  jobDiscoveryActions: typeof jobDiscoveryActions;
+  jobDiscoveryModel: typeof jobDiscoveryModel;
+  openAIJobProvider: typeof openAIJobProvider;
   referenceCatalogData: typeof referenceCatalogData;
   referenceData: typeof referenceData;
 }>;

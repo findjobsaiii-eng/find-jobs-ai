@@ -14,7 +14,6 @@ import {
   LogOut,
   MapPin,
   PencilLine,
-  Search,
   Sparkles,
   UserRound,
   Users,
@@ -25,6 +24,7 @@ import { LanguageButton } from "@/features/auth/language-button";
 import { OnboardingScreen } from "@/features/profile/onboarding-screen";
 import type { CurrentProfile } from "@/features/profile/profile-types";
 import { getProfileCompletion } from "./dashboard-model";
+import { JobDiscoveryPanel } from "./job-discovery-panel";
 import { SavedLocation } from "./saved-location";
 import { SearchFilters } from "./search-filters";
 
@@ -270,33 +270,7 @@ function DashboardScreen({
         <SearchFilters data={data} onSaved={onPreferencesSaved} />
 
         <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <section
-            id="jobs"
-            className="min-w-0 scroll-mt-6"
-            aria-labelledby="jobs-title"
-          >
-            <h2 id="jobs-title" className="mb-4 text-xl font-bold sm:text-2xl">
-              {t("dashboard.jobsTitle")}
-            </h2>
-            <div className="bg-card border-border flex min-h-80 flex-col items-center justify-center rounded-2xl border px-6 py-12 text-center shadow-sm">
-              <span className="bg-primary/10 text-primary mb-5 grid size-16 place-items-center rounded-3xl">
-                <Search aria-hidden="true" className="size-7" />
-              </span>
-              <h3 className="text-xl font-semibold">
-                {t("dashboard.emptyTitle")}
-              </h3>
-              <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
-                {t("dashboard.emptyDescription")}
-              </p>
-              <Button
-                variant="outline"
-                className="mt-6 min-h-11"
-                onClick={onEdit}
-              >
-                {t("dashboard.editProfile")}
-              </Button>
-            </div>
-          </section>
+          <JobDiscoveryPanel onEdit={onEdit} />
           <aside className="min-w-0 space-y-5">
             <section
               id="tools"

@@ -169,7 +169,42 @@ Dashboard filters are local to the current visit and start from the saved profil
 Only an explicit save-preferences action writes the editable search preferences;
 query text remains temporary. Profile completion weights the eleven existing
 field groups equally and uses their validation, rather than estimating job-match
-quality. Jobs and unavailable tools remain visibly pending until implemented.
+quality. Unavailable tools remain visibly pending until implemented.
+
+### D-015: Job discovery uses bounded Responses API Web Search with strict output
+
+Status: Accepted
+
+Evidence: `convex/jobDiscoveryActions.ts`, `convex/openAIJobProvider.ts`,
+`convex/jobDiscoveryModel.ts`, `convex/jobDiscovery.ts`, and `convex/schema.ts`.
+
+Manual job discovery runs only in an authenticated Convex server action using
+the official OpenAI JavaScript SDK. The model is required server configuration
+under `OPENAI_JOB_SEARCH_MODEL`; `gpt-5.6-luna` is the initial cost-conscious
+recommendation because current official documentation lists Web Search support.
+The Responses API call uses the Web Search tool, strict Zod-backed Structured
+Outputs, an output-token limit, a tool-call limit, no response storage, and no
+automatic SDK retries.
+
+Application code creates at most two deterministic queries from role, skill,
+experience band, work arrangement, employment type, language, and country
+criteria. Candidate name, email, profile summary, and other identifying text are
+excluded. The saved Place ID and radius participate in the criteria fingerprint,
+but the query cannot contain the selected city because the current profile model
+does not store a server-readable Place label.
+
+Successful exact criteria fingerprints are shared for 24 hours. A reused run
+creates user-owned discovery relations without another provider call. New calls
+have a one-hour per-user cooldown and one active run per user. At most five jobs
+per query and ten per run are accepted, and only aggregate token counts are
+stored.
+
+Every provider record is validated again server-side. A posting must have a
+public HTTP(S) source URL that occurs in returned Web Search sources, plus a
+non-empty title and company. Central records deduplicate by normalized URL, then
+by company/title/location fingerprint. Missing facts remain null or empty,
+salary is shown only when present, and activity starts as `unknown`. Raw prompts
+and raw provider responses are not persisted.
 
 ## Pending decisions
 
@@ -193,3 +228,22 @@ Convex Auth currently uses its default browser storage, which persists session
 and refresh tokens in `localStorage`. This supports refresh and browser-restart
 persistence but places greater weight on XSS prevention. The product owner must
 decide whether that tradeoff is acceptable before production launch.
+
+### P-007: Server-normalized location contract
+
+Status: Pending
+
+The current profile stores one primary Google Place ID and a radius while the
+browser resolves its label for display. Job discovery needs a trusted
+server-readable city/country (and eventually coordinates) to express local
+queries and enforce radius semantics. Decide whether to persist normalized Place
+details during profile save or resolve them through a server-side Places call.
+
+### P-008: Job freshness, scheduling, and semantic retrieval
+
+Status: Pending
+
+This slice intentionally uses manual searches, 24-hour exact-query reuse, and
+deterministic URL/text fingerprints. Scheduled searches, activity revalidation,
+query/job embeddings, semantic deduplication, and personalized match scores need
+separate cost and quality decisions before implementation.

@@ -81,6 +81,36 @@
     "notSet": "Not set",
     "trackingDescription": "Track applications here when this feature becomes available."
   },
+  "jobDiscovery": {
+    "start": "Search for new jobs",
+    "running": "Searching for new jobs for you…",
+    "loading": "Loading discovered jobs…",
+    "completed": "Your latest search is ready.",
+    "reused": "Fresh results from an identical recent search were reused.",
+    "retry": "Try again",
+    "emptyTitle": "Search for your first real opportunities",
+    "emptyDescription": "Start a focused search based on your saved profile. Only validated public postings will appear here.",
+    "location": "Location",
+    "arrangement": "Work arrangement",
+    "salaryLabel": "Salary",
+    "salary": "{{currency}} {{min}}–{{max}} {{period}}",
+    "salaryPeriods": {
+      "hour": "per hour",
+      "day": "per day",
+      "month": "per month",
+      "year": "per year"
+    },
+    "discovered": "Discovered",
+    "source": "Source: {{source}}",
+    "openPosting": "Open original posting",
+    "errors": {
+      "incomplete": "Complete the required job-search profile fields before starting a search.",
+      "cooldown": "You can start another new search after the one-hour cooldown.",
+      "alreadyRunning": "A job search is already running for your account.",
+      "configuration": "Job discovery is not configured on the server yet.",
+      "provider": "The job provider could not complete this search. No unvalidated results were saved."
+    }
+  },
   "onboarding": {
     "loadingProfile": "Loading your profile…",
     "loadErrorTitle": "We couldn't load your profile.",

@@ -23,6 +23,7 @@ vi.mock("@convex-dev/auth/react", () => ({
 vi.mock("convex/react", () => ({
   useQuery: convexHooks.useQuery,
   useMutation: () => vi.fn(),
+  useAction: () => vi.fn(),
 }));
 
 describe("authentication UI", () => {
