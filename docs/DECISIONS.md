@@ -282,6 +282,17 @@ keeps the snapshot after source expiry. Undo removes only the caller's marker.
 This records an application and never submits a résumé. Interview stages and
 tracking pagination beyond the latest 100 applications remain future work.
 
+## URL-based workspace navigation
+
+Status: Accepted
+
+Use React Router browser history for page paths and query parameters for jobs
+views: `/profile` and `/?tab=in-progress`. Keep transient form, pending, and
+feedback state in React. Preserve the tab in the profile query for deterministic
+Save/Cancel destinations across refreshes. The router mounts inside the profile
+gate, after OAuth callback processing, so callback-code cleanup cannot leave
+stale router search parameters. Static production hosting requires SPA fallback.
+
 ## Pending decisions
 
 ### P-003: Node.js version enforcement

@@ -1,4 +1,12 @@
 import { DirectionProvider } from "@base-ui/react/direction-provider";
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import { useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -20,30 +28,49 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 import { DevelopmentTools } from "./development-tools";
 
 export function DashboardWorkspace({ data }: { data: CurrentProfile }) {
-  const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [saved, setSaved] = useState(false);
-  if (editing)
-    return (
-      <OnboardingScreen
-        initialData={data}
-        editing={{
-          onCancel: () => setEditing(false),
-          onSaved: () => {
-            setSaved(true);
-            setEditing(false);
-          },
-        }}
-      />
-    );
+  const returnTo =
+    new URLSearchParams(location.search).get("tab") === "in-progress"
+      ? "/?tab=in-progress"
+      : "/";
+  const profileUrl = `/profile${location.search}`;
   return (
-    <DashboardScreen
-      data={data}
-      saved={saved}
-      onEdit={() => {
-        setSaved(false);
-        setEditing(true);
-      }}
-    />
+    <Routes>
+      <Route
+        path="/profile"
+        element={
+          <OnboardingScreen
+            initialData={data}
+            editing={{
+              onCancel: () => {
+                void navigate(returnTo);
+              },
+              onSaved: () => {
+                setSaved(true);
+                void navigate(returnTo);
+              },
+            }}
+          />
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <DashboardScreen
+            data={data}
+            saved={saved}
+            profileUrl={profileUrl}
+            onEdit={() => {
+              setSaved(false);
+              void navigate(profileUrl);
+            }}
+          />
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
@@ -51,10 +78,12 @@ function DashboardScreen({
   data,
   onEdit,
   saved,
+  profileUrl,
 }: {
   data: CurrentProfile;
   onEdit: () => void;
   saved: boolean;
+  profileUrl: string;
 }) {
   const { t, i18n } = useTranslation();
   const { signOut } = useAuthActions();
@@ -94,7 +123,9 @@ function DashboardScreen({
           <Button
             variant="ghost"
             className="min-h-11 w-full justify-start"
-            onClick={onEdit}
+            render={<Link to={profileUrl} />}
+            nativeButton={false}
+            role="link"
           >
             <UserRound aria-hidden="true" />
             {t("dashboard.editProfile")}

@@ -1,4 +1,5 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
+import { BrowserRouter } from "react-router";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
@@ -77,7 +78,9 @@ export function ProfileGate() {
 
   return (
     <ProfileErrorBoundary key={attempt} fallback={fallback}>
-      <ProfileRoute />
+      <BrowserRouter>
+        <ProfileRoute />
+      </BrowserRouter>
     </ProfileErrorBoundary>
   );
 }

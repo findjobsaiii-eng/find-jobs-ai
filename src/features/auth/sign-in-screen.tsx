@@ -22,7 +22,15 @@ export function SignInScreen() {
     markOAuthAttemptPending(window.sessionStorage);
 
     try {
-      await signIn("google", { redirectTo: window.location.origin });
+      const destination = new URL(window.location.origin);
+      if (window.location.pathname === "/profile")
+        destination.pathname = "/profile";
+      if (
+        new URLSearchParams(window.location.search).get("tab") === "in-progress"
+      ) {
+        destination.searchParams.set("tab", "in-progress");
+      }
+      await signIn("google", { redirectTo: destination.href });
     } catch {
       clearOAuthAttemptPending(window.sessionStorage);
       setError(t("auth.error"));

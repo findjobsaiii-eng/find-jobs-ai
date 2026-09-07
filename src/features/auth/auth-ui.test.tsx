@@ -56,13 +56,30 @@ describe("authentication UI", () => {
     await user.click(button);
 
     expect(authActions.signIn).toHaveBeenCalledWith("google", {
-      redirectTo: "http://localhost:5173",
+      redirectTo: "http://localhost:5173/",
     });
     expect(button).toBeDisabled();
     expect(hasOAuthAttemptPending(window.sessionStorage)).toBe(true);
 
     await user.click(button);
     expect(authActions.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a profile deep link through sign-in without forwarding callback codes", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/profile?tab=in-progress&code=old&redirectTo=https://example.com",
+    );
+    authActions.signIn.mockReturnValue(new Promise(() => undefined));
+    const user = userEvent.setup();
+    render(<SignInScreen />);
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+    expect(authActions.signIn).toHaveBeenCalledWith("google", {
+      redirectTo: "http://localhost:5173/profile?tab=in-progress",
+    });
   });
 
   it("recovers when the initial OAuth request fails", async () => {

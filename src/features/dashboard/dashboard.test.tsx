@@ -97,6 +97,7 @@ describe("dashboard and completed profile editing", () => {
     await initializeI18n();
   });
   beforeEach(async () => {
+    window.history.replaceState(null, "", "/");
     hooks.data = completedProfile();
     hooks.save.mockReset();
     await i18n.changeLanguage("en");
@@ -111,7 +112,7 @@ describe("dashboard and completed profile editing", () => {
     ).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
-    await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
+    await user.click(screen.getByRole("link", { name: "עריכת פרופיל" }));
     expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
     expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
     expect(
@@ -129,11 +130,56 @@ describe("dashboard and completed profile editing", () => {
     ).toBeInTheDocument();
   });
 
+  it("restores URL tabs with history and remounting, and returns from profile", async () => {
+    window.history.replaceState(null, "", "/?tab=in-progress");
+    const user = userEvent.setup();
+    const view = render(<ProfileGate />);
+    const activeTab = () => screen.getByRole("tab", { name: "In progress" });
+    expect(activeTab()).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Suggestions" }));
+    expect(window.location.search).toBe("");
+    act(() => window.history.back());
+    await waitFor(() =>
+      expect(activeTab()).toHaveAttribute("aria-selected", "true"),
+    );
+    act(() => window.history.forward());
+    await waitFor(() =>
+      expect(activeTab()).toHaveAttribute("aria-selected", "false"),
+    );
+    await user.click(activeTab());
+    view.unmount();
+    render(<ProfileGate />);
+    expect(activeTab()).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    await user.click(screen.getByRole("link", { name: "Edit profile" }));
+    expect(window.location.pathname).toBe("/profile");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("?tab=in-progress");
+  });
+
+  it("opens direct profile links and falls back for unknown URLs", async () => {
+    window.history.replaceState(null, "", "/profile");
+    const view = render(<ProfileGate />);
+    expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
+    view.unmount();
+    window.history.replaceState(null, "", "/missing");
+    const fallback = render(<ProfileGate />);
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    fallback.unmount();
+    window.history.replaceState(null, "", "/?tab=invalid");
+    render(<ProfileGate />);
+    expect(screen.getByRole("tab", { name: "Suggestions" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("saves prefilled edits once with completion intact and returns to updated dashboard", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
     await user.click(screen.getByRole("button", { name: "User menu" }));
-    await user.click(screen.getByRole("button", { name: "Edit profile" }));
+    await user.click(screen.getByRole("link", { name: "Edit profile" }));
     const name = await screen.findByRole("textbox", {
       name: "Preferred display name",
     });

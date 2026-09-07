@@ -20,6 +20,12 @@ This document reports what is present in the repository. It does not confirm ext
 
 The README requires Node.js 22 or newer. The repository does not currently contain a Node version manager file or a `package.json` engine constraint.
 
+## URL navigation
+
+- Implemented: profile path, URL-backed jobs tabs, native profile links, browser
+  history navigation, and direct-link rendering behind authentication/onboarding.
+- Unknown: production host SPA fallback; configure before deploying page URLs.
+
 ## Verified implemented features
 
 - A Vite/React application shell with Convex and Motion providers.

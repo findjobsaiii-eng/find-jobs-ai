@@ -228,3 +228,17 @@ cycle. Cache reuse precedes fresh quota, and free accounts retain their existing
 one-fresh-search-per-seven-days policy. New completed profiles join the next
 hourly sweep. No browser session is required. The existing `JOB_SEARCH_ENABLED`
 kill switch and all configured cost limits still apply.
+
+## Page URLs
+
+The completed-profile workspace uses React Router: `/` shows suggested jobs,
+`/?tab=in-progress` shows tracked applications, and `/profile` edits the profile.
+The profile URL carries the current tab query so Save/Cancel return to that view,
+even after refresh. Browser Back/Forward restores page and tab selection.
+Unknown paths return to `/`; unknown tab values show suggestions. Authentication
+and onboarding remain gates before these pages. Unsaved form edits are local and
+are discarded when leaving the editor.
+
+Production static hosting must serve `index.html` for application paths such as
+`/profile` (while serving assets normally). Vite development and preview provide
+this SPA fallback; production hosting has not yet been selected or verified.

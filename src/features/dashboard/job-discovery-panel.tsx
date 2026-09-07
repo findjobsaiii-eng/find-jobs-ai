@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -14,7 +15,9 @@ import { api } from "../../../convex/_generated/api";
 
 export function JobDiscoveryPanel() {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<"suggestions" | "inProgress">("suggestions");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view =
+    searchParams.get("tab") === "in-progress" ? "inProgress" : "suggestions";
   const [pending, setPending] = useState<Id<"jobs"> | null>(null);
   const pendingRef = useRef(false);
   const [error, setError] = useState(false);
@@ -55,7 +58,11 @@ export function JobDiscoveryPanel() {
       <Tabs.Root
         value={view}
         onValueChange={(value) => {
-          setView(value as typeof view);
+          if (value === view) return;
+          const next = new URLSearchParams(searchParams);
+          if (value === "inProgress") next.set("tab", "in-progress");
+          else next.delete("tab");
+          setSearchParams(next);
           setNotice(null);
           setError(false);
         }}
