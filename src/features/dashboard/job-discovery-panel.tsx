@@ -149,11 +149,6 @@ export function JobDiscoveryPanel() {
                         />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <span className="bg-primary/10 text-primary mb-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold">
-                          {t("jobDiscovery.relevance", {
-                            score: job.relevanceScore,
-                          })}
-                        </span>
                         <h2 className="text-lg font-semibold break-words">
                           {job.title}
                         </h2>
@@ -162,18 +157,6 @@ export function JobDiscoveryPanel() {
                         </p>
                       </div>
                     </div>
-                    {job.matchReasons.length ? (
-                      <ul className="text-muted-foreground mt-3 flex flex-wrap gap-2 text-xs">
-                        {job.matchReasons.map((reason) => (
-                          <li
-                            key={reason}
-                            className="bg-muted rounded-full px-2.5 py-1"
-                          >
-                            {t(`jobDiscovery.matchReasons.${reason}`)}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
                     <dl className="text-muted-foreground mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
                       {job.locationText ? (
                         <div className="flex items-center gap-2">

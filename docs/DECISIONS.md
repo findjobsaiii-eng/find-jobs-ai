@@ -180,21 +180,22 @@ The Responses API call uses the Web Search tool, strict Zod-backed Structured
 Outputs, an output-token limit, a tool-call limit, no response storage, and no
 automatic SDK retries.
 
-Application code creates at most two deterministic queries from role, skill,
-experience band, work arrangement, employment type, language, and normalized
-city/region/country criteria. Candidate name, email, profile summary, and other
+Application code creates one deterministic query for each unique target role,
+capped at five. Shared query identity contains the role and normalized location;
+personal skills, experience, salary, languages, and work preferences are applied
+later as database filters. Candidate name, email, profile summary, and other
 identifying text are excluded.
 
-Successful exact criteria fingerprints are shared for 24 hours. A reused run
-creates user-owned discovery relations without another provider call. Plan and
-global enforcement are defined in D-016.
+An exact query fingerprint is claimed once per Israel calendar day across all
+users. Plan and global enforcement are defined in D-016.
 
 Every provider record is validated again server-side. A posting must have a
 public HTTP(S) source URL that occurs in returned Web Search sources, plus a
 non-empty title and company. Missing facts remain null or empty, and salary is
-shown only when present. Raw prompts and raw provider responses are not
-persisted. Provider candidates do not become visible until the quality lifecycle
-in D-017 succeeds.
+shown only when present. The original structured provider record and bounded
+verified source text are persisted for audit and future extraction improvements.
+Provider candidates do not become visible until the quality lifecycle in D-017
+succeeds.
 
 ### D-016: Search entitlement and provider usage are server-enforced
 
@@ -203,41 +204,37 @@ Status: Accepted
 Evidence: `convex/jobSearchPolicy.ts`, `convex/jobSearchRuntimeConfig.ts`,
 `convex/jobDiscovery.ts`, and the usage tables in `convex/schema.ts`.
 
-All users default to `free`; only trusted server-side entitlement records can
-select `pro` or `admin`. No public function accepts or mutates plan, quota, role,
-usage, reset time, or overrides. Policies are centralized:
+All users default to `free`; active, unexpired server-side entitlements select
+`pro` or `admin`. Free users have no provider-search path. Their discovery action
+returns central-database results before loading provider configuration or a
+search profile. Paid automatic searches remain behind the global kill switch and
+daily run/query/concurrency limits.
 
-- Free: one initial/fresh search per rolling seven days, one query, five accepted jobs.
-- Pro: one fresh search per rolling 24 hours, up to two queries and ten accepted jobs.
-- Admin: one fresh search per hour, up to two queries and ten accepted jobs. It is a controlled test role, not unlimited access.
+Each unique normalized role-and-location query is atomically claimed once per
+Israel calendar day across all users. A claim records its owning run so an older
+failure cannot clear a newer claim. Failures release their own claim for retry.
+Only one active run per user is allowed and stale reservations recover after ten
+minutes.
 
-Exact 24-hour cache reuse and a sufficient set of eligible central jobs are
-checked before fresh quota. Reuse creates a zero-provider usage entry. A fresh
-run reserves the per-user window and global daily run/query/concurrency counters
-inside one Convex mutation, using an identity-and-intent idempotency key. Only one
-active run per user is allowed and stale reservations recover after ten minutes.
-The server reports when reusable inventory is available so development controls can
-keep that zero-provider path usable even when fresh quota is exhausted or the
-fresh-search kill switch is off.
-
-`JOB_SEARCH_ENABLED=false` immediately blocks fresh calls. Required global run,
-query, concurrency, and output-token limits fail closed when missing or invalid.
-SDK retries remain disabled. A failed run consumes quota only after
-`providerRequestStarted` is recorded, because provider work may then be billable;
-failures before that point release the reservation and global counts.
+The development-only entitlement switch and manual action require
+`DEV_TOOLS_ENABLED=true`. Manual paid searches may be repeated and bypass the
+automatic day claim and global run/query ceilings for testing. They still enforce
+one active run and record usage. Free-mode refresh remains provider-free. The UI
+does not expose cooldown or quota copy.
 
 ### D-017: Job visibility is precision-first and source-owned
 
 Status: Accepted
 
 Evidence: `convex/jobSourceVerification.ts`, `convex/jobQuality.ts`,
-`convex/jobDiscovery.ts`, and the `jobs`, `jobSources`, and `jobMatches` tables.
+`convex/jobGeography.ts`, `convex/jobDiscovery.ts`, and the `jobs` and
+`jobSources` tables.
 
 A Web Search result is untrusted. The server pins a validated public DNS address,
 uses strict time/body/redirect bounds, rejects private destinations, generic
 pages, HTTP 404/410, closure markers, and pages that do not confirm the expected
-role and company. HTML is reduced to bounded plain text for verification and is
-never rendered or stored. Only `verified_active` canonical jobs with a currently
+role and company. HTML is reduced to bounded plain text for verification, stored
+as raw source evidence, and never rendered. Only `verified_active` canonical jobs with a currently
 verified source are displayable; verification expires after seven days.
 
 Sources rank: employer careers page, employer ATS, established job board, then
@@ -247,26 +244,31 @@ hash, with requirement and conflicting-external-ID safeguards. Embedding-based
 merging is deferred until its extra provider cost and measured quality benefit
 justify a separately metered model.
 
-Hard exclusions cover target role, conservative city/region compatibility,
+The central job row also stores the original provider JSON alongside extracted
+fields. Hard exclusions cover target role, radius,
 work arrangement, employment type, required experience, required language,
 explicit monthly ILS salary conflict, and explicit foreign work authorization.
-Survivors receive a deterministic 0–100 score: role 25%, required skills 20%,
-preferred skills 10%, experience 10%, location 15%, work arrangement 5%,
-employment type 5%, language 5%, education 2%, and bounded normalized-token
-similarity 3%. The display threshold is 70. The score is explainable application
-logic, not an LLM-invented percentage.
+Location names resolve against a generated GeoNames Israel dataset only when one
+locality is unambiguous. The job stores that locality's centroid and stable
+GeoNames ID; Haversine distance then applies the user's radius without AI.
+Unresolved, ambiguous, and foreign locations fail closed. This is city-level
+precision, not a workplace-address promise. Internal scoring, semantic matching,
+and embeddings are deliberately deferred until real result data can validate
+their value.
 
 ### D-018: Daily discovery shares the bounded search pipeline
 
 Status: Accepted
 
 An hourly cron targets an internal mutation which scans completed profiles in
-pages of five. Atomic per-user daily claims prevent duplicate dispatches.
+pages of five. It queues only paid profiles and records one attempt per Israel
+calendar day. Free profiles are skipped before scheduling.
 Internal Node workers process a page sequentially and schedule continuation;
 profile failures do not abort the rest of the page. Completion schedules the
-next attempt for 24 hours later (normally picked up within 24–25 hours).
-Free/pro/admin quotas, reuse, kill switch, global limits, and provider accounting
-are unchanged. A quota or provider failure is recorded and retried next cycle.
+next eligible run through the hourly sweep. A plan with several unique target
+roles generates one query per role, capped at five. Shared query claims prevent
+another user from repeating that provider query on the same day. The kill switch,
+global automatic limits, and provider accounting still apply.
 Only internal helpers may accept scheduler-selected user IDs. The public manual
 action derives identity and requires the server `DEV_TOOLS_ENABLED` flag, which
 operators must enable only on development deployments.

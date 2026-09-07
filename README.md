@@ -158,12 +158,14 @@ Curated job titles and skills can be updated idempotently with
 
 ### Daily job discovery
 
-Completed profiles receive a daily discovery attempt without opening the app.
-An hourly Convex cron scans completed profiles in pages of five and atomically
-claims those due. Sequential workers use the saved search profile, create at
-most two deterministic queries, and calls the OpenAI Responses API with Web
-Search from a server action. The browser never receives the API key, selected
-model, prompts, or raw provider response.
+Paid users with completed profiles receive a daily discovery attempt without
+opening the app. An hourly Convex cron scans completed profiles in pages of five
+and atomically claims those due for the current Israel calendar day. Sequential
+workers create one deterministic query for each unique target role, up to five,
+and call the OpenAI Responses API with Web Search from a server action. Free
+users never enter this provider path; their feed is assembled only from jobs
+already stored in the central database. The browser never receives the API key,
+selected model, prompts, or raw provider response.
 
 The Convex deployment requires these additional server-only variables:
 
@@ -187,24 +189,28 @@ All limit variables are required and fail closed if missing or invalid. Setting
 hiding already eligible jobs. Do not create browser-prefixed copies of these
 values.
 
-Fresh searches reserve per-user and global capacity atomically before the
-provider request. Internal plans are `free`, `pro`, and `admin`; users default to
-`free`, and no client API can alter entitlements or usage. Free users receive one
-fresh search per rolling seven days (one query, five accepted jobs). Pro users
-receive one per rolling 24 hours (up to two queries and ten accepted jobs). Admin
-is a controlled testing entitlement, not unlimited access, and remains subject
-to global limits.
+Automatic searches reserve global capacity atomically before the provider
+request. Internal plans are `free`, `pro`, and `admin`; users default to `free`.
+An automatic query is claimed once per Israel calendar day across all users, so
+two users seeking the same role and location share the same provider work.
+Failed claims are released for retry. The automatic path remains protected by
+the kill switch and global daily run, query, concurrency, and output-token
+limits.
 
-Identical search criteria reuse eligible results for 24 hours without consuming
-fresh quota. A sufficient set of current central jobs is also reused before an
-OpenAI call. Daily discovery and development controls retain this zero-provider reuse path
-when a user has no fresh-search credit or fresh search is disabled. Provider
-candidates are stored for audit but displayed only after a
-DNS-pinned public-page check confirms the expected role and company, and after
-deterministic relevance gates pass. The visible source is the highest-priority
-verified employer/ATS/job-board source for the canonical vacancy. Search
-criteria do not contain the candidate's name, email, summary, or other
-identifying text.
+Provider candidates enter a central job catalog. Each record retains the raw
+provider JSON and structured fields; each verified source retains bounded raw
+page text, verification state, and discovery/update timestamps. Consolidation
+checks final URL, provider job ID, normalized source URL, company/title/location,
+and exact content before inserting. Embedding-assisted consolidation remains a
+future measured improvement.
+
+Jobs receive a local GeoNames Israel locality centroid when their location has
+one unambiguous match. Feed filtering uses Haversine distance against the
+candidate's saved coordinates and radius, without an AI call. Unknown,
+ambiguous, or foreign locations are excluded rather than broadened. Centroids
+are suitable for city-radius filtering but are not exact workplace addresses.
+The generated locality data comes from [GeoNames](https://www.geonames.org/)
+under CC BY 4.0.
 
 ### Homepage and development controls
 
@@ -218,16 +224,18 @@ Suggestions show up to 25 jobs; In progress currently shows the latest 100.
 
 On development deployments only, set the server variable `DEV_TOOLS_ENABLED=true`
 to expose the floating bottom testing panel. It also gates the manual search
-action server-side. Leave it unset or false on production; this is a deployment
-flag, not an administrator entitlement. It never bypasses plan/global quotas.
+action and the free/subscribed test switch server-side. Leave it unset or false
+on production. In free mode the button only refreshes the central database feed
+and cannot reach the provider. In subscribed mode **Search now** may be repeated
+for testing: manual runs bypass automatic daily and global run/query limits, but
+still enforce one active run at a time. The panel intentionally shows no quota
+or next-search countdown.
 
-The daily sweep runs hourly; each completed attempt becomes due again 24 hours
-later, so refreshes normally occur within 24–25 hours. Failures and quota skips
-are recorded in `dailyDiscoveryAttempts.lastOutcome` and tried on the next daily
-cycle. Cache reuse precedes fresh quota, and free accounts retain their existing
-one-fresh-search-per-seven-days policy. New completed profiles join the next
-hourly sweep. No browser session is required. The existing `JOB_SEARCH_ENABLED`
-kill switch and all configured cost limits still apply.
+The daily sweep runs hourly, with at most one automatic attempt per eligible paid
+profile on an Israel calendar day. New completed paid profiles join the next
+sweep. No browser session is required. Failures are recorded in
+`dailyDiscoveryAttempts.lastOutcome`; a failed shared-query claim may be retried
+by another eligible user.
 
 ## Page URLs
 

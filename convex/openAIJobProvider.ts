@@ -72,7 +72,7 @@ export async function searchJobsWithOpenAI(
         {
           role: "system",
           content:
-            "Find current, specific, public job-posting pages matching the query. Prefer direct employer career pages and public ATS postings. Never invent facts. Use null or empty arrays when a source does not state a field. Salary is null unless explicitly stated. Work-authorization requirements are null unless explicitly stated. Every job URL and evidence URL must come from web search sources. Return at most 5 jobs.",
+            "Find current, specific, public job-posting pages matching the query. Prefer direct employer career pages and public ATS postings. Never invent facts. Use null or empty arrays when a source does not state a field. Salary is null unless explicitly stated. Work-authorization requirements are null unless explicitly stated. Every job URL and evidence URL must come from web search sources. Aim for 4-10 genuine relevant jobs; return fewer when insufficient evidence exists. Never fabricate to fill the target. Return at most 10 jobs.",
         },
         { role: "user", content: searchQuery },
       ],

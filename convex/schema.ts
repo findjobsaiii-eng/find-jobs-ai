@@ -191,11 +191,14 @@ const schema = defineSchema({
     .index("by_userId_and_appliedAt", ["userId", "appliedAt"]),
   dailyDiscoveryAttempts: defineTable({
     userId: v.id("users"),
-    nextAttemptAt: v.number(),
+    dayKey: v.optional(v.string()),
+    nextAttemptAt: v.optional(v.number()),
     lastAttemptAt: v.number(),
     lastOutcome: v.string(),
   }).index("by_userId", ["userId"]),
   jobSearchQueries: defineTable({
+    lastAttemptDay: v.optional(v.string()),
+    lastAttemptRunId: v.optional(v.id("jobSearchRuns")),
     fingerprint: v.string(),
     normalizedCriteria: v.string(),
     generatedQueries: v.array(v.string()),
@@ -226,6 +229,7 @@ const schema = defineSchema({
     errorCategory: v.optional(v.string()),
     plan: v.optional(searchPlan),
     resultSource: v.optional(resultSource),
+    manual: v.optional(v.boolean()),
     reservationId: v.optional(v.string()),
     queryCount: v.optional(v.number()),
     webSearchToolCallCount: v.optional(v.number()),
@@ -238,6 +242,16 @@ const schema = defineSchema({
       "completedAt",
     ]),
   jobs: defineTable({
+    rawProviderJson: v.optional(v.string()),
+    geo: v.optional(
+      v.object({
+        placeId: v.string(),
+        countryCode: v.string(),
+        latitude: v.number(),
+        longitude: v.number(),
+        precision: v.literal("locality_centroid"),
+      }),
+    ),
     normalizedSourceUrl: v.string(),
     jobFingerprint: v.string(),
     contentHash: v.string(),
@@ -307,6 +321,7 @@ const schema = defineSchema({
     ]),
   jobSources: defineTable({
     jobId: v.id("jobs"),
+    rawSourceText: v.optional(v.string()),
     sourceUrl: v.string(),
     normalizedUrl: v.string(),
     finalUrl: v.optional(v.string()),

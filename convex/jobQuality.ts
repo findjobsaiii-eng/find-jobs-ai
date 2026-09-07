@@ -1,6 +1,6 @@
 import type { Doc } from "./_generated/dataModel";
 import type { NormalizedJob, SearchProfile } from "./jobDiscoveryModel";
-import { JOB_RELEVANCE_THRESHOLD } from "./jobSearchPolicy";
+import { distanceKm } from "./jobGeography";
 
 export type QualityEvaluation = {
   outcome: "eligible" | "excluded";
@@ -44,7 +44,10 @@ type QualityJob = Omit<
     | "workAuthorizationRequirements"
   >,
   "workAuthorizationRequirements"
-> & { workAuthorizationRequirements?: string | null };
+> & {
+  workAuthorizationRequirements?: string | null;
+  geo?: { latitude: number; longitude: number; countryCode: string };
+};
 
 const LANGUAGE_NAMES: Readonly<Record<string, string[]>> = {
   he: ["he", "hebrew", "עברית"],
@@ -88,43 +91,24 @@ function bestOverlap(needles: string[], value: string) {
   return Math.max(0, ...needles.map((needle) => overlapScore(needle, value)));
 }
 
-function listCoverage(wanted: string[], actual: string[]) {
-  if (!wanted.length) return 1;
-  if (!actual.length) return 0;
-  const text = actual.join(" ");
-  return (
-    wanted.filter((item) => bestOverlap([item], text) >= 0.5).length /
-    wanted.length
-  );
-}
-
-function roundScore(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
 function locationMatches(job: QualityJob, profile: SearchProfile) {
   if (job.workArrangement === "remote") {
-    return profile.workArrangements.includes("remote");
+    const country = normalized(job.geo?.countryCode ?? job.country ?? "");
+    return (
+      profile.workArrangements.includes("remote") &&
+      [
+        normalized(profile.location.countryCode),
+        normalized(profile.location.country),
+        "israel",
+        "ישראל",
+      ].includes(country)
+    );
   }
-  const jobCountry = normalized(job.country ?? job.locationText ?? "");
-  const expectedCountry = normalized(profile.location.country);
-  if (
-    jobCountry &&
-    !jobCountry.includes(expectedCountry) &&
-    !jobCountry.includes(normalized(profile.location.countryCode)) &&
-    !jobCountry.includes("israel") &&
-    !jobCountry.includes("ישראל")
-  ) {
-    return false;
-  }
-  const jobLocation = normalized(
-    [job.city, job.locationText].filter(Boolean).join(" "),
-  );
-  const expected = [profile.location.city, profile.location.administrativeArea]
-    .filter((value): value is string => Boolean(value))
-    .map(normalized);
   return Boolean(
-    jobLocation && expected.some((value) => jobLocation.includes(value)),
+    job.geo &&
+    job.geo.countryCode.toUpperCase() ===
+      profile.location.countryCode.toUpperCase() &&
+    distanceKm(job.geo, profile.location) <= profile.location.radiusKm,
   );
 }
 
@@ -190,85 +174,23 @@ export function evaluateJobQuality(
     exclusions.push("work_authorization_conflict");
   }
 
-  const requiredSkillsCoverage = listCoverage(
-    job.requiredSkills,
-    profile.skills,
-  );
-  const preferredSkillsCoverage = listCoverage(
-    job.preferredSkills,
-    profile.skills,
-  );
-  const experienceCompatibility =
-    job.requiredExperienceYearsMin === null
-      ? 0.8
-      : profile.yearsOfExperience >= job.requiredExperienceYearsMin
-        ? job.requiredExperienceYearsMax === null ||
-          profile.yearsOfExperience <= job.requiredExperienceYearsMax + 3
-          ? 1
-          : 0.75
-        : 0;
-  const profileText = [...profile.targetJobTitles, ...profile.skills].join(" ");
-  const jobText = [
-    job.title,
-    job.descriptionText,
-    job.requirementsText,
-    ...job.requiredSkills,
-    ...job.preferredSkills,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const semanticSimilarity = overlapScore(profileText, jobText);
-
-  const components = {
-    role: roundScore(roleMatch * 100),
-    requiredSkills: roundScore(requiredSkillsCoverage * 100),
-    preferredSkills: roundScore(preferredSkillsCoverage * 100),
-    experience: roundScore(experienceCompatibility * 100),
-    location: compatibleLocation ? 100 : 0,
-    workArrangement:
-      job.workArrangement === "unknown"
-        ? 70
-        : profile.workArrangements.includes(job.workArrangement)
-          ? 100
-          : 0,
-    employmentType:
-      job.employmentType === "unknown"
-        ? 70
-        : profile.employmentTypes.includes(job.employmentType)
-          ? 100
-          : 0,
-    language: compatibleLanguage ? 100 : 0,
-    education: job.educationRequirements.length ? 50 : 100,
-    semantic: roundScore(semanticSimilarity * 100),
-  };
-  const relevanceScore = roundScore(
-    components.role * 0.25 +
-      components.requiredSkills * 0.2 +
-      components.preferredSkills * 0.1 +
-      components.experience * 0.1 +
-      components.location * 0.15 +
-      components.workArrangement * 0.05 +
-      components.employmentType * 0.05 +
-      components.language * 0.05 +
-      components.education * 0.02 +
-      components.semantic * 0.03,
-  );
-  if (!exclusions.length && relevanceScore < JOB_RELEVANCE_THRESHOLD) {
-    exclusions.push("below_relevance_threshold");
-  }
-  const matchReasons = [
-    components.role >= 70 ? "role" : null,
-    components.requiredSkills >= 60 ? "skills" : null,
-    components.location === 100 ? "location" : null,
-    components.experience >= 80 ? "experience" : null,
-    components.workArrangement === 100 ? "work_arrangement" : null,
-  ].filter((value): value is string => Boolean(value));
   return {
     outcome: exclusions.length ? "excluded" : "eligible",
     exclusionReasons: exclusions,
-    relevanceScore,
-    scoreComponents: components,
-    matchReasons: matchReasons.slice(0, 3),
+    relevanceScore: 0,
+    scoreComponents: {
+      role: 0,
+      requiredSkills: 0,
+      preferredSkills: 0,
+      experience: 0,
+      location: 0,
+      workArrangement: 0,
+      employmentType: 0,
+      language: 0,
+      education: 0,
+      semantic: 0,
+    },
+    matchReasons: [],
   };
 }
 

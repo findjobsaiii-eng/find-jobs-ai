@@ -46,26 +46,27 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 - Completed onboarding now opens the responsive Worky dashboard. Incomplete profiles still open onboarding, within the existing authentication boundary.
 - Google Places selections now preserve the existing Place ID/radius fields and additionally store a bounded formatted address, city, administrative area, country/code, and coordinates. Older profiles remain readable but must reconfirm location before job discovery if normalized data is absent.
-- Server-owned `free`, `pro`, and `admin` policies, durable usage records, idempotent reservations, one-active-run enforcement, stale-run recovery, and atomic per-day global counters protect provider usage. The browser cannot provide entitlements, counters, reset times, or overrides.
-- Exact eligible results reuse completed searches for 24 hours without fresh quota. A sufficient set of eligible central jobs is also reused before provider access. Cache and central reuse are written to the ledger with zero provider/token use.
-- Fresh provider calls fail closed behind a kill switch, daily run/query ceilings, concurrency ceiling, per-plan rolling windows, and a configurable output-token cap. SDK retries remain disabled. A failed attempt consumes quota only after provider-start is recorded.
+- Server-owned `free`, `pro`, and `admin` policies protect provider usage. Free users only read the central jobs database and cannot enter the provider path. Paid users receive automatic searches.
+- Paid profiles generate one shared query per unique target role, capped at five. Exact normalized role/location queries are claimed once per Israel calendar day across all users; a failed owning run releases its claim for retry.
+- Automatic provider calls fail closed behind a kill switch, daily run/query ceilings, concurrency ceiling, and a configurable output-token cap. SDK retries remain disabled and usage is recorded.
 - Provider output is treated as untrusted. Every candidate needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Source verification pins the resolved public IP, bounds redirects/time/body size, rejects private addresses, 404/410, closure markers, generic pages, and content that does not confirm the expected role and company.
-- Central vacancies can own several source records. Deterministic consolidation checks final URL, provider job ID, normalized source URL, company/title/location, and content hash, while requirement and external-ID safeguards reduce unsafe merges. The best verified source follows employer, employer ATS, established job board, then aggregator priority.
-- Only canonical `verified_active` jobs with a verified source, no hard-filter contradiction, and an explainable relevance score of at least 70 appear. Per-user match records store exclusion reasons, score components, and concise match reasons.
+- Central vacancies can own several source records. Deterministic consolidation checks final URL, provider job ID, normalized source URL, company/title/location, and content hash. Central rows retain raw provider JSON plus extracted fields; verified sources retain bounded raw page text and verification metadata.
+- Only canonical `verified_active` jobs with a verified source and no hard-filter contradiction appear. Feeds are computed directly from the central catalog; the UI no longer presents a premature relevance score.
+- Job locations resolve through an offline GeoNames Israel locality dataset. Jobs store a stable place ID and locality centroid, and radius filtering uses Haversine distance without AI. Unknown, ambiguous, and foreign locations are excluded.
 
 - The homepage is a job feed with Suggestions / In progress tabs, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
 - Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. This does not send a résumé or implement interview stages.
-- An hourly internal Convex cron claims daily-due completed profiles in bounded pages. Sequential workers share the existing discovery, cache, quota, verification, and usage pipeline. Per-user attempt records prevent duplicate sweeps and record safe outcomes.
-- Manual search is gated server-side by `DEV_TOOLS_ENABLED=true`; unset/false hides the panel and rejects direct action calls. Configure it only on development deployments.
+- An hourly internal Convex cron claims eligible paid profiles in bounded pages once per Israel calendar day. Free profiles are never queued for provider work.
+- Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`. Free mode refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs.
 
 ## Incomplete or unknown areas
 
 - Live Google OAuth was reported successful after the replacement client was configured; this task did not repeat that external smoke test.
 - No CV upload, resume generation, automatic applications, Gmail access, embeddings, or multi-stage application workflow exists.
-- There is no semantic query reuse, periodic job-activity recheck, billing, checkout, or deep per-user AI review. Daily attempts remain subject to plan and global limits; a daily attempt does not guarantee fresh provider work.
-- Embedding-based duplicate detection and semantic relevance are deferred. Current bounded similarity is deterministic normalized token overlap after hard filtering; it does not claim model-derived semantic understanding.
-- Radius filtering is conservative: jobs without trusted coordinates must match the saved city/region text (or be compatible remote roles). Exact geospatial distance requires trusted job coordinates in a later milestone.
-- Pro/admin entitlements have no product UI or billing source. Only trusted server-side records can grant them; all users otherwise resolve to `free`.
+- There is no semantic query reuse, periodic job-activity recheck, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
+- Embedding-based duplicate detection, semantic relevance, and internal scoring are deferred. Current filtering applies explicit profile constraints only.
+- GeoNames coordinates are locality centroids, so radius checks are city-level approximations rather than exact workplace distances. Jobs with unresolved or ambiguous locations are hidden.
+- Pro/admin entitlements have no billing source. The development-only switch creates test entitlements; all users otherwise resolve to `free`.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
 ## Current risks
@@ -78,7 +79,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Runtime job discovery depends on server-only `OPENAI_API_KEY` and `OPENAI_JOB_SEARCH_MODEL` configuration and on the selected model continuing to support Responses API Web Search plus Structured Outputs.
 - Source verification intentionally favors precision and can hide legitimate client-rendered, bot-protected, or temporarily unavailable job pages. Verified sources expire from display after seven days because periodic revalidation is not implemented yet.
 - DNS resolution is checked and the selected public address is pinned for the HTTP request, but source verification still depends on the correctness of public DNS and TLS infrastructure.
-- Plan limits and global ceilings are policy controls rather than billing. Production operators need monitoring, an entitlement-management process, and an incident runbook before launch.
+- Global ceilings are cost controls rather than billing. Production operators need monitoring, an entitlement-management process, and an incident runbook before launch.
 
 ## Next recommended milestone
 
@@ -90,23 +91,16 @@ automated applications remain separate milestones.
 
 ## Job discovery verification
 
-Focused automated coverage verifies unauthenticated/incomplete-profile
-rejection, concurrent reservation serialization, seven-day free-plan quota,
-cache reuse without fresh consumption, the global kill switch, unknown/inactive
-visibility exclusion, multi-source consolidation, hard-filter exclusion, and
-the mocked OpenAI boundary rejecting postings whose URLs are absent from Web
-Search evidence. Automated tests never call the real OpenAI API.
+Focused automated coverage verifies that free discovery creates no provider run
+or usage, shared paid queries run once per day, failed claims retry, repeated
+manual paid searches remain available, daily scheduling excludes free users,
+central persistence and deduplication work, and GeoNames radius matching fails
+closed. Automated tests never call the real OpenAI API.
 
-A single live development search requires an authenticated completed profile
-with normalized location and every server variable named in the README. Start
-the app, open **Development tools** and choose **Search for new jobs**, and record only aggregate counts and
-safe usage metadata. Do not record the API key, generated queries, raw provider
-output, or private profile data. No live provider call is claimed unless that
-check is performed.
-
-For this audit, the local app and Google redirect loaded successfully, but the
-isolated test browser had no authenticated Google session. No account details
-were entered and no live OpenAI search was started (live-search count: 0).
+A live paid development search requires an authenticated completed profile and
+every server variable named in the README. Free-mode refresh is safe to repeat
+and never calls OpenAI. No live provider call is claimed unless the subscribed
+button is deliberately used and aggregate usage is observed.
 
 ## Dashboard verification
 
@@ -116,11 +110,13 @@ Backend tests cover owner isolation, idempotent application marking, undo,
 snapshot retention after expiry, bounded daily sweep continuation, duplicate
 claims, and the server-side development-tools gate. Provider calls are mocked.
 
-Desktop English and 390 px Hebrew/English fixture previews were visually checked,
-including profile-menu placement, tab switching, and absence of horizontal
-overflow. The live app opened at sign-in, so no authenticated live job search was
-triggered. Backend functions pushed successfully to the existing development
-deployment; its development-tools flag is enabled.
+The authenticated Hebrew/RTL development app was checked in the in-app browser.
+Free mode refreshed the central feed twice without a cooldown, subscribed mode
+showed the enabled manual-search control without quota copy, and the account was
+restored to free. `/?tab=in-progress` and `/profile?tab=in-progress` survived
+navigation and Cancel returned to the selected tab. No console errors or live
+OpenAI provider calls occurred. Backend functions pushed successfully to the
+existing development deployment; its development-tools flag is enabled.
 
 ## Local development and validation
 

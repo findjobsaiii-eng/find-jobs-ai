@@ -1,11 +1,10 @@
 import { z } from "zod";
+import { resolveJobGeography, type JobGeography } from "./jobGeography";
 
 export const JOB_DISCOVERY_LIMITS = {
-  maxQueries: 2,
-  maxJobsPerQuery: 5,
-  maxJobsPerRun: 10,
-  cacheTtlMs: 24 * 60 * 60 * 1_000,
-  cooldownMs: 60 * 60 * 1_000,
+  maxQueries: 5,
+  maxJobsPerQuery: 10,
+  maxJobsPerRun: 50,
   absoluteMaxOutputTokens: 6_000,
 } as const;
 
@@ -95,19 +94,8 @@ export type NormalizedJob = OpenAIJob & {
   normalizedSourceUrl: string;
   jobFingerprint: string;
   contentHash: string;
-};
-
-const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
-  am: "Amharic",
-  ar: "Arabic",
-  en: "English",
-  es: "Spanish",
-  fr: "French",
-  he: "Hebrew",
-  ro: "Romanian",
-  ru: "Russian",
-  uk: "Ukrainian",
-  yi: "Yiddish",
+  rawProviderJson?: string;
+  geo?: JobGeography;
 };
 
 export function hashText(value: string) {
@@ -146,66 +134,30 @@ function uniqueNormalized(values: string[], max: number) {
   return result;
 }
 
-export function buildSearchPlan(profile: SearchProfile, maxQueries = 2) {
-  const targetJobTitles = uniqueNormalized(profile.targetJobTitles, 5);
-  const skills = uniqueNormalized(profile.skills, 8);
-  const workArrangements = [...new Set(profile.workArrangements)].sort();
-  const employmentTypes = [...new Set(profile.employmentTypes)].sort();
-  const languages = [...profile.languages]
-    .map(({ languageCode, proficiency }) => ({ languageCode, proficiency }))
-    .sort((a, b) => a.languageCode.localeCompare(b.languageCode));
-  const criteria = {
-    targetJobTitles,
-    skills,
-    experienceBand:
-      profile.yearsOfExperience < 2
-        ? "entry"
-        : profile.yearsOfExperience < 5
-          ? "mid"
-          : "senior",
-    location: {
-      placeId: normalizeWhitespace(profile.location.placeId),
-      formattedAddress: normalizeWhitespace(profile.location.formattedAddress),
-      city: profile.location.city
-        ? normalizeWhitespace(profile.location.city)
-        : null,
-      administrativeArea: profile.location.administrativeArea
-        ? normalizeWhitespace(profile.location.administrativeArea)
-        : null,
-      country: normalizeWhitespace(profile.location.country),
-      countryCode: normalizeWhitespace(
-        profile.location.countryCode,
-      ).toUpperCase(),
-      latitude: profile.location.latitude,
-      longitude: profile.location.longitude,
-      radiusKm: profile.location.radiusKm,
-    },
-    workArrangements,
-    employmentTypes,
-    languages,
-    minimumMonthlySalaryIls: profile.minimumMonthlySalaryIls,
+export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
+  const titles = uniqueNormalized(profile.targetJobTitles, 5).sort((a, b) =>
+    normalizedKey(a).localeCompare(normalizedKey(b)),
+  );
+  // Personal skills, salary and radius belong to filtering, not shared searches.
+  const location =
+    profile.location.city ??
+    profile.location.administrativeArea ??
+    profile.location.formattedAddress;
+  const generatedQueries = titles
+    .slice(0, Math.min(maxQueries, 5))
+    .map((title) =>
+      normalizeWhitespace(
+        `${title} ${location} ${profile.location.countryCode.toUpperCase()} jobs careers`,
+      ),
+    );
+  const normalizedCriteria = JSON.stringify(
+    generatedQueries.map(normalizedKey),
+  );
+  return {
+    normalizedCriteria,
+    fingerprint: hashText(normalizedCriteria),
+    generatedQueries,
   };
-  const normalizedCriteria = JSON.stringify(criteria);
-  const fingerprint = hashText(normalizedCriteria);
-  const qualifiers = [
-    criteria.experienceBand !== "entry" ? criteria.experienceBand : "junior",
-    ...workArrangements.slice(0, 1),
-    ...employmentTypes.slice(0, 1),
-    ...languages
-      .slice(0, 2)
-      .map(({ languageCode }) => LANGUAGE_NAMES[languageCode] ?? languageCode),
-    criteria.location.city ?? criteria.location.administrativeArea,
-    criteria.location.country,
-  ].join(" ");
-  const generatedQueries = targetJobTitles
-    .slice(0, Math.min(maxQueries, JOB_DISCOVERY_LIMITS.maxQueries))
-    .map((title, index) => {
-      const selectedSkills = skills.slice(index * 2, index * 2 + 3).join(" ");
-      return normalizeWhitespace(
-        `${title} ${selectedSkills} ${qualifiers} jobs careers`,
-      );
-    });
-  return { normalizedCriteria, fingerprint, generatedQueries };
 }
 
 export function normalizePublicUrl(value: string) {
@@ -332,8 +284,11 @@ export function normalizeJob(
     [normalizedKey(companyName), normalizedKey(title), locationKey].join("|"),
   );
   const contentHash = hashText(JSON.stringify(normalized));
+  const geo = resolveJobGeography(normalized);
   return {
     ...normalized,
+    rawProviderJson: JSON.stringify(parsed.data),
+    ...(geo ? { geo } : {}),
     normalizedSourceUrl: sourceUrl,
     jobFingerprint,
     contentHash,

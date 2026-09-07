@@ -22,6 +22,7 @@ export type SourceVerification = {
   verifiedAt: number;
   verificationMethod: "http_content_v1";
   verificationEvidence: string;
+  rawSourceText?: string;
 };
 
 const ATS_DOMAINS = [
@@ -404,6 +405,7 @@ export async function verifyJobSource(
       const parsed = new URL(finalUrl);
       const hostname = parsed.hostname.toLocaleLowerCase("en-US");
       return {
+        rawSourceText: text.slice(0, 32000),
         activityStatus: "verified_active",
         finalUrl,
         domain: hostname,

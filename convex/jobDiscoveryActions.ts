@@ -7,7 +7,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction, env } from "./_generated/server";
-import { buildSearchPlan } from "./jobDiscoveryModel";
+import { buildSearchPlan, hashText, normalizedKey } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
 import { searchJobsWithOpenAI } from "./openAIJobProvider";
@@ -86,14 +86,35 @@ export const discoverJobsForCurrentUser = action({
     if (env.DEV_TOOLS_ENABLED !== "true") {
       throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
     }
-    return discoverForUser(ctx, userId);
+    return discoverForUser(ctx, userId, true);
   },
 });
 
 async function discoverForUser(
   ctx: ActionCtx,
   userId: Id<"users">,
+  manual = false,
 ): Promise<DiscoveryResult> {
+  const plan = await ctx.runQuery(internal.jobDiscovery.getUserPlan, {
+    userId,
+    now: Date.now(),
+  });
+  const result: DiscoveryResult = {
+    status: "reused",
+    resultSource: "central",
+    plan,
+    generatedQueryCount: 0,
+    cacheUsed: false,
+    returnedCandidateCount: 0,
+    acceptedCount: 0,
+    rejectedCount: 0,
+    insertedCount: 0,
+    deduplicatedCount: 0,
+    webSearchToolCallCount: 0,
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  };
+  // Free users never require provider credentials, configuration, or network IO.
+  if (plan === "free") return result;
   const profile = await ctx.runQuery(
     internal.jobDiscovery.getCurrentSearchProfile,
     { userId },
@@ -103,99 +124,86 @@ async function discoverForUser(
     "OPENAI_JOB_SEARCH_MODEL",
     env.OPENAI_JOB_SEARCH_MODEL,
   );
-  const searchPlan = buildSearchPlan(profile);
-  if (!searchPlan.generatedQueries.length) {
+  const queries = buildSearchPlan(profile).generatedQueries;
+  if (!queries.length)
     throw new ConvexError({ code: "INCOMPLETE_SEARCH_PROFILE" });
-  }
-  const begun = await ctx.runMutation(internal.jobDiscovery.beginSearch, {
-    userId,
-    fingerprint: searchPlan.fingerprint,
-    normalizedCriteria: searchPlan.normalizedCriteria,
-    generatedQueries: searchPlan.generatedQueries,
-    model,
-    profile,
-    runtime,
-  });
-  if (begun.kind === "reused") {
-    return {
-      status: "reused",
-      resultSource: begun.resultSource,
-      plan: begun.plan,
-      generatedQueryCount: 0,
-      cacheUsed: begun.resultSource === "cache",
-      returnedCandidateCount: 0,
-      acceptedCount: begun.acceptedCount,
-      rejectedCount: 0,
-      insertedCount: 0,
-      deduplicatedCount: begun.acceptedCount,
-      webSearchToolCallCount: 0,
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-    };
-  }
-
-  try {
-    const apiKey = requireConfiguration("OPENAI_API_KEY", env.OPENAI_API_KEY);
-    const client = new OpenAI({ apiKey, maxRetries: 0, timeout: 45_000 });
-    await ctx.runMutation(internal.jobDiscovery.markProviderStarted, {
+  let lastProviderError: string | null = null;
+  for (const searchQuery of queries) {
+    const normalizedCriteria = normalizedKey(searchQuery);
+    const begun = await ctx.runMutation(internal.jobDiscovery.beginSearch, {
       userId,
-      runId: begun.runId,
-      reservationId: begun.reservationId,
-    });
-    const provider = await searchJobsWithOpenAI(
-      client,
+      fingerprint: hashText(normalizedCriteria),
+      normalizedCriteria,
+      generatedQueries: [searchQuery],
       model,
-      searchPlan.generatedQueries,
-      {
-        maxQueries: begun.maxQueries,
-        maxAcceptedJobs: begun.maxAcceptedJobs,
-        maxOutputTokens: runtime.outputTokenLimit,
-      },
-    );
-    const verifiedJobs = await verifyJobSources(provider.accepted);
-    const persisted = await ctx.runMutation(
-      internal.jobDiscovery.completeSearch,
-      {
+      runtime,
+      manual,
+    });
+    if (!begun) continue;
+    try {
+      const apiKey = requireConfiguration("OPENAI_API_KEY", env.OPENAI_API_KEY);
+      const client = new OpenAI({ apiKey, maxRetries: 0, timeout: 45_000 });
+      await ctx.runMutation(internal.jobDiscovery.markProviderStarted, {
         userId,
         runId: begun.runId,
         reservationId: begun.reservationId,
-        returnedCandidateCount: provider.returnedCandidateCount,
-        rejectedCount: provider.rejectedCount,
-        webSearchToolCallCount: provider.webSearchToolCallCount,
-        usage: provider.usage,
-        jobs: verifiedJobs,
-        profile,
-      },
-    );
-    return {
-      status: "completed",
-      resultSource: "fresh",
-      plan: begun.plan,
-      generatedQueryCount: begun.maxQueries,
-      cacheUsed: false,
-      returnedCandidateCount: provider.returnedCandidateCount,
-      insertedCount: persisted.insertedCount,
-      deduplicatedCount: persisted.deduplicatedCount,
-      acceptedCount: persisted.acceptedCount,
-      rejectedCount: persisted.rejectedCount,
-      webSearchToolCallCount: provider.webSearchToolCallCount,
-      usage: provider.usage,
-    };
-  } catch (error) {
-    const errorCategory = classifyProviderError(error);
-    await ctx.runMutation(internal.jobDiscovery.failSearch, {
-      userId,
-      runId: begun.runId,
-      reservationId: begun.reservationId,
-      errorCategory,
-    });
-    if (convexErrorCode(error) === "OPENAI_CONFIGURATION_ERROR") {
-      throw error;
+      });
+      const provider = await searchJobsWithOpenAI(
+        client,
+        model,
+        [searchQuery],
+        {
+          maxQueries: 1,
+          maxAcceptedJobs: 10,
+          maxOutputTokens: runtime.outputTokenLimit,
+        },
+      );
+      const jobs = await verifyJobSources(provider.accepted);
+      const persisted = await ctx.runMutation(
+        internal.jobDiscovery.completeSearch,
+        {
+          userId,
+          runId: begun.runId,
+          reservationId: begun.reservationId,
+          returnedCandidateCount: provider.returnedCandidateCount,
+          rejectedCount: provider.rejectedCount,
+          webSearchToolCallCount: provider.webSearchToolCallCount,
+          usage: provider.usage,
+          jobs,
+          profile,
+        },
+      );
+      result.status = "completed";
+      result.resultSource = "fresh";
+      result.generatedQueryCount++;
+      result.returnedCandidateCount += provider.returnedCandidateCount;
+      result.acceptedCount += persisted.acceptedCount;
+      result.rejectedCount += persisted.rejectedCount;
+      result.insertedCount += persisted.insertedCount;
+      result.deduplicatedCount += persisted.deduplicatedCount;
+      result.webSearchToolCallCount += provider.webSearchToolCallCount;
+      result.usage.inputTokens += provider.usage.inputTokens;
+      result.usage.outputTokens += provider.usage.outputTokens;
+      result.usage.totalTokens += provider.usage.totalTokens;
+    } catch (error) {
+      const category = classifyProviderError(error);
+      await ctx.runMutation(internal.jobDiscovery.failSearch, {
+        userId,
+        runId: begun.runId,
+        reservationId: begun.reservationId,
+        errorCategory: category,
+      });
+      if (convexErrorCode(error) === "OPENAI_CONFIGURATION_ERROR") throw error;
+      lastProviderError = category;
     }
+  }
+  if (result.generatedQueryCount === 0 && lastProviderError) {
     throw new ConvexError({
       code: "JOB_DISCOVERY_FAILED",
-      category: errorCategory,
+      category: lastProviderError,
     });
   }
+  return result;
 }
 
 export const runDailyBatch = internalAction({

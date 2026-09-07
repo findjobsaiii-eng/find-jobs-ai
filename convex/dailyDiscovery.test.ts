@@ -12,7 +12,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it("claims completed profiles in bounded pages once per day and continues beyond the first page", async () => {
+it("claims only paid completed profiles once per Israel day and continues beyond one page", async () => {
   vi.useFakeTimers();
   const t = convexTest(schema, modules);
   await t.run(async (ctx) => {
@@ -26,6 +26,16 @@ it("claims completed profiles in bounded pages once per day and continues beyond
         createdAt: 1,
         updatedAt: 1,
       });
+      if (index < 6) {
+        await ctx.db.insert("userEntitlements", {
+          userId,
+          plan: "pro",
+          active: true,
+          source: "manual",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      }
     }
   });
   await t.mutation(internal.dailyDiscovery.dispatch, {});
@@ -44,7 +54,7 @@ it("claims completed profiles in bounded pages once per day and continues beyond
   const attempts = await t.run(async (ctx) =>
     ctx.db.query("dailyDiscoveryAttempts").collect(),
   );
-  expect(attempts).toHaveLength(7);
+  expect(attempts).toHaveLength(6);
   // Workers have no browser auth session. One invalid profile must not stop another.
   await t.action(internal.jobDiscoveryActions.runDailyBatch, {
     userIds: attempts.slice(0, 2).map((attempt) => attempt.userId),

@@ -2,13 +2,14 @@
 // @vitest-environment edge-runtime
 
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { evaluateJobQuality } from "./jobQuality";
+import { buildSearchPlan, normalizeJob } from "./jobDiscoveryModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+afterEach(() => vi.unstubAllEnvs());
 
 function asUser(t: TestConvex<typeof schema>, userId: Id<"users">) {
   return t.withIdentity({
@@ -19,7 +20,7 @@ function asUser(t: TestConvex<typeof schema>, userId: Id<"users">) {
 }
 
 async function createUser(t: TestConvex<typeof schema>) {
-  return await t.run(async (ctx) =>
+  return await t.run((ctx) =>
     ctx.db.insert("users", {
       email: "candidate@example.com",
       name: "Candidate",
@@ -28,8 +29,8 @@ async function createUser(t: TestConvex<typeof schema>) {
 }
 
 const searchProfile = {
-  targetJobTitles: ["Frontend Engineer"],
-  skills: ["React", "TypeScript", "Accessibility"],
+  targetJobTitles: ["Frontend Engineer", "QA Engineer"],
+  skills: ["React", "TypeScript"],
   yearsOfExperience: 7,
   location: {
     placeId: "place-tel-aviv",
@@ -44,10 +45,7 @@ const searchProfile = {
   },
   workArrangements: ["hybrid", "remote"],
   employmentTypes: ["full-time"],
-  languages: [
-    { languageCode: "en", proficiency: "fluent" },
-    { languageCode: "he", proficiency: "native" },
-  ],
+  languages: [{ languageCode: "en", proficiency: "fluent" }],
   minimumMonthlySalaryIls: 20_000,
 };
 
@@ -59,28 +57,106 @@ const runtime = {
   outputTokenLimit: 2_000,
 };
 
-const normalizedJob = {
-  normalizedSourceUrl: "https://careers.example.com/jobs/role-1",
-  jobFingerprint: "company-title-location",
-  contentHash: "content-one",
+function beginArgs(userId: Id<"users">, fingerprint: string, manual = false) {
+  return {
+    userId,
+    fingerprint,
+    normalizedCriteria: fingerprint,
+    generatedQueries: [`${fingerprint} jobs`],
+    model: "test-model",
+    manual,
+    runtime,
+  };
+}
+
+async function setPlan(
+  t: TestConvex<typeof schema>,
+  userId: Id<"users">,
+  plan: "free" | "pro",
+) {
+  await t.run((ctx) =>
+    ctx.db.insert("userEntitlements", {
+      userId,
+      plan,
+      active: true,
+      source: "manual",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }),
+  );
+}
+
+async function addCompletedProfile(
+  t: TestConvex<typeof schema>,
+  userId: Id<"users">,
+) {
+  await t.run(async (ctx) => {
+    const titleId = await ctx.db.insert("catalogItems", {
+      kind: "jobTitle",
+      labelEn: "Frontend Engineer",
+      normalizedKey: "frontend engineer",
+      normalizedLabels: ["frontend engineer"],
+      searchText: "frontend engineer",
+      visibility: "public",
+      source: "curated",
+      priority: 1,
+      active: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const skillId = await ctx.db.insert("catalogItems", {
+      kind: "skill",
+      labelEn: "React",
+      normalizedKey: "react",
+      normalizedLabels: ["react"],
+      searchText: "react",
+      visibility: "public",
+      source: "curated",
+      priority: 1,
+      active: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await ctx.db.insert("candidateProfiles", {
+      userId,
+      email: "candidate@example.com",
+      targetJobTitleIds: [titleId],
+      skillIds: [skillId],
+      yearsOfExperience: searchProfile.yearsOfExperience,
+      preferredPlaceIds: [searchProfile.location.placeId],
+      locationRadiusKm: searchProfile.location.radiusKm,
+      primaryLocation: searchProfile.location,
+      workArrangements: ["hybrid", "remote"],
+      employmentTypes: ["full-time"],
+      languages: [{ languageCode: "en", proficiency: "fluent" }],
+      minimumMonthlySalaryIls: searchProfile.minimumMonthlySalaryIls,
+      onboardingStep: 4,
+      onboardingCompleted: true,
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: 1,
+    });
+  });
+}
+
+const rawJob = {
   title: "Frontend Engineer",
   companyName: "Example Company",
   sourceUrl: "https://careers.example.com/jobs/role-1",
   sourceName: "Example Careers",
   sourceType: "employer" as const,
-  descriptionText:
-    "Build accessible React and TypeScript product interfaces in Tel Aviv.",
-  requirementsText: "Seven years of frontend engineering experience.",
+  descriptionText: "Build accessible React interfaces in Tel Aviv.",
+  requirementsText: "Five years of frontend experience.",
   responsibilities: ["Build interfaces"],
   requiredSkills: ["React", "TypeScript"],
-  preferredSkills: ["Accessibility"],
+  preferredSkills: [],
   requiredExperienceYearsMin: 5,
   requiredExperienceYearsMax: 10,
   educationRequirements: [],
   languages: ["English"],
   country: "Israel",
-  city: "Tel Aviv-Yafo",
-  locationText: "Tel Aviv-Yafo, Israel",
+  city: "Tel Aviv",
+  locationText: "Tel Aviv, Israel",
   workArrangement: "hybrid" as const,
   employmentType: "full-time" as const,
   salaryMin: null,
@@ -93,440 +169,218 @@ const normalizedJob = {
   sourceEvidence: [
     {
       url: "https://careers.example.com/jobs/role-1",
-      title: null,
-      excerpt: null,
+      title: "Frontend Engineer",
+      excerpt: "Example Company is hiring",
     },
   ],
 };
 
-function verification(
-  finalUrl = normalizedJob.sourceUrl,
-  sourceTier: "employer" | "ats" | "job_board" | "aggregator" = "employer",
-) {
+function normalizedJob() {
+  const job = normalizeJob(rawJob, new Set([rawJob.sourceUrl]));
+  if (!job) throw new Error("Test job did not normalize");
+  return job;
+}
+
+function verification() {
   return {
     activityStatus: "verified_active" as const,
-    finalUrl,
-    domain: new URL(finalUrl).hostname,
-    sourceTier,
-    externalJobId: null,
+    finalUrl: rawJob.sourceUrl,
+    domain: "careers.example.com",
+    sourceTier: "employer" as const,
+    externalJobId: "role-1",
     verifiedAt: Date.now(),
     verificationMethod: "http_content_v1" as const,
-    verificationEvidence: "HTTP 200 and expected role/company confirmed",
+    verificationEvidence: "Expected role and company confirmed",
+    rawSourceText: "Original public posting text",
   };
 }
 
-async function createReservation(
-  t: TestConvex<typeof schema>,
-  userId: Id<"users">,
-  fingerprint: string,
-) {
-  return await t.run(async (ctx) => {
-    const now = Date.now();
-    const queryId = await ctx.db.insert("jobSearchQueries", {
-      fingerprint,
-      normalizedCriteria: "{}",
-      generatedQueries: ["frontend engineer Tel Aviv jobs"],
-      createdAt: now,
-    });
-    const reservationId = `reservation-${fingerprint}`;
-    const runId = await ctx.db.insert("jobSearchRuns", {
-      userId,
-      queryId,
-      fingerprint,
-      status: "running",
-      provider: "openai",
-      model: "test-model",
-      plan: "free",
-      resultSource: "fresh",
-      reservationId,
-      queryCount: 1,
-      webSearchToolCallCount: 0,
-      startedAt: now,
-      returnedCandidateCount: 0,
-      acceptedCount: 0,
-      rejectedCount: 0,
-      insertedCount: 0,
-      deduplicatedCount: 0,
-    });
-    await ctx.db.insert("jobSearchUsage", {
-      userId,
-      operationType: "job_discovery",
-      plan: "free",
-      searchRunId: runId,
-      reservationId,
-      status: "reserved",
-      freshProviderCall: true,
-      providerRequestStarted: true,
-      resultSource: "fresh",
-      queryCount: 1,
-      webSearchToolCallCount: 0,
-      acceptedJobs: 0,
-      createdAt: now,
-      quotaWindowIdentifier: `free:${now}`,
-      globalDayKey: new Date(now).toISOString().slice(0, 10),
-    });
-    return { runId, reservationId, queryId };
-  });
-}
-
-const beginArgs = (fingerprint: string, enabled = true) => ({
-  fingerprint,
-  normalizedCriteria: "{}",
-  generatedQueries: ["frontend engineer Tel Aviv jobs"],
-  model: "test-model",
-  profile: searchProfile,
-  runtime: { ...runtime, enabled },
-});
-
-describe("job discovery quality and usage controls", () => {
-  it("rejects unauthenticated searches and incomplete authenticated profiles", async () => {
-    const t = convexTest(schema, modules);
-    await expect(
-      t.action(api.jobDiscoveryActions.discoverJobsForCurrentUser, {}),
-    ).rejects.toThrow();
-    const userId = await createUser(t);
-    await expect(
-      asUser(t, userId).action(
-        api.jobDiscoveryActions.discoverJobsForCurrentUser,
-        {},
-      ),
-    ).rejects.toThrow();
-  });
-
-  it("atomically creates one reservation for concurrent requests", async () => {
+describe("shared job discovery", () => {
+  it("returns central-only for free users without provider configuration", async () => {
+    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("OPENAI_JOB_SEARCH_MODEL", "");
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
-    const user = asUser(t, userId);
-    const attempts = await Promise.allSettled([
-      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("concurrent")),
-      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("concurrent")),
-    ]);
-    expect(
-      attempts.filter((attempt) => attempt.status === "fulfilled"),
-    ).toHaveLength(1);
-    expect(
-      attempts.filter((attempt) => attempt.status === "rejected"),
-    ).toHaveLength(1);
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query("jobSearchUsage").collect()).toHaveLength(1);
-      expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(1);
-    });
-  });
-
-  it("prevents a free user from reserving a second fresh search in seven days", async () => {
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    const user = asUser(t, userId);
-    const first = await user.mutation(
-      internal.jobDiscovery.beginSearch,
-      beginArgs("first"),
-    );
-    if (first.kind !== "started")
-      throw new Error("Expected a fresh reservation");
-    await user.mutation(internal.jobDiscovery.markProviderStarted, {
-      runId: first.runId,
-      reservationId: first.reservationId,
-    });
-    await user.mutation(internal.jobDiscovery.failSearch, {
-      runId: first.runId,
-      reservationId: first.reservationId,
-      errorCategory: "provider_connection",
-    });
-    await expect(
-      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("second")),
-    ).rejects.toThrow(/SEARCH_QUOTA_EXCEEDED/u);
-  });
-
-  it("reuses eligible cached jobs without consuming fresh quota", async () => {
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    await t.run(async (ctx) => {
-      const now = Date.now();
-      const queryId = await ctx.db.insert("jobSearchQueries", {
-        fingerprint: "cached",
-        normalizedCriteria: "{}",
-        generatedQueries: ["frontend engineer Tel Aviv jobs"],
-        createdAt: now,
-        lastSuccessfulRunAt: now,
-      });
-      const runId = await ctx.db.insert("jobSearchRuns", {
-        userId,
-        queryId,
-        fingerprint: "cached",
-        status: "completed",
-        provider: "openai",
-        model: "test-model",
-        resultSource: "fresh",
-        startedAt: now,
-        completedAt: now,
-        returnedCandidateCount: 1,
-        acceptedCount: 1,
-        rejectedCount: 0,
-        insertedCount: 1,
-        deduplicatedCount: 0,
-      });
-      const jobId = await ctx.db.insert("jobs", {
-        ...normalizedJob,
-        firstDiscoveredAt: now,
-        lastDiscoveredAt: now,
-        lastVerifiedAt: now,
-        activityStatus: "active",
-        lifecycleStatus: "verified_active",
-      });
-      const sourceId = await ctx.db.insert("jobSources", {
-        jobId,
-        sourceUrl: normalizedJob.sourceUrl,
-        normalizedUrl: normalizedJob.normalizedSourceUrl,
-        finalUrl: normalizedJob.sourceUrl,
-        domain: "careers.example.com",
-        sourceTier: "employer",
-        firstSeenAt: now,
-        lastSeenAt: now,
-        lastVerifiedAt: now,
-        activityStatus: "verified_active",
-        verificationMethod: "http_content_v1",
-        verificationEvidence: "verified",
-      });
-      await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
-      await ctx.db.insert("jobDiscoveries", {
-        jobId,
-        searchRunId: runId,
-        userId,
-        queryId,
-        discoveredAt: now,
-        reused: false,
-      });
-    });
-    const result = await asUser(t, userId).mutation(
-      internal.jobDiscovery.beginSearch,
-      beginArgs("cached"),
+    const result = await asUser(t, userId).action(
+      api.jobDiscoveryActions.discoverJobsForCurrentUser,
+      {},
     );
     expect(result).toMatchObject({
-      kind: "reused",
-      resultSource: "cache",
-      acceptedCount: 1,
+      plan: "free",
+      resultSource: "central",
+      generatedQueryCount: 0,
+      webSearchToolCallCount: 0,
     });
-    const user = asUser(t, userId);
-    const before = await user.query(api.jobDiscovery.listCurrentUserJobs, {});
-    const jobId = before.jobs[0].id;
-    const other = asUser(t, await createUser(t));
-    await expect(
-      other.mutation(api.jobDiscovery.setApplicationStatus, {
-        jobId,
-        applied: true,
-      }),
-    ).rejects.toThrow(/JOB_NOT_AVAILABLE/u);
-    await user.mutation(api.jobDiscovery.setApplicationStatus, {
-      jobId,
-      applied: true,
-    });
-    await user.mutation(api.jobDiscovery.setApplicationStatus, {
-      jobId,
-      applied: true,
-    });
-    expect(
-      (await user.query(api.jobDiscovery.listCurrentUserJobs, {})).jobs,
-    ).toHaveLength(0);
-    expect(
-      (
-        await other.query(api.jobDiscovery.listCurrentUserJobs, {
-          view: "inProgress",
-        })
-      ).jobs,
-    ).toHaveLength(0);
     await t.run(async (ctx) => {
-      await ctx.db.patch("jobs", jobId, { lifecycleStatus: "inactive" });
-    });
-    const tracked = await user.query(api.jobDiscovery.listCurrentUserJobs, {
-      view: "inProgress",
-    });
-    expect(tracked.jobs).toHaveLength(1);
-    expect(tracked.jobs[0].title).toBe(before.jobs[0].title);
-    await other.mutation(api.jobDiscovery.setApplicationStatus, {
-      jobId,
-      applied: false,
-    });
-    expect(
-      (
-        await user.query(api.jobDiscovery.listCurrentUserJobs, {
-          view: "inProgress",
-        })
-      ).jobs,
-    ).toHaveLength(1);
-    await user.mutation(api.jobDiscovery.setApplicationStatus, {
-      jobId,
-      applied: false,
-    });
-    expect(
-      (
-        await user.query(api.jobDiscovery.listCurrentUserJobs, {
-          view: "inProgress",
-        })
-      ).jobs,
-    ).toHaveLength(0);
-    await t.run(async (ctx) => {
-      const usage = await ctx.db.query("jobSearchUsage").collect();
-      expect(usage).toHaveLength(1);
-      expect(usage[0]).toMatchObject({
-        freshProviderCall: false,
-        status: "completed",
-      });
-    });
-  });
-
-  it("fails closed at the kill switch before creating a provider reservation", async () => {
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    await expect(
-      asUser(t, userId).mutation(
-        internal.jobDiscovery.beginSearch,
-        beginArgs("disabled", false),
-      ),
-    ).rejects.toThrow(/JOB_SEARCH_DISABLED/u);
-    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(0);
       expect(await ctx.db.query("jobSearchUsage").collect()).toHaveLength(0);
     });
   });
 
-  it("hides unknown and inactive jobs even when a match record exists", async () => {
+  it("shares one daily query claim between paid users", async () => {
+    const t = convexTest(schema, modules);
+    const firstUser = await createUser(t);
+    const secondUser = await createUser(t);
+    await setPlan(t, firstUser, "pro");
+    await setPlan(t, secondUser, "pro");
+    expect(
+      await t.mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs(firstUser, "frontend-tel-aviv"),
+      ),
+    ).not.toBeNull();
+    expect(
+      await t.mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs(secondUser, "frontend-tel-aviv"),
+      ),
+    ).toBeNull();
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(1);
+    });
+  });
+
+  it("releases a failed daily claim for another paid user", async () => {
+    const t = convexTest(schema, modules);
+    const firstUser = await createUser(t);
+    const secondUser = await createUser(t);
+    await setPlan(t, firstUser, "pro");
+    await setPlan(t, secondUser, "pro");
+    const first = await t.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs(firstUser, "qa-tel-aviv"),
+    );
+    if (!first) throw new Error("Expected reservation");
+    await t.mutation(internal.jobDiscovery.failSearch, {
+      userId: firstUser,
+      runId: first.runId,
+      reservationId: first.reservationId,
+      errorCategory: "provider_failure",
+    });
+    expect(
+      await t.mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs(secondUser, "qa-tel-aviv"),
+      ),
+    ).not.toBeNull();
+  });
+
+  it("allows repeated manual paid searches without daily or global limits", async () => {
+    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
+    await setPlan(t, userId, "pro");
+    for (let index = 0; index < 2; index += 1) {
+      const run = await t.mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs(userId, "manual-query", true),
+      );
+      if (!run) throw new Error("Expected manual reservation");
+      await t.mutation(internal.jobDiscovery.failSearch, {
+        userId,
+        runId: run.runId,
+        reservationId: run.reservationId,
+        errorCategory: "test_finished",
+      });
+    }
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(2);
+      expect(await ctx.db.query("jobSearchGlobalUsage").collect()).toHaveLength(
+        0,
+      );
+    });
+  });
+
+  it("persists raw and structured data while deduplicating", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await setPlan(t, userId, "pro");
+    const run = await t.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs(userId, "persist-job"),
+    );
+    if (!run) throw new Error("Expected reservation");
+    await t.mutation(internal.jobDiscovery.completeSearch, {
+      userId,
+      runId: run.runId,
+      reservationId: run.reservationId,
+      returnedCandidateCount: 2,
+      rejectedCount: 0,
+      webSearchToolCallCount: 1,
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      profile: searchProfile,
+      jobs: [
+        { job: normalizedJob(), verification: verification() },
+        { job: normalizedJob(), verification: verification() },
+      ],
+    });
+    await t.run(async (ctx) => {
+      const jobs = await ctx.db.query("jobs").collect();
+      const sources = await ctx.db.query("jobSources").collect();
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].rawProviderJson).toContain("Frontend Engineer");
+      expect(jobs[0].geo).toMatchObject({
+        countryCode: "IL",
+        precision: "locality_centroid",
+      });
+      expect(sources).toHaveLength(1);
+      expect(sources[0].rawSourceText).toBe("Original public posting text");
+    });
+  });
+
+  it("shows matching central jobs to free users and excludes unresolved locations", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
     await t.run(async (ctx) => {
       const now = Date.now();
-      const queryId = await ctx.db.insert("jobSearchQueries", {
-        fingerprint: "visibility",
-        normalizedCriteria: "{}",
-        generatedQueries: ["query"],
-        createdAt: now,
-      });
-      const runId = await ctx.db.insert("jobSearchRuns", {
-        userId,
-        queryId,
-        fingerprint: "visibility",
-        status: "completed",
-        provider: "openai",
-        model: "test",
-        startedAt: now,
-        completedAt: now,
-        returnedCandidateCount: 3,
-        acceptedCount: 1,
-        rejectedCount: 2,
-        insertedCount: 3,
-        deduplicatedCount: 0,
-      });
-      for (const [index, lifecycle] of [
-        "verified_active",
-        "inactive",
-        "discovered",
-      ].entries()) {
-        const url = `https://careers.example.com/jobs/${index}`;
+      for (const [index, geo] of [normalizedJob().geo, undefined].entries()) {
+        const job = normalizedJob();
+        const { geo: _storedGeo, ...jobWithoutGeo } = job;
         const jobId = await ctx.db.insert("jobs", {
-          ...normalizedJob,
-          normalizedSourceUrl: url,
-          sourceUrl: url,
-          jobFingerprint: `job-${index}`,
-          contentHash: `content-${index}`,
+          ...jobWithoutGeo,
+          ...(geo ? { geo } : {}),
+          normalizedSourceUrl: `${job.normalizedSourceUrl}-${index}`,
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          jobFingerprint: `${job.jobFingerprint}-${index}`,
+          contentHash: `${job.contentHash}-${index}`,
           firstDiscoveredAt: now,
           lastDiscoveredAt: now,
           lastVerifiedAt: now,
-          activityStatus:
-            lifecycle === "verified_active" ? "active" : "inactive",
-          lifecycleStatus: lifecycle as
-            "verified_active" | "inactive" | "discovered",
+          activityStatus: "active",
+          lifecycleStatus: "verified_active",
         });
         const sourceId = await ctx.db.insert("jobSources", {
           jobId,
-          sourceUrl: url,
-          normalizedUrl: url,
-          finalUrl: url,
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          normalizedUrl: `${job.normalizedSourceUrl}-${index}`,
+          finalUrl: `${job.sourceUrl}-${index}`,
           domain: "careers.example.com",
           sourceTier: "employer",
           firstSeenAt: now,
           lastSeenAt: now,
           lastVerifiedAt: now,
-          activityStatus:
-            lifecycle === "verified_active" ? "verified_active" : "inactive",
-          verificationMethod: "http_content_v1",
-          verificationEvidence: "test",
+          activityStatus: "verified_active",
         });
         await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
-        const quality = evaluateJobQuality(normalizedJob, searchProfile);
-        await ctx.db.insert("jobMatches", {
-          userId,
-          jobId,
-          searchRunId: runId,
-          outcome: "eligible",
-          exclusionReasons: [],
-          relevanceScore: quality.relevanceScore,
-          scoreComponents: quality.scoreComponents,
-          matchReasons: quality.matchReasons,
-          resultSource: "fresh",
-          evaluatedAt: now,
-        });
       }
     });
-    const visible = await asUser(t, userId).query(
+    const feed = await asUser(t, userId).query(
       api.jobDiscovery.listCurrentUserJobs,
-      {},
+      { view: "suggestions" },
     );
-    expect(visible.jobs).toHaveLength(1);
+    expect(feed.jobs).toHaveLength(1);
+    expect(feed.jobs[0].title).toBe("Frontend Engineer");
   });
 
-  it("consolidates two verified sources into one visible vacancy", async () => {
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    const reservation = await createReservation(t, userId, "dedupe");
-    const secondUrl = "https://board.example.net/postings/frontend-123";
-    const result = await asUser(t, userId).mutation(
-      internal.jobDiscovery.completeSearch,
-      {
-        runId: reservation.runId,
-        reservationId: reservation.reservationId,
-        returnedCandidateCount: 2,
-        rejectedCount: 0,
-        webSearchToolCallCount: 1,
-        usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
-        profile: searchProfile,
-        jobs: [
-          { job: normalizedJob, verification: verification() },
-          {
-            job: {
-              ...normalizedJob,
-              normalizedSourceUrl: secondUrl,
-              sourceUrl: secondUrl,
-              sourceName: "Example Board",
-              sourceType: "job_board",
-              contentHash: "content-two",
-              sourceEvidence: [{ url: secondUrl, title: null, excerpt: null }],
-            },
-            verification: verification(secondUrl, "job_board"),
-          },
-        ],
-      },
-    );
-    expect(result).toMatchObject({
-      acceptedCount: 1,
-      insertedCount: 1,
-      deduplicatedCount: 1,
+  it("creates one deterministic query per target role, up to five", () => {
+    const plan = buildSearchPlan({
+      ...searchProfile,
+      targetJobTitles: ["QA Engineer", "Frontend Engineer", "QA Engineer"],
     });
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
-      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
-    });
-    const visible = await asUser(t, userId).query(
-      api.jobDiscovery.listCurrentUserJobs,
-      {},
-    );
-    expect(visible.jobs).toHaveLength(1);
-    expect(visible.jobs[0]?.sourceTier).toBe("employer");
-  });
-
-  it("excludes a job with a hard work-arrangement contradiction", () => {
-    const evaluation = evaluateJobQuality(
-      { ...normalizedJob, workArrangement: "onsite" },
-      { ...searchProfile, workArrangements: ["remote"] },
-    );
-    expect(evaluation).toMatchObject({ outcome: "excluded" });
-    expect(evaluation.exclusionReasons).toContain("work_arrangement_conflict");
+    expect(plan.generatedQueries).toHaveLength(2);
+    expect(plan.generatedQueries.join(" ")).toContain("Frontend Engineer");
+    expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
   });
 });

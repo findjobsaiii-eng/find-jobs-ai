@@ -17,6 +17,8 @@ import type * as http from "../http.js";
 import type * as jobDiscovery from "../jobDiscovery.js";
 import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
 import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
+import type * as jobGeography from "../jobGeography.js";
+import type * as jobGeographyData from "../jobGeographyData.js";
 import type * as jobQuality from "../jobQuality.js";
 import type * as jobSearchPolicy from "../jobSearchPolicy.js";
 import type * as jobSearchRuntimeConfig from "../jobSearchRuntimeConfig.js";
@@ -41,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   jobDiscovery: typeof jobDiscovery;
   jobDiscoveryActions: typeof jobDiscoveryActions;
   jobDiscoveryModel: typeof jobDiscoveryModel;
+  jobGeography: typeof jobGeography;
+  jobGeographyData: typeof jobGeographyData;
   jobQuality: typeof jobQuality;
   jobSearchPolicy: typeof jobSearchPolicy;
   jobSearchRuntimeConfig: typeof jobSearchRuntimeConfig;

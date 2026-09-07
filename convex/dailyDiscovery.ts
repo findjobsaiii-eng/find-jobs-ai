@@ -2,8 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-
-const DAY = 24 * 60 * 60 * 1000;
+import { globalDayKey } from "./jobSearchPolicy";
 
 // Scan bounded pages; workers run sequentially so a sweep cannot flood the provider.
 export const dispatch = internalMutation({
@@ -11,6 +10,7 @@ export const dispatch = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
+    const dayKey = globalDayKey(now);
     const profiles = await ctx.db
       .query("candidateProfiles")
       .withIndex("by_onboardingCompleted", (q) =>
@@ -23,11 +23,23 @@ export const dispatch = internalMutation({
         .query("dailyDiscoveryAttempts")
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
-      if (attempt && attempt.nextAttemptAt > now) continue;
+      if (attempt?.dayKey === dayKey) continue;
+      const entitlements = await ctx.db
+        .query("userEntitlements")
+        .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
+        .order("desc")
+        .take(10);
+      const plan =
+        entitlements.find(
+          (item) =>
+            item.active &&
+            (item.expiresAt === undefined || item.expiresAt > now),
+        )?.plan ?? "free";
+      if (plan === "free") continue;
       const values = {
         userId: profile.userId,
+        dayKey,
         lastAttemptAt: now,
-        nextAttemptAt: now + DAY,
         lastOutcome: "queued",
       };
       if (attempt)
@@ -61,8 +73,6 @@ export const finishAttempt = internalMutation({
       .unique();
     if (attempt)
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
-        // Start the next day after completion, avoiding races with rolling quotas.
-        nextAttemptAt: Date.now() + DAY,
         lastOutcome: args.outcome.slice(0, 80),
       });
     return null;
