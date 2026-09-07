@@ -51,6 +51,17 @@ it("updates a completed profile through the existing mutation without resetting 
       skillIds: [skillId],
       preferredPlaceIds: ["place-one"],
       locationRadiusKm: 25,
+      primaryLocation: {
+        placeId: "place-one",
+        formattedAddress: "Tel Aviv-Yafo, Israel",
+        city: "Tel Aviv-Yafo",
+        administrativeArea: "Tel Aviv District",
+        country: "Israel",
+        countryCode: "IL",
+        latitude: 32.0853,
+        longitude: 34.7818,
+        radiusKm: 25,
+      },
       workArrangements: ["hybrid"],
       employmentTypes: ["full-time"],
       minimumMonthlySalaryIls: 15000,
@@ -72,6 +83,7 @@ it("updates a completed profile through the existing mutation without resetting 
     onboardingCompleted: true,
     completedAt: original.completedAt,
   });
+  expect(updated.primaryLocation?.radiusKm).toBe(40);
   expect((await user.query(api.candidateProfiles.getCurrent)).profile).toEqual(
     updated,
   );

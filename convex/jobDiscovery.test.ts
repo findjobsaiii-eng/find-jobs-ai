@@ -5,6 +5,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { evaluateJobQuality } from "./jobQuality";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -26,27 +27,60 @@ async function createUser(t: TestConvex<typeof schema>) {
   );
 }
 
+const searchProfile = {
+  targetJobTitles: ["Frontend Engineer"],
+  skills: ["React", "TypeScript", "Accessibility"],
+  yearsOfExperience: 7,
+  location: {
+    placeId: "place-tel-aviv",
+    formattedAddress: "Tel Aviv-Yafo, Israel",
+    city: "Tel Aviv-Yafo",
+    administrativeArea: "Tel Aviv District",
+    country: "Israel",
+    countryCode: "IL",
+    latitude: 32.0853,
+    longitude: 34.7818,
+    radiusKm: 25,
+  },
+  workArrangements: ["hybrid", "remote"],
+  employmentTypes: ["full-time"],
+  languages: [
+    { languageCode: "en", proficiency: "fluent" },
+    { languageCode: "he", proficiency: "native" },
+  ],
+  minimumMonthlySalaryIls: 20_000,
+};
+
+const runtime = {
+  enabled: true,
+  globalDailyRunLimit: 20,
+  globalDailyQueryLimit: 30,
+  maxConcurrentRuns: 3,
+  outputTokenLimit: 2_000,
+};
+
 const normalizedJob = {
-  normalizedSourceUrl: "https://jobs.example.com/role-1",
+  normalizedSourceUrl: "https://careers.example.com/jobs/role-1",
   jobFingerprint: "company-title-location",
   contentHash: "content-one",
   title: "Frontend Engineer",
   companyName: "Example Company",
-  sourceUrl: "https://jobs.example.com/role-1",
+  sourceUrl: "https://careers.example.com/jobs/role-1",
   sourceName: "Example Careers",
   sourceType: "employer" as const,
-  descriptionText: "Build accessible product interfaces.",
-  requirementsText: null,
+  descriptionText:
+    "Build accessible React and TypeScript product interfaces in Tel Aviv.",
+  requirementsText: "Seven years of frontend engineering experience.",
   responsibilities: ["Build interfaces"],
-  requiredSkills: ["React"],
-  preferredSkills: [],
-  requiredExperienceYearsMin: 2,
-  requiredExperienceYearsMax: null,
+  requiredSkills: ["React", "TypeScript"],
+  preferredSkills: ["Accessibility"],
+  requiredExperienceYearsMin: 5,
+  requiredExperienceYearsMax: 10,
   educationRequirements: [],
   languages: ["English"],
   country: "Israel",
-  city: "Tel Aviv",
-  locationText: "Tel Aviv, Israel",
+  city: "Tel Aviv-Yafo",
+  locationText: "Tel Aviv-Yafo, Israel",
   workArrangement: "hybrid" as const,
   employmentType: "full-time" as const,
   salaryMin: null,
@@ -55,12 +89,96 @@ const normalizedJob = {
   salaryPeriod: null,
   postedAt: null,
   applicationDeadline: null,
+  workAuthorizationRequirements: null,
   sourceEvidence: [
-    { url: "https://jobs.example.com/role-1", title: null, excerpt: null },
+    {
+      url: "https://careers.example.com/jobs/role-1",
+      title: null,
+      excerpt: null,
+    },
   ],
 };
 
-describe("job discovery persistence and access", () => {
+function verification(
+  finalUrl = normalizedJob.sourceUrl,
+  sourceTier: "employer" | "ats" | "job_board" | "aggregator" = "employer",
+) {
+  return {
+    activityStatus: "verified_active" as const,
+    finalUrl,
+    domain: new URL(finalUrl).hostname,
+    sourceTier,
+    externalJobId: null,
+    verifiedAt: Date.now(),
+    verificationMethod: "http_content_v1" as const,
+    verificationEvidence: "HTTP 200 and expected role/company confirmed",
+  };
+}
+
+async function createReservation(
+  t: TestConvex<typeof schema>,
+  userId: Id<"users">,
+  fingerprint: string,
+) {
+  return await t.run(async (ctx) => {
+    const now = Date.now();
+    const queryId = await ctx.db.insert("jobSearchQueries", {
+      fingerprint,
+      normalizedCriteria: "{}",
+      generatedQueries: ["frontend engineer Tel Aviv jobs"],
+      createdAt: now,
+    });
+    const reservationId = `reservation-${fingerprint}`;
+    const runId = await ctx.db.insert("jobSearchRuns", {
+      userId,
+      queryId,
+      fingerprint,
+      status: "running",
+      provider: "openai",
+      model: "test-model",
+      plan: "free",
+      resultSource: "fresh",
+      reservationId,
+      queryCount: 1,
+      webSearchToolCallCount: 0,
+      startedAt: now,
+      returnedCandidateCount: 0,
+      acceptedCount: 0,
+      rejectedCount: 0,
+      insertedCount: 0,
+      deduplicatedCount: 0,
+    });
+    await ctx.db.insert("jobSearchUsage", {
+      userId,
+      operationType: "job_discovery",
+      plan: "free",
+      searchRunId: runId,
+      reservationId,
+      status: "reserved",
+      freshProviderCall: true,
+      providerRequestStarted: true,
+      resultSource: "fresh",
+      queryCount: 1,
+      webSearchToolCallCount: 0,
+      acceptedJobs: 0,
+      createdAt: now,
+      quotaWindowIdentifier: `free:${now}`,
+      globalDayKey: new Date(now).toISOString().slice(0, 10),
+    });
+    return { runId, reservationId, queryId };
+  });
+}
+
+const beginArgs = (fingerprint: string, enabled = true) => ({
+  fingerprint,
+  normalizedCriteria: "{}",
+  generatedQueries: ["frontend engineer Tel Aviv jobs"],
+  model: "test-model",
+  profile: searchProfile,
+  runtime: { ...runtime, enabled },
+});
+
+describe("job discovery quality and usage controls", () => {
   it("rejects unauthenticated searches and incomplete authenticated profiles", async () => {
     const t = convexTest(schema, modules);
     await expect(
@@ -75,25 +193,70 @@ describe("job discovery persistence and access", () => {
     ).rejects.toThrow();
   });
 
-  it("reuses an identical successful run from the last 24 hours", async () => {
+  it("atomically creates one reservation for concurrent requests", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
-    const seeded = await t.run(async (ctx) => {
+    const user = asUser(t, userId);
+    const attempts = await Promise.allSettled([
+      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("concurrent")),
+      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("concurrent")),
+    ]);
+    expect(
+      attempts.filter((attempt) => attempt.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      attempts.filter((attempt) => attempt.status === "rejected"),
+    ).toHaveLength(1);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSearchUsage").collect()).toHaveLength(1);
+      expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(1);
+    });
+  });
+
+  it("prevents a free user from reserving a second fresh search in seven days", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const user = asUser(t, userId);
+    const first = await user.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs("first"),
+    );
+    if (first.kind !== "started")
+      throw new Error("Expected a fresh reservation");
+    await user.mutation(internal.jobDiscovery.markProviderStarted, {
+      runId: first.runId,
+      reservationId: first.reservationId,
+    });
+    await user.mutation(internal.jobDiscovery.failSearch, {
+      runId: first.runId,
+      reservationId: first.reservationId,
+      errorCategory: "provider_connection",
+    });
+    await expect(
+      user.mutation(internal.jobDiscovery.beginSearch, beginArgs("second")),
+    ).rejects.toThrow(/SEARCH_QUOTA_EXCEEDED/u);
+  });
+
+  it("reuses eligible cached jobs without consuming fresh quota", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await t.run(async (ctx) => {
       const now = Date.now();
       const queryId = await ctx.db.insert("jobSearchQueries", {
-        fingerprint: "same-fingerprint",
+        fingerprint: "cached",
         normalizedCriteria: "{}",
-        generatedQueries: ["frontend engineer Israel jobs"],
+        generatedQueries: ["frontend engineer Tel Aviv jobs"],
         createdAt: now,
         lastSuccessfulRunAt: now,
       });
       const runId = await ctx.db.insert("jobSearchRuns", {
         userId,
         queryId,
-        fingerprint: "same-fingerprint",
+        fingerprint: "cached",
         status: "completed",
         provider: "openai",
         model: "test-model",
+        resultSource: "fresh",
         startedAt: now,
         completedAt: now,
         returnedCandidateCount: 1,
@@ -106,8 +269,25 @@ describe("job discovery persistence and access", () => {
         ...normalizedJob,
         firstDiscoveredAt: now,
         lastDiscoveredAt: now,
-        activityStatus: "unknown",
+        lastVerifiedAt: now,
+        activityStatus: "active",
+        lifecycleStatus: "verified_active",
       });
+      const sourceId = await ctx.db.insert("jobSources", {
+        jobId,
+        sourceUrl: normalizedJob.sourceUrl,
+        normalizedUrl: normalizedJob.normalizedSourceUrl,
+        finalUrl: normalizedJob.sourceUrl,
+        domain: "careers.example.com",
+        sourceTier: "employer",
+        firstSeenAt: now,
+        lastSeenAt: now,
+        lastVerifiedAt: now,
+        activityStatus: "verified_active",
+        verificationMethod: "http_content_v1",
+        verificationEvidence: "verified",
+      });
+      await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
       await ctx.db.insert("jobDiscoveries", {
         jobId,
         searchRunId: runId,
@@ -116,75 +296,179 @@ describe("job discovery persistence and access", () => {
         discoveredAt: now,
         reused: false,
       });
-      return { jobId };
     });
     const result = await asUser(t, userId).mutation(
       internal.jobDiscovery.beginSearch,
-      {
-        fingerprint: "same-fingerprint",
-        normalizedCriteria: "{}",
-        generatedQueries: ["frontend engineer Israel jobs"],
-        model: "test-model",
-      },
+      beginArgs("cached"),
     );
-    expect(result).toMatchObject({ kind: "reused", acceptedCount: 1 });
-    const jobs = await asUser(t, userId).query(
+    expect(result).toMatchObject({
+      kind: "reused",
+      resultSource: "cache",
+      acceptedCount: 1,
+    });
+    await t.run(async (ctx) => {
+      const usage = await ctx.db.query("jobSearchUsage").collect();
+      expect(usage).toHaveLength(1);
+      expect(usage[0]).toMatchObject({
+        freshProviderCall: false,
+        status: "completed",
+      });
+    });
+  });
+
+  it("fails closed at the kill switch before creating a provider reservation", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await expect(
+      asUser(t, userId).mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs("disabled", false),
+      ),
+    ).rejects.toThrow(/JOB_SEARCH_DISABLED/u);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSearchUsage").collect()).toHaveLength(0);
+    });
+  });
+
+  it("hides unknown and inactive jobs even when a match record exists", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const queryId = await ctx.db.insert("jobSearchQueries", {
+        fingerprint: "visibility",
+        normalizedCriteria: "{}",
+        generatedQueries: ["query"],
+        createdAt: now,
+      });
+      const runId = await ctx.db.insert("jobSearchRuns", {
+        userId,
+        queryId,
+        fingerprint: "visibility",
+        status: "completed",
+        provider: "openai",
+        model: "test",
+        startedAt: now,
+        completedAt: now,
+        returnedCandidateCount: 3,
+        acceptedCount: 1,
+        rejectedCount: 2,
+        insertedCount: 3,
+        deduplicatedCount: 0,
+      });
+      for (const [index, lifecycle] of [
+        "verified_active",
+        "inactive",
+        "discovered",
+      ].entries()) {
+        const url = `https://careers.example.com/jobs/${index}`;
+        const jobId = await ctx.db.insert("jobs", {
+          ...normalizedJob,
+          normalizedSourceUrl: url,
+          sourceUrl: url,
+          jobFingerprint: `job-${index}`,
+          contentHash: `content-${index}`,
+          firstDiscoveredAt: now,
+          lastDiscoveredAt: now,
+          lastVerifiedAt: now,
+          activityStatus:
+            lifecycle === "verified_active" ? "active" : "inactive",
+          lifecycleStatus: lifecycle as
+            "verified_active" | "inactive" | "discovered",
+        });
+        const sourceId = await ctx.db.insert("jobSources", {
+          jobId,
+          sourceUrl: url,
+          normalizedUrl: url,
+          finalUrl: url,
+          domain: "careers.example.com",
+          sourceTier: "employer",
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastVerifiedAt: now,
+          activityStatus:
+            lifecycle === "verified_active" ? "verified_active" : "inactive",
+          verificationMethod: "http_content_v1",
+          verificationEvidence: "test",
+        });
+        await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
+        const quality = evaluateJobQuality(normalizedJob, searchProfile);
+        await ctx.db.insert("jobMatches", {
+          userId,
+          jobId,
+          searchRunId: runId,
+          outcome: "eligible",
+          exclusionReasons: [],
+          relevanceScore: quality.relevanceScore,
+          scoreComponents: quality.scoreComponents,
+          matchReasons: quality.matchReasons,
+          resultSource: "fresh",
+          evaluatedAt: now,
+        });
+      }
+    });
+    const visible = await asUser(t, userId).query(
       api.jobDiscovery.listCurrentUserJobs,
       {},
     );
-    expect(jobs.jobs).toHaveLength(1);
-    expect(jobs.jobs[0]?.id).toBe(seeded.jobId);
+    expect(visible.jobs).toHaveLength(1);
   });
 
-  it("updates a duplicate URL instead of creating a second central job", async () => {
+  it("consolidates two verified sources into one visible vacancy", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
-    const runId = await t.run(async (ctx) => {
-      const now = Date.now();
-      const queryId = await ctx.db.insert("jobSearchQueries", {
-        fingerprint: "new-fingerprint",
-        normalizedCriteria: "{}",
-        generatedQueries: ["frontend engineer Israel jobs"],
-        createdAt: now,
-      });
-      await ctx.db.insert("jobs", {
-        ...normalizedJob,
-        firstDiscoveredAt: now - 10_000,
-        lastDiscoveredAt: now - 10_000,
-        activityStatus: "unknown",
-      });
-      return await ctx.db.insert("jobSearchRuns", {
-        userId,
-        queryId,
-        fingerprint: "new-fingerprint",
-        status: "running",
-        provider: "openai",
-        model: "test-model",
-        startedAt: now,
-        returnedCandidateCount: 0,
-        acceptedCount: 0,
-        rejectedCount: 0,
-        insertedCount: 0,
-        deduplicatedCount: 0,
-      });
-    });
+    const reservation = await createReservation(t, userId, "dedupe");
+    const secondUrl = "https://board.example.net/postings/frontend-123";
     const result = await asUser(t, userId).mutation(
       internal.jobDiscovery.completeSearch,
       {
-        runId,
-        returnedCandidateCount: 1,
+        runId: reservation.runId,
+        reservationId: reservation.reservationId,
+        returnedCandidateCount: 2,
         rejectedCount: 0,
+        webSearchToolCallCount: 1,
         usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
-        jobs: [{ ...normalizedJob, contentHash: "newer-content" }],
+        profile: searchProfile,
+        jobs: [
+          { job: normalizedJob, verification: verification() },
+          {
+            job: {
+              ...normalizedJob,
+              normalizedSourceUrl: secondUrl,
+              sourceUrl: secondUrl,
+              sourceName: "Example Board",
+              sourceType: "job_board",
+              contentHash: "content-two",
+              sourceEvidence: [{ url: secondUrl, title: null, excerpt: null }],
+            },
+            verification: verification(secondUrl, "job_board"),
+          },
+        ],
       },
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       acceptedCount: 1,
-      insertedCount: 0,
+      insertedCount: 1,
       deduplicatedCount: 1,
     });
     await t.run(async (ctx) => {
       expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
     });
+    const visible = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      {},
+    );
+    expect(visible.jobs).toHaveLength(1);
+    expect(visible.jobs[0]?.sourceTier).toBe("employer");
+  });
+
+  it("excludes a job with a hard work-arrangement contradiction", () => {
+    const evaluation = evaluateJobQuality(
+      { ...normalizedJob, workArrangement: "onsite" },
+      { ...searchProfile, workArrangements: ["remote"] },
+    );
+    expect(evaluation).toMatchObject({ outcome: "excluded" });
+    expect(evaluation.exclusionReasons).toContain("work_arrangement_conflict");
   });
 });

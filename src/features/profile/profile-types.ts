@@ -56,7 +56,32 @@ type SaveProfileArgs = FunctionArgs<typeof api.candidateProfiles.saveCurrent>;
 export type SelectedPlace = {
   placeId: string;
   label: string;
+  formattedAddress?: string;
+  city?: string;
+  administrativeArea?: string;
+  country?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
 };
+
+export function hasNormalizedLocation(
+  place: SelectedPlace,
+): place is SelectedPlace & {
+  formattedAddress: string;
+  country: string;
+  countryCode: string;
+  latitude: number;
+  longitude: number;
+} {
+  return Boolean(
+    place.formattedAddress &&
+    place.country &&
+    place.countryCode &&
+    Number.isFinite(place.latitude) &&
+    Number.isFinite(place.longitude),
+  );
+}
 
 export type DraftLanguage = {
   languageCode: LanguageCode;
@@ -92,9 +117,26 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
         ? ""
         : String(profile.yearsOfExperience),
     skills: data.selections.skills,
-    preferredLocations:
-      profile?.preferredPlaceIds?.map((placeId) => ({ placeId, label: "" })) ??
-      [],
+    preferredLocations: profile?.primaryLocation
+      ? [
+          {
+            placeId: profile.primaryLocation.placeId,
+            label:
+              profile.primaryLocation.city ||
+              profile.primaryLocation.formattedAddress,
+            formattedAddress: profile.primaryLocation.formattedAddress,
+            city: profile.primaryLocation.city,
+            administrativeArea: profile.primaryLocation.administrativeArea,
+            country: profile.primaryLocation.country,
+            countryCode: profile.primaryLocation.countryCode,
+            latitude: profile.primaryLocation.latitude,
+            longitude: profile.primaryLocation.longitude,
+          },
+        ]
+      : (profile?.preferredPlaceIds?.map((placeId) => ({
+          placeId,
+          label: "",
+        })) ?? []),
     locationRadiusKm: profile?.locationRadiusKm ?? 25,
     workArrangements: profile?.workArrangements ?? [],
     employmentTypes: profile?.employmentTypes ?? [],
@@ -115,6 +157,7 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
 export function profileDraftToValues(
   draft: ProfileDraft,
 ): SaveProfileArgs["values"] {
+  const selectedLocation = draft.preferredLocations[0];
   return {
     preferredDisplayName: draft.preferredDisplayName.trim() || null,
     targetJobTitleIds: draft.targetJobTitles.map((item) => item.id),
@@ -124,6 +167,20 @@ export function profileDraftToValues(
     skillIds: draft.skills.map((item) => item.id),
     preferredPlaceIds: draft.preferredLocations.map((item) => item.placeId),
     locationRadiusKm: draft.locationRadiusKm,
+    primaryLocation:
+      selectedLocation && hasNormalizedLocation(selectedLocation)
+        ? {
+            placeId: selectedLocation.placeId,
+            formattedAddress: selectedLocation.formattedAddress,
+            city: selectedLocation.city,
+            administrativeArea: selectedLocation.administrativeArea,
+            country: selectedLocation.country,
+            countryCode: selectedLocation.countryCode,
+            latitude: selectedLocation.latitude,
+            longitude: selectedLocation.longitude,
+            radiusKm: draft.locationRadiusKm,
+          }
+        : null,
     workArrangements: draft.workArrangements,
     employmentTypes: draft.employmentTypes,
     minimumMonthlySalaryIls:
@@ -200,6 +257,8 @@ export function validateProfileStep(
       draft.preferredLocations.length > PROFILE_LIMITS.preferredLocations.max
     ) {
       errors.preferredLocations = "onboarding.errors.locations";
+    } else if (!hasNormalizedLocation(draft.preferredLocations[0])) {
+      errors.preferredLocations = "onboarding.errors.locationReconfirm";
     }
     if (
       !SUPPORTED_LOCATION_RADIUS_OPTIONS_KM.includes(

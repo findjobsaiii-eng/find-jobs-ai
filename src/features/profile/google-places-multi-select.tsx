@@ -23,6 +23,58 @@ function placeLabel(place: google.maps.places.Place, fallback: string) {
   );
 }
 
+function addressComponent(
+  place: google.maps.places.Place,
+  type: string,
+  short = false,
+) {
+  const component = place.addressComponents?.find((candidate) =>
+    candidate.types.includes(type),
+  );
+  return short ? component?.shortText : component?.longText;
+}
+
+function selectedPlaceFromGoogle(
+  place: google.maps.places.Place,
+  fallback: string,
+): SelectedPlace {
+  const placeId = place.id?.trim();
+  const formattedAddress = place.formattedAddress?.trim();
+  const country = addressComponent(place, "country")?.trim();
+  const countryCode = addressComponent(place, "country", true)
+    ?.trim()
+    .toLocaleUpperCase("en-US");
+  const latitude = place.location?.lat();
+  const longitude = place.location?.lng();
+  if (
+    !placeId ||
+    !formattedAddress ||
+    !country ||
+    !countryCode ||
+    latitude === undefined ||
+    longitude === undefined
+  ) {
+    throw new Error("Selected place is missing normalized location fields");
+  }
+  return {
+    placeId,
+    label: placeLabel(place, fallback),
+    formattedAddress,
+    city:
+      addressComponent(place, "locality")?.trim() ||
+      addressComponent(place, "postal_town")?.trim() ||
+      addressComponent(place, "administrative_area_level_2")?.trim(),
+    administrativeArea: addressComponent(
+      place,
+      "administrative_area_level_1",
+    )?.trim(),
+    country,
+    countryCode,
+    latitude,
+    longitude,
+  };
+}
+
 export function GooglePlacesMultiSelect({
   label,
   hint,
@@ -112,18 +164,25 @@ export function GooglePlacesMultiSelect({
       try {
         const place = event.placePrediction.toPlace();
         await place.fetchFields({
-          fields: ["displayName", "formattedAddress"],
+          fields: [
+            "displayName",
+            "formattedAddress",
+            "addressComponents",
+            "location",
+          ],
         });
-        const placeId = place.id?.trim();
-        if (!placeId) throw new Error("Selected place has no Place ID");
+        const selected = selectedPlaceFromGoogle(
+          place,
+          event.placePrediction.text.toString(),
+        );
+        const placeId = selected.placeId;
         if (valuesRef.current[0]?.placeId === placeId) {
           autocomplete.value = "";
           setIsChanging(false);
           return;
         }
-        const label = placeLabel(place, event.placePrediction.text.toString());
-        labelCacheRef.current.set(`${language}:${placeId}`, label);
-        onChangeRef.current([{ placeId, label }]);
+        labelCacheRef.current.set(`${language}:${placeId}`, selected.label);
+        onChangeRef.current([selected]);
         autocomplete.value = "";
         setIsChanging(false);
       } catch {
@@ -185,7 +244,9 @@ export function GooglePlacesMultiSelect({
       currentValues.map(async (item) => {
         const cacheKey = `${language}:${item.placeId}`;
         const cached = labelCacheRef.current.get(cacheKey);
-        if (cached) return [item.placeId, cached] as const;
+        if (cached && item.formattedAddress && item.countryCode) {
+          return { ...item, label: cached };
+        }
         try {
           const place = new placesLibrary.Place({
             id: item.placeId,
@@ -193,30 +254,31 @@ export function GooglePlacesMultiSelect({
             requestedRegion: "il",
           });
           await place.fetchFields({
-            fields: ["displayName", "formattedAddress"],
+            fields: [
+              "displayName",
+              "formattedAddress",
+              "addressComponents",
+              "location",
+            ],
           });
-          const label = placeLabel(
+          const selected = selectedPlaceFromGoogle(
             place,
             t("onboarding.savedLocationFallback"),
           );
-          labelCacheRef.current.set(cacheKey, label);
-          return [item.placeId, label] as const;
+          labelCacheRef.current.set(cacheKey, selected.label);
+          return selected;
         } catch {
-          return [
-            item.placeId,
-            item.label || t("onboarding.savedLocationFallback"),
-          ] as const;
+          return {
+            ...item,
+            label: item.label || t("onboarding.savedLocationFallback"),
+          };
         }
       }),
     ).then((resolved) => {
       if (!active) return;
-      const labels = new Map(resolved);
       const latest = valuesRef.current;
-      const next = latest.map((item) => ({
-        ...item,
-        label: labels.get(item.placeId) ?? item.label,
-      }));
-      if (next.some((item, index) => item.label !== latest[index]?.label)) {
+      const next = resolved;
+      if (JSON.stringify(next) !== JSON.stringify(latest)) {
         onChangeRef.current(next);
       }
     });

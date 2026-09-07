@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import {
   BriefcaseBusiness,
+  CheckCircle2,
   ExternalLink,
   LoaderCircle,
   MapPin,
@@ -12,7 +13,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 
 type DiscoveryError = {
-  data?: { code?: string; retryAfterMs?: number; variable?: string };
+  data?: { code?: string; nextAvailableAt?: number; variable?: string };
 };
 
 function errorCode(error: unknown) {
@@ -23,12 +24,18 @@ function errorCode(error: unknown) {
 export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
   const { t, i18n } = useTranslation();
   const result = useQuery(api.jobDiscovery.listCurrentUserJobs, {});
+  const discoveryState = useQuery(
+    api.jobDiscovery.getCurrentUserDiscoveryState,
+    {},
+  );
   const discover = useAction(
     api.jobDiscoveryActions.discoverJobsForCurrentUser,
   );
   const runningRef = useRef(false);
   const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState<"completed" | "reused" | null>(null);
+  const [status, setStatus] = useState<"fresh" | "cache" | "central" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const handleDiscover = async () => {
@@ -39,7 +46,7 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
     setStatus(null);
     try {
       const summary = await discover({});
-      setStatus(summary.status);
+      setStatus(summary.resultSource);
     } catch (cause) {
       setError(errorCode(cause) ?? "UNKNOWN");
     } finally {
@@ -54,37 +61,114 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
       ? "incomplete"
       : error === "SEARCH_COOLDOWN"
         ? "cooldown"
-        : error === "SEARCH_ALREADY_RUNNING"
-          ? "alreadyRunning"
-          : error === "OPENAI_CONFIGURATION_ERROR"
-            ? "configuration"
-            : "provider";
+        : error === "LOCATION_RECONFIRM_REQUIRED"
+          ? "locationReconfirm"
+          : error === "SEARCH_QUOTA_EXCEEDED"
+            ? "quota"
+            : error === "JOB_SEARCH_DISABLED"
+              ? "disabled"
+              : error === "SEARCH_ALREADY_RUNNING"
+                ? "alreadyRunning"
+                : error === "OPENAI_CONFIGURATION_ERROR" ||
+                    error === "JOB_SEARCH_CONFIGURATION_ERROR"
+                  ? "configuration"
+                  : error?.startsWith("GLOBAL_")
+                    ? "globalLimit"
+                    : "provider";
+  const serverRunning = discoveryState?.runActive ?? false;
+  const searchDisabled = discoveryState
+    ? serverRunning ||
+      ((!discoveryState.searchEnabled ||
+        discoveryState.remainingFreshSearches === 0) &&
+        !discoveryState.reuseAvailable)
+    : true;
+  const buttonLabel =
+    running || serverRunning
+      ? "jobDiscovery.running"
+      : discoveryState?.reuseAvailable
+        ? "jobDiscovery.reuseAvailable"
+        : discoveryState && !discoveryState.searchEnabled
+          ? "jobDiscovery.disabled"
+          : discoveryState?.nextAvailableAt
+            ? "jobDiscovery.nextAvailable"
+            : discoveryState?.remainingFreshSearches === 0
+              ? "jobDiscovery.quotaReached"
+              : "jobDiscovery.start";
+  const formatDateTime = (value: number) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(value);
   return (
     <section
       id="jobs"
       className="min-w-0 scroll-mt-6"
       aria-labelledby="jobs-title"
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 id="jobs-title" className="text-xl font-bold sm:text-2xl">
-          {t("dashboard.jobsTitle")}
-        </h2>
-        <Button
-          onClick={() => void handleDiscover()}
-          disabled={running}
-          className="min-h-11"
-        >
-          {running ? (
-            <LoaderCircle aria-hidden="true" className="animate-spin" />
-          ) : (
-            <Search aria-hidden="true" />
-          )}
-          {t(running ? "jobDiscovery.running" : "jobDiscovery.start")}
-        </Button>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="jobs-title" className="text-xl font-bold sm:text-2xl">
+            {t("dashboard.jobsTitle")}
+          </h2>
+          {discoveryState ? (
+            <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <span>
+                {t("jobDiscovery.plan", {
+                  plan: t(`jobDiscovery.plans.${discoveryState.plan}`),
+                })}
+              </span>
+              <span>
+                {t("jobDiscovery.remaining", {
+                  count: discoveryState.remainingFreshSearches,
+                })}
+              </span>
+              {discoveryState.lastSuccessfulSearchAt ? (
+                <span>
+                  {t("jobDiscovery.lastSearch", {
+                    date: formatDateTime(discoveryState.lastSuccessfulSearchAt),
+                  })}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-col items-stretch gap-1 sm:items-end">
+          <Button
+            onClick={() => void handleDiscover()}
+            disabled={running || searchDisabled}
+            className="min-h-11"
+          >
+            {running ? (
+              <LoaderCircle aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Search aria-hidden="true" />
+            )}
+            {t(buttonLabel)}
+          </Button>
+          {discoveryState?.nextAvailableAt ? (
+            <time
+              dateTime={new Date(discoveryState.nextAvailableAt).toISOString()}
+              className="text-muted-foreground text-xs"
+            >
+              {t("jobDiscovery.availableAt", {
+                date: formatDateTime(discoveryState.nextAvailableAt),
+              })}
+            </time>
+          ) : null}
+          {discoveryState?.plan === "free" ? (
+            <span className="text-muted-foreground text-xs">
+              {t("jobDiscovery.upgradeSoon")}
+            </span>
+          ) : null}
+        </div>
       </div>
       {status ? (
-        <p role="status" className="text-primary mb-4 text-sm">
-          {t(`jobDiscovery.${status}`)}
+        <p
+          role="status"
+          className="text-primary mb-4 flex items-center gap-2 text-sm"
+        >
+          <CheckCircle2 aria-hidden="true" className="size-4" />
+          {t(`jobDiscovery.sources.${status}`)}
         </p>
       ) : null}
       {error ? (
@@ -93,7 +177,7 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
           className="border-destructive/30 bg-destructive/5 mb-4 rounded-xl border p-4 text-sm"
         >
           <p>{t(`jobDiscovery.errors.${errorKey}`)}</p>
-          {errorKey === "incomplete" ? (
+          {errorKey === "incomplete" || errorKey === "locationReconfirm" ? (
             <Button
               variant="ghost"
               className="mt-1 h-auto p-0 underline"
@@ -156,6 +240,11 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
                     <BriefcaseBusiness aria-hidden="true" className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
+                    <span className="bg-primary/10 text-primary mb-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold">
+                      {t("jobDiscovery.relevance", {
+                        score: job.relevanceScore,
+                      })}
+                    </span>
                     <h3 className="text-lg font-semibold break-words">
                       {job.title}
                     </h3>
@@ -164,6 +253,18 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
                     </p>
                   </div>
                 </div>
+                {job.matchReasons.length ? (
+                  <ul className="text-muted-foreground mt-3 flex flex-wrap gap-2 text-xs">
+                    {job.matchReasons.map((reason) => (
+                      <li
+                        key={reason}
+                        className="bg-muted rounded-full px-2.5 py-1"
+                      >
+                        {t(`jobDiscovery.matchReasons.${reason}`)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <dl className="text-muted-foreground mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
                   {job.locationText ? (
                     <div className="flex items-center gap-2">
@@ -193,11 +294,11 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
                     </div>
                   ) : null}
                   <div>
-                    <dt className="sr-only">{t("jobDiscovery.discovered")}</dt>
+                    <dt className="sr-only">{t("jobDiscovery.verified")}</dt>
                     <dd>
-                      {new Intl.DateTimeFormat(i18n.language, {
-                        dateStyle: "medium",
-                      }).format(job.discoveredAt)}
+                      {t("jobDiscovery.verifiedAt", {
+                        date: formatDateTime(job.lastVerifiedAt),
+                      })}
                     </dd>
                   </div>
                 </dl>
@@ -206,6 +307,8 @@ export function JobDiscoveryPanel({ onEdit }: { onEdit: () => void }) {
                     {t("jobDiscovery.source", {
                       source: job.sourceName ?? new URL(job.sourceUrl).hostname,
                     })}
+                    {" · "}
+                    {t(`jobDiscovery.sourceTiers.${job.sourceTier}`)}
                   </span>
                   <a
                     href={job.sourceUrl}

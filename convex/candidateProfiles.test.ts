@@ -198,6 +198,17 @@ describe("candidate profiles", () => {
         skillIds: [skillId],
         preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
         locationRadiusKm: 40,
+        primaryLocation: {
+          placeId: "ChIJH3w7GaZMHRURkD-WwKJy-8E",
+          formattedAddress: "Tel Aviv-Yafo, Israel",
+          city: "Tel Aviv-Yafo",
+          administrativeArea: "Tel Aviv District",
+          country: "Israel",
+          countryCode: "il",
+          latitude: 32.0853,
+          longitude: 34.7818,
+          radiusKm: 40,
+        },
         workArrangements: ["hybrid", "remote"],
         employmentTypes: ["full-time"],
         minimumMonthlySalaryIls: 30_000,
@@ -217,6 +228,11 @@ describe("candidate profiles", () => {
       "ChIJH3w7GaZMHRURkD-WwKJy-8E",
     ]);
     expect(completed.locationRadiusKm).toBe(40);
+    expect(completed.primaryLocation).toMatchObject({
+      city: "Tel Aviv-Yafo",
+      countryCode: "IL",
+      radiusKm: 40,
+    });
     expect(completed.languages).toHaveLength(3);
     expect(completed.completedAt).toEqual(expect.any(Number));
   });

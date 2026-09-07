@@ -6,7 +6,7 @@ export const JOB_DISCOVERY_LIMITS = {
   maxJobsPerRun: 10,
   cacheTtlMs: 24 * 60 * 60 * 1_000,
   cooldownMs: 60 * 60 * 1_000,
-  maxOutputTokens: 4_000,
+  absoluteMaxOutputTokens: 6_000,
 } as const;
 
 const nullableShortText = z.string().max(300).nullable();
@@ -47,6 +47,7 @@ export const openAIJobSchema = z
     salaryPeriod: z.enum(["hour", "day", "month", "year"]).nullable(),
     postedAt: z.string().max(50).nullable(),
     applicationDeadline: z.string().max(50).nullable(),
+    workAuthorizationRequirements: nullableShortText,
     sourceEvidence: z
       .array(
         z
@@ -73,11 +74,21 @@ export type SearchProfile = {
   targetJobTitles: string[];
   skills: string[];
   yearsOfExperience: number;
-  preferredPlaceId: string;
-  locationRadiusKm: number;
+  location: {
+    placeId: string;
+    formattedAddress: string;
+    city?: string;
+    administrativeArea?: string;
+    country: string;
+    countryCode: string;
+    latitude: number;
+    longitude: number;
+    radiusKm: number;
+  };
   workArrangements: string[];
   employmentTypes: string[];
   languages: Array<{ languageCode: string; proficiency: string }>;
+  minimumMonthlySalaryIls: number;
 };
 
 export type NormalizedJob = OpenAIJob & {
@@ -99,7 +110,7 @@ const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
   yi: "Yiddish",
 };
 
-function hashText(value: string) {
+export function hashText(value: string) {
   const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
   return seeds
     .map((seed, seedIndex) => {
@@ -117,7 +128,7 @@ function normalizeWhitespace(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
 }
 
-function normalizedKey(value: string) {
+export function normalizedKey(value: string) {
   return normalizeWhitespace(value).toLocaleLowerCase("en-US");
 }
 
@@ -135,7 +146,7 @@ function uniqueNormalized(values: string[], max: number) {
   return result;
 }
 
-export function buildSearchPlan(profile: SearchProfile) {
+export function buildSearchPlan(profile: SearchProfile, maxQueries = 2) {
   const targetJobTitles = uniqueNormalized(profile.targetJobTitles, 5);
   const skills = uniqueNormalized(profile.skills, 8);
   const workArrangements = [...new Set(profile.workArrangements)].sort();
@@ -152,12 +163,27 @@ export function buildSearchPlan(profile: SearchProfile) {
         : profile.yearsOfExperience < 5
           ? "mid"
           : "senior",
-    preferredPlaceId: normalizeWhitespace(profile.preferredPlaceId),
-    locationRadiusKm: profile.locationRadiusKm,
+    location: {
+      placeId: normalizeWhitespace(profile.location.placeId),
+      formattedAddress: normalizeWhitespace(profile.location.formattedAddress),
+      city: profile.location.city
+        ? normalizeWhitespace(profile.location.city)
+        : null,
+      administrativeArea: profile.location.administrativeArea
+        ? normalizeWhitespace(profile.location.administrativeArea)
+        : null,
+      country: normalizeWhitespace(profile.location.country),
+      countryCode: normalizeWhitespace(
+        profile.location.countryCode,
+      ).toUpperCase(),
+      latitude: profile.location.latitude,
+      longitude: profile.location.longitude,
+      radiusKm: profile.location.radiusKm,
+    },
     workArrangements,
     employmentTypes,
     languages,
-    country: "Israel",
+    minimumMonthlySalaryIls: profile.minimumMonthlySalaryIls,
   };
   const normalizedCriteria = JSON.stringify(criteria);
   const fingerprint = hashText(normalizedCriteria);
@@ -168,10 +194,11 @@ export function buildSearchPlan(profile: SearchProfile) {
     ...languages
       .slice(0, 2)
       .map(({ languageCode }) => LANGUAGE_NAMES[languageCode] ?? languageCode),
-    "Israel",
+    criteria.location.city ?? criteria.location.administrativeArea,
+    criteria.location.country,
   ].join(" ");
   const generatedQueries = targetJobTitles
-    .slice(0, JOB_DISCOVERY_LIMITS.maxQueries)
+    .slice(0, Math.min(maxQueries, JOB_DISCOVERY_LIMITS.maxQueries))
     .map((title, index) => {
       const selectedSkills = skills.slice(index * 2, index * 2 + 3).join(" ");
       return normalizeWhitespace(
@@ -277,6 +304,10 @@ export function normalizeJob(
     salaryCurrency: nullableText(parsed.data.salaryCurrency, 10),
     postedAt: nullableText(parsed.data.postedAt, 50),
     applicationDeadline: nullableText(parsed.data.applicationDeadline, 50),
+    workAuthorizationRequirements: nullableText(
+      parsed.data.workAuthorizationRequirements,
+      300,
+    ),
     sourceEvidence: sourceEvidence.slice(0, 10),
   };
   if (
