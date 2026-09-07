@@ -35,6 +35,7 @@ export const PROFILE_LIMITS = {
   skills: { min: 1, max: 30 },
   preferredLocations: { min: 1, max: 10 },
   placeId: { max: 512 },
+  locationText: { max: 300 },
   workArrangements: { min: 1, max: 3 },
   employmentTypes: { min: 1, max: 3 },
   languages: { min: 1, max: 10 },
@@ -70,6 +71,18 @@ const languageValidator = v.object({
   proficiency: languageProficiencyValidator,
 });
 
+const primaryLocationValidator = v.object({
+  placeId: v.string(),
+  formattedAddress: v.string(),
+  city: v.optional(v.string()),
+  administrativeArea: v.optional(v.string()),
+  country: v.string(),
+  countryCode: v.string(),
+  latitude: v.number(),
+  longitude: v.number(),
+  radiusKm: v.number(),
+});
+
 const editableFieldsValidator = v.object({
   preferredDisplayName: v.optional(v.union(v.string(), v.null())),
   targetJobTitleIds: v.optional(v.array(v.id("catalogItems"))),
@@ -78,6 +91,7 @@ const editableFieldsValidator = v.object({
   skillIds: v.optional(v.array(v.id("catalogItems"))),
   preferredPlaceIds: v.optional(v.array(v.string())),
   locationRadiusKm: v.optional(v.union(v.number(), v.null())),
+  primaryLocation: v.optional(v.union(primaryLocationValidator, v.null())),
   workArrangements: v.optional(v.array(workArrangementValidator)),
   employmentTypes: v.optional(v.array(employmentTypeValidator)),
   minimumMonthlySalaryIls: v.optional(v.union(v.number(), v.null())),
@@ -93,6 +107,7 @@ type EditableProfile = Pick<
   | "skillIds"
   | "preferredPlaceIds"
   | "locationRadiusKm"
+  | "primaryLocation"
   | "workArrangements"
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
@@ -107,6 +122,17 @@ type EditableProfileInput = {
   skillIds?: Id<"catalogItems">[];
   preferredPlaceIds?: string[];
   locationRadiusKm?: number | null;
+  primaryLocation?: {
+    placeId: string;
+    formattedAddress: string;
+    city?: string;
+    administrativeArea?: string;
+    country: string;
+    countryCode: string;
+    latitude: number;
+    longitude: number;
+    radiusKm: number;
+  } | null;
   workArrangements?: EditableProfile["workArrangements"];
   employmentTypes?: EditableProfile["employmentTypes"];
   minimumMonthlySalaryIls?: number | null;
@@ -235,6 +261,71 @@ function normalizeEditableFields(
     }
     normalized.locationRadiusKm = values.locationRadiusKm;
   }
+  if (values.primaryLocation !== undefined) {
+    if (values.primaryLocation === null) {
+      normalized.primaryLocation = undefined;
+    } else {
+      const location = values.primaryLocation;
+      const placeId = normalizeText(
+        location.placeId,
+        "preferredLocations",
+        PROFILE_LIMITS.placeId.max,
+      );
+      const formattedAddress = normalizeText(
+        location.formattedAddress,
+        "preferredLocations",
+        PROFILE_LIMITS.locationText.max,
+      );
+      const country = normalizeText(
+        location.country,
+        "preferredLocations",
+        PROFILE_LIMITS.locationText.max,
+      );
+      const countryCode = normalizeWhitespace(location.countryCode)
+        .toLocaleUpperCase("en-US")
+        .slice(0, 2);
+      if (
+        !placeId ||
+        !formattedAddress ||
+        !country ||
+        !/^[A-Z]{2}$/u.test(countryCode) ||
+        !Number.isFinite(location.latitude) ||
+        location.latitude < -90 ||
+        location.latitude > 90 ||
+        !Number.isFinite(location.longitude) ||
+        location.longitude < -180 ||
+        location.longitude > 180 ||
+        !LOCATION_RADIUS_OPTIONS_KM.includes(
+          location.radiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
+        )
+      ) {
+        validationError("preferredLocations", "invalid_location");
+      }
+      normalized.primaryLocation = {
+        placeId,
+        formattedAddress,
+        city: location.city
+          ? normalizeText(
+              location.city,
+              "preferredLocations",
+              PROFILE_LIMITS.locationText.max,
+            )
+          : undefined,
+        administrativeArea: location.administrativeArea
+          ? normalizeText(
+              location.administrativeArea,
+              "preferredLocations",
+              PROFILE_LIMITS.locationText.max,
+            )
+          : undefined,
+        country,
+        countryCode,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radiusKm: location.radiusKm,
+      };
+    }
+  }
   if (values.workArrangements !== undefined) {
     const unique = [...new Set(values.workArrangements)];
     if (
@@ -358,11 +449,20 @@ function assertComplete(profile: EditableProfilePatch) {
     validationError("preferredLocations", "list_size");
   }
   if (
+    !profile.primaryLocation ||
+    profile.primaryLocation.placeId !== profile.preferredPlaceIds?.[0]
+  ) {
+    validationError("preferredLocations", "location_reconfirmation_required");
+  }
+  if (
     !LOCATION_RADIUS_OPTIONS_KM.includes(
       profile.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
     )
   ) {
     validationError("locationRadiusKm", "invalid_option");
+  }
+  if (profile.primaryLocation.radiusKm !== profile.locationRadiusKm) {
+    validationError("locationRadiusKm", "location_radius_mismatch");
   }
   if (
     (profile.workArrangements?.length ?? 0) <
@@ -494,6 +594,22 @@ export const saveCurrent = mutation({
 
     const existing = await getProfile(ctx, userId);
     const normalized = normalizeEditableFields(args.values);
+    if (
+      normalized.locationRadiusKm !== undefined &&
+      !("primaryLocation" in normalized) &&
+      existing?.primaryLocation
+    ) {
+      normalized.primaryLocation = {
+        ...existing.primaryLocation,
+        radiusKm: normalized.locationRadiusKm,
+      };
+    }
+    if (
+      normalized.primaryLocation &&
+      normalized.locationRadiusKm === undefined
+    ) {
+      normalized.locationRadiusKm = normalized.primaryLocation.radiusKm;
+    }
     const merged: EditableProfilePatch = { ...existing, ...normalized };
     await assertReferences(ctx, userId, merged);
     if (args.complete) assertComplete(merged);

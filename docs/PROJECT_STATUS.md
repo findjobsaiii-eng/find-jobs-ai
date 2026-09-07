@@ -1,6 +1,6 @@
 # Project status
 
-Last repository audit: 2026-09-06
+Last repository audit: 2026-09-07
 
 This document reports what is present in the repository. It does not confirm external service configuration unless that configuration is represented and testable from the repository.
 
@@ -39,21 +39,27 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Multiple work-arrangement selections and up to ten language/proficiency entries, seeded in the UI with ten languages commonly useful in Israel.
 - Convex tests covering unauthenticated rejection, cross-user isolation, private catalog ownership, normalization, resumable drafts, and completion enforcement, plus component tests for onboarding validation, routing, and submission behavior.
 - Completed onboarding now opens the responsive Worky dashboard. Incomplete profiles still open onboarding, within the existing authentication boundary.
-- Profile editing remains available from the completion card, saved-preferences summary, user menu, and mobile Profile navigation. The existing four-step form is prefilled, validates all fields on Save, and uses the existing owner-scoped mutation with completion preserved. Edits stay local until saved; Cancel and browser unload warn only for unsaved field changes.
-- Completion is calculated from the eleven saved field groups using existing validation, with the next missing field identified. Form defaults and Google display-name fallbacks do not count as saved profile completion.
-- Search filters are initialized from the saved profile but remain temporary. An explicit save action updates only role, location/radius, salary, work arrangement, and employment preferences; query text is not saved. Clear all affects only temporary filters.
-- The dashboard uses the current design tokens, English/LTR and Hebrew/RTL localization, horizontally scrolling mobile filter chips, and fixed mobile navigation. It shows a discovery empty/loading/error state or validated stored jobs; unavailable tools remain marked coming soon.
-- Completed profiles can start an authenticated manual job-discovery run from the dashboard. The server deterministically creates at most two bounded queries from non-identifying profile criteria and calls the OpenAI Responses API with Web Search and strict Structured Outputs.
-- Provider output is treated as untrusted: every accepted posting needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Valid jobs are stored centrally, associated with the requesting user through search-run discoveries, and rendered as plain React text with a link to the original source.
-- Exact normalized search criteria reuse completed results for 24 hours. New provider searches are limited to one active run per user, have a one-hour per-user cooldown, accept at most five jobs per query and ten per run, disable SDK retries, cap output tokens and tool calls, and store only aggregate token usage.
-- Central job records deduplicate first by normalized source URL and then by normalized company/title/location fingerprint. Rediscovery preserves the original discovery timestamp and updates the latest discovery timestamp.
+- Google Places selections now preserve the existing Place ID/radius fields and additionally store a bounded formatted address, city, administrative area, country/code, and coordinates. Older profiles remain readable but must reconfirm location before job discovery if normalized data is absent.
+- Server-owned `free`, `pro`, and `admin` policies, durable usage records, idempotent reservations, one-active-run enforcement, stale-run recovery, and atomic per-day global counters protect provider usage. The browser cannot provide entitlements, counters, reset times, or overrides.
+- Exact eligible results reuse completed searches for 24 hours without fresh quota. A sufficient set of eligible central jobs is also reused before provider access. Cache and central reuse are written to the ledger with zero provider/token use.
+- Fresh provider calls fail closed behind a kill switch, daily run/query ceilings, concurrency ceiling, per-plan rolling windows, and a configurable output-token cap. SDK retries remain disabled. A failed attempt consumes quota only after provider-start is recorded.
+- Provider output is treated as untrusted. Every candidate needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Source verification pins the resolved public IP, bounds redirects/time/body size, rejects private addresses, 404/410, closure markers, generic pages, and content that does not confirm the expected role and company.
+- Central vacancies can own several source records. Deterministic consolidation checks final URL, provider job ID, normalized source URL, company/title/location, and content hash, while requirement and external-ID safeguards reduce unsafe merges. The best verified source follows employer, employer ATS, established job board, then aggregator priority.
+- Only canonical `verified_active` jobs with a verified source, no hard-filter contradiction, and an explainable relevance score of at least 70 appear. Per-user match records store exclusion reasons, score components, and concise match reasons.
+
+- The homepage is a job feed with Suggestions / In progress tabs, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
+- Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. This does not send a résumé or implement interview stages.
+- An hourly internal Convex cron claims daily-due completed profiles in bounded pages. Sequential workers share the existing discovery, cache, quota, verification, and usage pipeline. Per-user attempt records prevent duplicate sweeps and record safe outcomes.
+- Manual search is gated server-side by `DEV_TOOLS_ENABLED=true`; unset/false hides the panel and rejects direct action calls. Configure it only on development deployments.
 
 ## Incomplete or unknown areas
 
-- A live redirect reached Google on 2026-09-06, but Google returned `disabled_client`. Successful account selection, callback completion, refresh persistence, and live sign-out remain blocked until the configured OAuth client is enabled or replaced.
-- No CV upload, ranking or match score, application tracking, resume generation, automatic applications, scraping, Gmail access, scheduling, embeddings, or profile scoring exists.
-- Job discovery is manual only. There are no scheduled searches, background queues, semantic query reuse, semantic deduplication, job-activity rechecks, or deep per-user AI reviews.
-- The candidate profile persists a Google Place ID and radius, not its display label or coordinates. The first server search therefore includes Israel and the saved work criteria, and uses the Place ID/radius in the exact-cache fingerprint, but cannot express a city name or calculate true distance until normalized server-side location data is added.
+- Live Google OAuth was reported successful after the replacement client was configured; this task did not repeat that external smoke test.
+- No CV upload, resume generation, automatic applications, Gmail access, embeddings, or multi-stage application workflow exists.
+- There is no semantic query reuse, periodic job-activity recheck, billing, checkout, or deep per-user AI review. Daily attempts remain subject to plan and global limits; a daily attempt does not guarantee fresh provider work.
+- Embedding-based duplicate detection and semantic relevance are deferred. Current bounded similarity is deterministic normalized token overlap after hard filtering; it does not claim model-derived semantic understanding.
+- Radius filtering is conservative: jobs without trusted coordinates must match the saved city/region text (or be compatible remote roles). Exact geospatial distance requires trusted job coordinates in a later milestone.
+- Pro/admin entitlements have no product UI or billing source. Only trusted server-side records can grant them; all users otherwise resolve to `free`.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
 ## Current risks
@@ -64,41 +70,51 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
 - Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
 - Runtime job discovery depends on server-only `OPENAI_API_KEY` and `OPENAI_JOB_SEARCH_MODEL` configuration and on the selected model continuing to support Responses API Web Search plus Structured Outputs.
-- Web Search and model output can be incomplete or stale. Source URLs are evidence-backed and activity begins as `unknown`; the product does not yet revalidate whether a posting remains active.
+- Source verification intentionally favors precision and can hide legitimate client-rendered, bot-protected, or temporarily unavailable job pages. Verified sources expire from display after seven days because periodic revalidation is not implemented yet.
+- DNS resolution is checked and the selected public address is pinned for the HTTP request, but source verification still depends on the correctness of public DNS and TLS infrastructure.
+- Plan limits and global ceilings are policy controls rather than billing. Production operators need monitoring, an entitlement-management process, and an incident runbook before launch.
 
 ## Next recommended milestone
 
-Add normalized server-side city/country data to the existing Place selection,
-then define job freshness and activity revalidation. Scheduling, embeddings,
-matching scores, CV ingestion, and automated applications remain separate
-milestones with their own cost, privacy, and consent decisions.
+Add a bounded source-reverification workflow and operational monitoring for
+scheduled discovery. After real-world false-positive/false-negative data exists,
+evaluate whether a separately metered embedding model materially improves the
+deterministic duplicate and relevance gates. Billing, CV ingestion, and
+automated applications remain separate milestones.
 
 ## Job discovery verification
 
-Focused automated coverage verifies unauthenticated and incomplete-profile
-rejection, exact recent-result reuse, URL deduplication in the central jobs
-table, and the mocked OpenAI boundary rejecting postings whose URLs are absent
-from Web Search evidence. Automated tests never call the real OpenAI API.
+Focused automated coverage verifies unauthenticated/incomplete-profile
+rejection, concurrent reservation serialization, seven-day free-plan quota,
+cache reuse without fresh consumption, the global kill switch, unknown/inactive
+visibility exclusion, multi-source consolidation, hard-filter exclusion, and
+the mocked OpenAI boundary rejecting postings whose URLs are absent from Web
+Search evidence. Automated tests never call the real OpenAI API.
 
-A single live development search requires an authenticated completed profile and
-both server variables named in the README. Start the app, choose **Search for new
-jobs**, and record only aggregate counts and usage shown by the safe action
-summary. Do not record the API key, generated queries, raw provider output, or
-private profile data. A live result is not claimed until that check is performed.
+A single live development search requires an authenticated completed profile
+with normalized location and every server variable named in the README. Start
+the app, open **Development tools** and choose **Search for new jobs**, and record only aggregate counts and
+safe usage metadata. Do not record the API key, generated queries, raw provider
+output, or private profile data. No live provider call is claimed unless that
+check is performed.
+
+For this audit, the local app and Google redirect loaded successfully, but the
+isolated test browser had no authenticated Google session. No account details
+were entered and no live OpenAI search was started (live-search count: 0).
 
 ## Dashboard verification
 
-Four focused tests cover completed/incomplete profile routing and a prefilled
-Hebrew editor, saving edits and returning to the updated dashboard, actual saved
-field completion, and the existing backend mutation preserving identity and the
-original completion timestamp. Existing tests are retained. No Convex backend
-files or schema changed for this milestone.
+Component coverage checks profile routing/edit/save, keyboard opening and Escape
+focus restoration, language switching, RTL direction, and the In progress tab.
+Backend tests cover owner isolation, idempotent application marking, undo,
+snapshot retention after expiry, bounded daily sweep continuation, duplicate
+claims, and the server-side development-tools gate. Provider calls are mocked.
 
-Desktop and mobile browser visual checks remain manual; browser automation was
-excluded from this task. Check the dashboard at a desktop width and around
-390 px, including filter scrolling, the bottom navigation, and editing/saving a
-profile. Google Places labels and suggestions require the existing configured
-browser key. No live visual or Places result is claimed by the mocked tests.
+Desktop English and 390 px Hebrew/English fixture previews were visually checked,
+including profile-menu placement, tab switching, and absence of horizontal
+overflow. The live app opened at sign-in, so no authenticated live job search was
+triggered. Backend functions pushed successfully to the existing development
+deployment; its development-tools flag is enabled.
 
 ## Local development and validation
 
@@ -174,8 +190,6 @@ logs, screenshots, or documentation.
     browser permission in separate checks, and confirm neither path blocks manual
     search.
 
-On 2026-09-06, steps 1 through the initial Google redirect were checked against
-the available development configuration. Google stopped the flow with
-`disabled_client`, so steps 5 through 9 could not be completed live. Their local
-UI and utility behavior is covered by automated tests, but that is not a
-substitute for the live smoke test.
+The product owner subsequently reported that the replacement Google OAuth client
+completed the live flow successfully. This repository audit did not repeat that
+external account-level smoke test; automated auth coverage remains in place.

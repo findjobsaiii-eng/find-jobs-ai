@@ -58,7 +58,17 @@ function selectPlace(placeId: string, label: string) {
       toPlace: () => ({
         id: placeId,
         displayName: label,
-        formattedAddress: label,
+        formattedAddress: `${label}, Israel`,
+        addressComponents: [
+          { longText: label, shortText: label, types: ["locality"] },
+          {
+            longText: "Tel Aviv District",
+            shortText: "TA",
+            types: ["administrative_area_level_1"],
+          },
+          { longText: "Israel", shortText: "IL", types: ["country"] },
+        ],
+        location: { lat: () => 32.0853, lng: () => 34.7818 },
         fetchFields: vi.fn().mockResolvedValue(undefined),
       }),
     },

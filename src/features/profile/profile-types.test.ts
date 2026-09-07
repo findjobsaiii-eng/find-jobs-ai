@@ -43,6 +43,10 @@ describe("profile location draft", () => {
     expect(profileDraftToValues(draft)).toMatchObject({
       preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
       locationRadiusKm: 50,
+      primaryLocation: null,
+    });
+    expect(validateProfileStep(3, draft)).toMatchObject({
+      preferredLocations: "onboarding.errors.locationReconfirm",
     });
 
     expect(

@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and a manual server-side job-discovery slice. Application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
+An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and daily server-side job discovery and basic application tracking. Advanced application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -120,19 +120,19 @@ Candidate ownership and Google identity fields are derived exclusively in Convex
 
 Editable profile data is normalized and bounded on the server:
 
-| Field                        | Stored limits                                                      |
-| ---------------------------- | ------------------------------------------------------------------ |
-| Preferred display name       | 2–80 characters to complete                                        |
-| Target job titles            | 1–5 validated catalog references                                   |
-| Professional summary         | 40–1,200 characters to complete                                    |
-| Years of experience          | Whole number from 0–60                                             |
-| Skills                       | 1–30 validated catalog references                                  |
-| Preferred locations          | One primary Google Place ID in onboarding, at most 512 characters  |
-| Location radius              | One of 5, 10, 15, 25, 40, 60, or 100 km                            |
-| Work arrangements            | One or more of onsite, hybrid, and remote                          |
-| Employment types             | One or more of full-time, part-time, and contract                  |
-| Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                |
-| Languages                    | 1–10 unique supported languages, each with a proficiency selection |
+| Field                        | Stored limits                                                        |
+| ---------------------------- | -------------------------------------------------------------------- |
+| Preferred display name       | 2–80 characters to complete                                          |
+| Target job titles            | 1–5 validated catalog references                                     |
+| Professional summary         | 40–1,200 characters to complete                                      |
+| Years of experience          | Whole number from 0–60                                               |
+| Skills                       | 1–30 validated catalog references                                    |
+| Preferred location           | One Google Place with normalized city/region/country and coordinates |
+| Location radius              | One of 5, 10, 15, 25, 40, 60, or 100 km                              |
+| Work arrangements            | One or more of onsite, hybrid, and remote                            |
+| Employment types             | One or more of full-time, part-time, and contract                    |
+| Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                  |
+| Languages                    | 1–10 unique supported languages, each with a proficiency selection   |
 
 Drafts may omit or clear fields so onboarding remains resumable. Completion is a separate server-validated transition and records created, updated, and completed timestamps. The profile contains only the stated onboarding and Google identity fields; no CV, generated content, mailbox data, job data, or profile score is stored.
 
@@ -145,19 +145,22 @@ rejected, and exact duplicates are reused. This keeps the MVP useful without
 publishing unreviewed input or creating a manual moderation queue.
 
 The onboarding UI searches Google Places for one primary Israeli city or region,
-then asks for a search radius. Only Place IDs and the selected radius are stored.
-Google labels are fetched for display, while optional browser geolocation is used
-only as a temporary search bias and is never written to Convex. The stored field
-remains an array for compatibility with earlier drafts; onboarding replaces it
-with a single primary location when the user changes the selection. Previously
-stored 50 km and 200 km radii remain valid and can be changed to a current preset.
+then asks for a search radius. A selected result stores its Place ID, formatted
+address, city, administrative area, country/code, coordinates, and radius. These
+fields are bounded and validated by Convex. Optional browser geolocation is used
+only as a temporary search bias and is never written to Convex. The legacy Place
+ID array remains for compatibility; profiles that predate normalized location
+storage must reconfirm and save their location before starting another search.
+Previously stored 50 km and 200 km radii remain valid and can be changed to a
+current preset.
 Curated job titles and skills can be updated idempotently with
 `npm run catalog:seed`.
 
-### Manual job discovery
+### Daily job discovery
 
-Completed profiles can start a manual job search from the authenticated
-dashboard. Convex derives the current user and saved search profile, creates at
+Completed profiles receive a daily discovery attempt without opening the app.
+An hourly Convex cron scans completed profiles in pages of five and atomically
+claims those due. Sequential workers use the saved search profile, create at
 most two deterministic queries, and calls the OpenAI Responses API with Web
 Search from a server action. The browser never receives the API key, selected
 model, prompts, or raw provider response.
@@ -167,6 +170,11 @@ The Convex deployment requires these additional server-only variables:
 ```text
 OPENAI_API_KEY
 OPENAI_JOB_SEARCH_MODEL
+JOB_SEARCH_ENABLED
+JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
+JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
+JOB_SEARCH_MAX_CONCURRENT_RUNS
+JOB_SEARCH_OUTPUT_TOKEN_LIMIT
 ```
 
 The model must support the Responses API, Web Search, and Structured Outputs.
@@ -174,8 +182,49 @@ The initial recommended development value is `gpt-5.6-luna`; keep the model in
 deployment configuration so it can be changed without shipping frontend code.
 Do not create a browser-prefixed copy of either variable.
 
-Each run accepts at most ten citation-backed public job postings, validates and
-normalizes them on the server, and stores them in the central `jobs` table.
-Identical search criteria reuse a successful result from the previous 24 hours;
-otherwise each user has a one-hour manual-search cooldown. Search criteria do
-not contain the candidate's name, email, summary, or other identifying text.
+All limit variables are required and fail closed if missing or invalid. Setting
+`JOB_SEARCH_ENABLED` to `false` immediately blocks fresh provider calls without
+hiding already eligible jobs. Do not create browser-prefixed copies of these
+values.
+
+Fresh searches reserve per-user and global capacity atomically before the
+provider request. Internal plans are `free`, `pro`, and `admin`; users default to
+`free`, and no client API can alter entitlements or usage. Free users receive one
+fresh search per rolling seven days (one query, five accepted jobs). Pro users
+receive one per rolling 24 hours (up to two queries and ten accepted jobs). Admin
+is a controlled testing entitlement, not unlimited access, and remains subject
+to global limits.
+
+Identical search criteria reuse eligible results for 24 hours without consuming
+fresh quota. A sufficient set of current central jobs is also reused before an
+OpenAI call. Daily discovery and development controls retain this zero-provider reuse path
+when a user has no fresh-search credit or fresh search is disabled. Provider
+candidates are stored for audit but displayed only after a
+DNS-pinned public-page check confirms the expected role and company, and after
+deterministic relevance gates pass. The visible source is the highest-priority
+verified employer/ATS/job-board source for the canonical vacancy. Search
+criteria do not contain the candidate's name, email, summary, or other
+identifying text.
+
+### Homepage and development controls
+
+The homepage contains a compact Suggestions / In progress tab bar and jobs.
+The fixed profile button sits at the logical start (left in English, right in
+Hebrew) and opens profile editing, language switching, and sign-out.
+“Sent résumé” saves an owner-scoped application snapshot and moves the job to
+In progress. Undo removes the marker. Snapshots remain available after a job
+expires from suggestions; the action records tracking only and never sends a CV.
+Suggestions show up to 25 jobs; In progress currently shows the latest 100.
+
+On development deployments only, set the server variable `DEV_TOOLS_ENABLED=true`
+to expose the floating bottom testing panel. It also gates the manual search
+action server-side. Leave it unset or false on production; this is a deployment
+flag, not an administrator entitlement. It never bypasses plan/global quotas.
+
+The daily sweep runs hourly; each completed attempt becomes due again 24 hours
+later, so refreshes normally occur within 24–25 hours. Failures and quota skips
+are recorded in `dailyDiscoveryAttempts.lastOutcome` and tried on the next daily
+cycle. Cache reuse precedes fresh quota, and free accounts retain their existing
+one-fresh-search-per-seven-days policy. New completed profiles join the next
+hourly sweep. No browser session is required. The existing `JOB_SEARCH_ENABLED`
+kill switch and all configured cost limits still apply.

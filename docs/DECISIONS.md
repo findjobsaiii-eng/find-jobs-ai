@@ -137,7 +137,11 @@ embeddings are not involved in location search.
 Onboarding presents one primary Google Place and a separate radius control. New
 selections use the 5, 10, 15, 25, 40, 60, or 100 km presets and default to 25 km.
 The existing array storage is retained for compatibility with earlier drafts,
-and the server continues accepting previously stored 50 km and 200 km radii.
+and the server continues accepting previously stored 50 km and 200 km radii. A
+selection also stores bounded formatted address, city, administrative area,
+country/code, coordinates, and radius for server-side search. Older profiles
+without this normalized contract must reconfirm location before discovery; the
+server never silently broadens their search to the whole country.
 
 ### D-012: Development data may be reset instead of migrated
 
@@ -151,25 +155,15 @@ when needed. Do not add compatibility or migration machinery solely to preserve
 disposable development records. Production data will require an explicit
 migration and rollback policy before this decision changes.
 
-### D-014: Dashboard editing reuses onboarding and search filters are temporary
+### D-014: A minimal job feed and shared profile editor
 
-Status: Accepted
+Status: Accepted (updated 2026-09-07)
 
-Evidence: `src/features/dashboard/`, `src/features/profile/profile-gate.tsx`,
-and the editing mode in `src/features/profile/onboarding-screen.tsx`.
-
-The existing authenticated profile boundary selects onboarding or the dashboard.
-Profile editing is a dedicated in-app screen, using the existing four form steps,
-draft conversion, validation, and `candidateProfiles.saveCurrent` mutation. Save
-uses `complete: true`; the server retains the original completion timestamp and
-derives Google identity. Cancel discards local changes. No router dependency,
-second profile model, or backend mutation is introduced.
-
-Dashboard filters are local to the current visit and start from the saved profile.
-Only an explicit save-preferences action writes the editable search preferences;
-query text remains temporary. Profile completion weights the eleven existing
-field groups equally and uses their validation, rather than estimating job-match
-quality. Unavailable tools remain visibly pending until implemented.
+The authenticated homepage is a Suggestions / In progress feed. The floating
+logical-start profile panel contains editing, language, and sign-out. Profile
+editing reuses the existing four-step onboarding form and owner-scoped save
+mutation. Temporary search filters, completion cards, placeholder tools, and
+mobile navigation have been removed.
 
 ### D-015: Job discovery uses bounded Responses API Web Search with strict output
 
@@ -178,7 +172,7 @@ Status: Accepted
 Evidence: `convex/jobDiscoveryActions.ts`, `convex/openAIJobProvider.ts`,
 `convex/jobDiscoveryModel.ts`, `convex/jobDiscovery.ts`, and `convex/schema.ts`.
 
-Manual job discovery runs only in an authenticated Convex server action using
+Job discovery runs in a Convex server action using
 the official OpenAI JavaScript SDK. The model is required server configuration
 under `OPENAI_JOB_SEARCH_MODEL`; `gpt-5.6-luna` is the initial cost-conscious
 recommendation because current official documentation lists Web Search support.
@@ -187,24 +181,106 @@ Outputs, an output-token limit, a tool-call limit, no response storage, and no
 automatic SDK retries.
 
 Application code creates at most two deterministic queries from role, skill,
-experience band, work arrangement, employment type, language, and country
-criteria. Candidate name, email, profile summary, and other identifying text are
-excluded. The saved Place ID and radius participate in the criteria fingerprint,
-but the query cannot contain the selected city because the current profile model
-does not store a server-readable Place label.
+experience band, work arrangement, employment type, language, and normalized
+city/region/country criteria. Candidate name, email, profile summary, and other
+identifying text are excluded.
 
 Successful exact criteria fingerprints are shared for 24 hours. A reused run
-creates user-owned discovery relations without another provider call. New calls
-have a one-hour per-user cooldown and one active run per user. At most five jobs
-per query and ten per run are accepted, and only aggregate token counts are
-stored.
+creates user-owned discovery relations without another provider call. Plan and
+global enforcement are defined in D-016.
 
 Every provider record is validated again server-side. A posting must have a
 public HTTP(S) source URL that occurs in returned Web Search sources, plus a
-non-empty title and company. Central records deduplicate by normalized URL, then
-by company/title/location fingerprint. Missing facts remain null or empty,
-salary is shown only when present, and activity starts as `unknown`. Raw prompts
-and raw provider responses are not persisted.
+non-empty title and company. Missing facts remain null or empty, and salary is
+shown only when present. Raw prompts and raw provider responses are not
+persisted. Provider candidates do not become visible until the quality lifecycle
+in D-017 succeeds.
+
+### D-016: Search entitlement and provider usage are server-enforced
+
+Status: Accepted
+
+Evidence: `convex/jobSearchPolicy.ts`, `convex/jobSearchRuntimeConfig.ts`,
+`convex/jobDiscovery.ts`, and the usage tables in `convex/schema.ts`.
+
+All users default to `free`; only trusted server-side entitlement records can
+select `pro` or `admin`. No public function accepts or mutates plan, quota, role,
+usage, reset time, or overrides. Policies are centralized:
+
+- Free: one initial/fresh search per rolling seven days, one query, five accepted jobs.
+- Pro: one fresh search per rolling 24 hours, up to two queries and ten accepted jobs.
+- Admin: one fresh search per hour, up to two queries and ten accepted jobs. It is a controlled test role, not unlimited access.
+
+Exact 24-hour cache reuse and a sufficient set of eligible central jobs are
+checked before fresh quota. Reuse creates a zero-provider usage entry. A fresh
+run reserves the per-user window and global daily run/query/concurrency counters
+inside one Convex mutation, using an identity-and-intent idempotency key. Only one
+active run per user is allowed and stale reservations recover after ten minutes.
+The server reports when reusable inventory is available so development controls can
+keep that zero-provider path usable even when fresh quota is exhausted or the
+fresh-search kill switch is off.
+
+`JOB_SEARCH_ENABLED=false` immediately blocks fresh calls. Required global run,
+query, concurrency, and output-token limits fail closed when missing or invalid.
+SDK retries remain disabled. A failed run consumes quota only after
+`providerRequestStarted` is recorded, because provider work may then be billable;
+failures before that point release the reservation and global counts.
+
+### D-017: Job visibility is precision-first and source-owned
+
+Status: Accepted
+
+Evidence: `convex/jobSourceVerification.ts`, `convex/jobQuality.ts`,
+`convex/jobDiscovery.ts`, and the `jobs`, `jobSources`, and `jobMatches` tables.
+
+A Web Search result is untrusted. The server pins a validated public DNS address,
+uses strict time/body/redirect bounds, rejects private destinations, generic
+pages, HTTP 404/410, closure markers, and pages that do not confirm the expected
+role and company. HTML is reduced to bounded plain text for verification and is
+never rendered or stored. Only `verified_active` canonical jobs with a currently
+verified source are displayable; verification expires after seven days.
+
+Sources rank: employer careers page, employer ATS, established job board, then
+aggregator. Consolidation uses normalized final URL, source external ID,
+normalized source URL, company/title/location fingerprint, and exact content
+hash, with requirement and conflicting-external-ID safeguards. Embedding-based
+merging is deferred until its extra provider cost and measured quality benefit
+justify a separately metered model.
+
+Hard exclusions cover target role, conservative city/region compatibility,
+work arrangement, employment type, required experience, required language,
+explicit monthly ILS salary conflict, and explicit foreign work authorization.
+Survivors receive a deterministic 0–100 score: role 25%, required skills 20%,
+preferred skills 10%, experience 10%, location 15%, work arrangement 5%,
+employment type 5%, language 5%, education 2%, and bounded normalized-token
+similarity 3%. The display threshold is 70. The score is explainable application
+logic, not an LLM-invented percentage.
+
+### D-018: Daily discovery shares the bounded search pipeline
+
+Status: Accepted
+
+An hourly cron targets an internal mutation which scans completed profiles in
+pages of five. Atomic per-user daily claims prevent duplicate dispatches.
+Internal Node workers process a page sequentially and schedule continuation;
+profile failures do not abort the rest of the page. Completion schedules the
+next attempt for 24 hours later (normally picked up within 24–25 hours).
+Free/pro/admin quotas, reuse, kill switch, global limits, and provider accounting
+are unchanged. A quota or provider failure is recorded and retried next cycle.
+Only internal helpers may accept scheduler-selected user IDs. The public manual
+action derives identity and requires the server `DEV_TOOLS_ENABLED` flag, which
+operators must enable only on development deployments.
+
+### D-019: Application tracking stores an owner-scoped snapshot
+
+Status: Accepted
+
+“Sent résumé” creates one application per user/job and excludes it from that
+user's suggestions. The server verifies an eligible owned match and snapshots
+the posting; clients cannot supply posting contents or user identity. In progress
+keeps the snapshot after source expiry. Undo removes only the caller's marker.
+This records an application and never submits a résumé. Interview stages and
+tracking pagination beyond the latest 100 applications remain future work.
 
 ## Pending decisions
 
@@ -229,21 +305,9 @@ and refresh tokens in `localStorage`. This supports refresh and browser-restart
 persistence but places greater weight on XSS prevention. The product owner must
 decide whether that tradeoff is acceptable before production launch.
 
-### P-007: Server-normalized location contract
+### P-008: Job freshness and semantic retrieval
 
 Status: Pending
 
-The current profile stores one primary Google Place ID and a radius while the
-browser resolves its label for display. Job discovery needs a trusted
-server-readable city/country (and eventually coordinates) to express local
-queries and enforce radius semantics. Decide whether to persist normalized Place
-details during profile save or resolve them through a server-side Places call.
-
-### P-008: Job freshness, scheduling, and semantic retrieval
-
-Status: Pending
-
-This slice intentionally uses manual searches, 24-hour exact-query reuse, and
-deterministic URL/text fingerprints. Scheduled searches, activity revalidation,
-query/job embeddings, semantic deduplication, and personalized match scores need
-separate cost and quality decisions before implementation.
+Periodic source revalidation, query/job embeddings, and exact geospatial job
+coordinates need separate cost and quality decisions before implementation.

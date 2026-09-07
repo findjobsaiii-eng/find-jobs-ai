@@ -79,17 +79,37 @@
     "preferencesTitle": "My search preferences",
     "edit": "Edit",
     "notSet": "Not set",
-    "trackingDescription": "Track applications here when this feature becomes available."
+    "trackingDescription": "Track applications here when this feature becomes available.",
+    "developmentTools": "Development tools"
   },
   "jobDiscovery": {
     "start": "Search for new jobs",
+    "reuseAvailable": "Refresh from available jobs",
     "running": "Searching for new jobs for you…",
+    "nextAvailable": "Next search available later",
+    "quotaReached": "Search quota reached",
+    "disabled": "New search temporarily disabled",
+    "availableAt": "Available {{date}}",
+    "plan": "Plan: {{plan}}",
+    "plans": {
+      "free": "Free",
+      "pro": "Pro",
+      "admin": "Admin"
+    },
+    "remaining": "Fresh searches remaining: {{count}}",
+    "lastSearch": "Last successful search: {{date}}",
+    "upgradeSoon": "Upgrade coming soon",
     "loading": "Loading discovered jobs…",
     "completed": "Your latest search is ready.",
     "reused": "Fresh results from an identical recent search were reused.",
+    "sources": {
+      "fresh": "These results came from a new web search.",
+      "cache": "These results came from a recent identical search.",
+      "central": "These results were already verified in Worky’s job database."
+    },
     "retry": "Try again",
-    "emptyTitle": "Search for your first real opportunities",
-    "emptyDescription": "Start a focused search based on your saved profile. Only validated public postings will appear here.",
+    "emptyTitle": "Your next opportunity will appear here",
+    "emptyDescription": "Matching jobs will appear here as we find them, based on your saved profile.",
     "location": "Location",
     "arrangement": "Work arrangement",
     "salaryLabel": "Salary",
@@ -101,14 +121,35 @@
       "year": "per year"
     },
     "discovered": "Discovered",
+    "verified": "Last verified",
+    "verifiedAt": "Last verified {{date}}",
+    "relevance": "{{score}}% relevant",
+    "matchReasons": {
+      "role": "Target role",
+      "skills": "Skills",
+      "location": "Location",
+      "experience": "Experience",
+      "work_arrangement": "Work arrangement"
+    },
     "source": "Source: {{source}}",
+    "sourceTiers": {
+      "employer": "Employer careers page",
+      "ats": "Employer ATS",
+      "job_board": "Job board",
+      "aggregator": "Aggregator"
+    },
     "openPosting": "Open original posting",
     "errors": {
       "incomplete": "Complete the required job-search profile fields before starting a search.",
+      "locationReconfirm": "Choose and save your location again so Worky can verify its city and radius before searching.",
       "cooldown": "You can start another new search after the one-hour cooldown.",
+      "quota": "You have reached your fresh-search quota. Verified jobs already available to you remain visible.",
+      "disabled": "Fresh web search is temporarily disabled. Existing verified jobs remain available.",
+      "globalLimit": "The shared search safety limit has been reached. Try again later.",
       "alreadyRunning": "A job search is already running for your account.",
       "configuration": "Job discovery is not configured on the server yet.",
-      "provider": "The job provider could not complete this search. No unvalidated results were saved."
+      "provider": "The job provider could not complete this search. No unvalidated results were saved.",
+      "devDisabled": "Development tools are disabled on this deployment."
     }
   },
   "onboarding": {
@@ -246,6 +287,7 @@
       "years": "Enter a whole number from 0 to 60.",
       "skills": "Add at least one skill (up to 30).",
       "locations": "Choose one location from the Google suggestions.",
+      "locationReconfirm": "Choose the saved location again so we can verify its city and search radius.",
       "locationRadius": "Choose one of the available search distances.",
       "workArrangements": "Choose at least one work arrangement.",
       "employmentTypes": "Choose at least one employment type.",
@@ -261,5 +303,17 @@
       "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",
       "save": "We couldn't save your profile. Check your connection and try again."
     }
+  },
+  "applications": {
+    "suggestions": "Suggestions",
+    "inProgress": "In progress",
+    "sentResume": "Sent résumé",
+    "undo": "Undo sent résumé",
+    "marked": "Moved to In progress.",
+    "unmarked": "Removed from In progress.",
+    "error": "Couldn’t update this job. Please try again.",
+    "emptyTitle": "No applications yet",
+    "emptyDescription": "Mark a job as “Sent résumé” to keep track of it here.",
+    "sentAt": "Résumé sent {{date}}"
   }
 }

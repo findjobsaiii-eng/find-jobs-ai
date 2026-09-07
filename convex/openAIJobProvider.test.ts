@@ -30,6 +30,7 @@ describe("OpenAI job provider boundary", () => {
       salaryPeriod: null,
       postedAt: null,
       applicationDeadline: null,
+      workAuthorizationRequirements: null,
     };
     const parse = vi.fn().mockResolvedValue({
       output: [
@@ -55,7 +56,11 @@ describe("OpenAI job provider boundary", () => {
       usage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
     });
     const client = { responses: { parse } } as unknown as OpenAI;
-    const result = await searchJobsWithOpenAI(client, "test-model", ["query"]);
+    const result = await searchJobsWithOpenAI(client, "test-model", ["query"], {
+      maxQueries: 1,
+      maxAcceptedJobs: 5,
+      maxOutputTokens: 2_000,
+    });
     expect(result.accepted).toHaveLength(1);
     expect(result.rejectedCount).toBe(1);
     expect(result.usage).toEqual({
@@ -63,9 +68,11 @@ describe("OpenAI job provider boundary", () => {
       outputTokens: 50,
       totalTokens: 150,
     });
+    expect(result.webSearchToolCallCount).toBe(1);
     expect(parse).toHaveBeenCalledWith(
       expect.objectContaining({
         store: false,
+        max_output_tokens: 2_000,
         max_tool_calls: 2,
         tools: [{ type: "web_search", search_context_size: "low" }],
       }),
