@@ -80,7 +80,8 @@
     "edit": "Edit",
     "notSet": "Not set",
     "trackingDescription": "Track applications here when this feature becomes available.",
-    "developmentTools": "Development tools"
+    "developmentTools": "Development tools",
+    "replaceResume": "Upload a new CV"
   },
   "jobDiscovery": {
     "start": "Search now",
@@ -89,7 +90,8 @@
     "sources": {
       "fresh": "Search complete. The shared jobs database is up to date.",
       "cache": "Today’s search was already completed.",
-      "central": "Jobs refreshed from the shared database."
+      "central": "Jobs refreshed from the shared database.",
+      "qualityDemo": "Demo jobs loaded for this account."
     },
     "retry": "Try again",
     "emptyTitle": "Your next opportunity will appear here",
@@ -105,6 +107,9 @@
       "year": "per year"
     },
     "discovered": "Discovered",
+    "posted": "Posted",
+    "postedAt": "Posted {{date}}",
+    "discoveredAt": "Found {{date}}",
     "verified": "Last verified",
     "verifiedAt": "Last verified {{date}}",
     "source": "Source: {{source}}",
@@ -114,7 +119,9 @@
       "job_board": "Job board",
       "aggregator": "Aggregator"
     },
-    "openPosting": "Open original posting",
+    "keySkills": "Key skills",
+    "noLongerActive": "This job is no longer active",
+    "openPosting": "View job",
     "errors": {
       "incomplete": "Complete the required job-search profile fields before starting a search.",
       "locationReconfirm": "Choose and save your location again so Worky can verify its city and radius before searching.",
@@ -123,10 +130,50 @@
       "configuration": "Job discovery is not configured on the server yet.",
       "provider": "The search could not be completed. You can try again.",
       "devDisabled": "Development tools are disabled on this deployment.",
-      "plan": "Could not change the test subscription. Try again."
+      "plan": "Could not change the test subscription. Try again.",
+      "demo": "Could not load the demo jobs. Try again."
     },
     "subscribed": "Subscribed",
-    "refresh": "Refresh jobs"
+    "refresh": "Refresh jobs",
+    "loadDemo": "Load demo jobs",
+    "loadingDemo": "Loading demo jobs…",
+    "loadResumeDemo": "Preview CV onboarding",
+    "loadingResumeDemo": "Preparing CV preview…"
+  },
+  "resume": {
+    "uploadTitle": "Upload your CV",
+    "uploadDescription": "We’ll turn your experience into a focused career profile and use it to find relevant jobs.",
+    "uploadAction": "Upload CV",
+    "fileHint": "PDF or DOCX · up to 10 MB",
+    "analyzingTitle": "We’re analyzing your experience",
+    "analyzingDescription": "Finding your strongest roles, skills and career direction…",
+    "summaryTitle": "Your career profile is ready",
+    "summaryDescription": "We found the strongest signals in your CV. A quick check, then your jobs are ready.",
+    "roles": "You’re best matched for",
+    "addRole": "Add a role",
+    "strengths": "Key strengths",
+    "experienceLevel": "Experience level",
+    "experience": "Professional experience",
+    "years": "{{count}} years",
+    "location": "Location",
+    "locationNeeded": "Choose one location so we can show jobs within your preferred radius.",
+    "locationHint": "Used for nearby-job matching. You can change it.",
+    "locationPlaceholder": "Search for a city",
+    "findJobs": "Find jobs for me",
+    "editProfile": "Edit full profile",
+    "notFound": "Not stated",
+    "seniority": {
+      "entry": "Entry level",
+      "mid": "Mid-level",
+      "senior": "Senior",
+      "lead": "Lead",
+      "executive": "Executive",
+      "unknown": "Not stated"
+    },
+    "errors": {
+      "upload": "We couldn’t read this CV. Use a non-empty PDF or DOCX and try again.",
+      "review": "We couldn’t save your profile. Please try again."
+    }
   },
   "onboarding": {
     "loadingProfile": "Loading your profile…",

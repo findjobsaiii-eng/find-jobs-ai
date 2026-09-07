@@ -9,11 +9,14 @@ const hooks = vi.hoisted(() => ({
   state: { plan: "free", runActive: false },
   discover: vi.fn(),
   setPlan: vi.fn(),
+  seedQualityDemo: vi.fn(),
+  mutationCallCount: 0,
 }));
 vi.mock("convex/react", () => ({
   useQuery: () => hooks.state,
   useAction: () => hooks.discover,
-  useMutation: () => hooks.setPlan,
+  useMutation: () =>
+    hooks.mutationCallCount++ % 2 === 0 ? hooks.setPlan : hooks.seedQualityDemo,
 }));
 
 function TestTools() {
@@ -31,6 +34,8 @@ describe("development discovery controls", () => {
   beforeEach(async () => {
     hooks.state = { plan: "free", runActive: false };
     hooks.discover.mockReset().mockResolvedValue({ resultSource: "central" });
+    hooks.seedQualityDemo.mockReset().mockResolvedValue({});
+    hooks.mutationCallCount = 0;
     hooks.setPlan
       .mockReset()
       .mockImplementation(async ({ plan }: { plan: string }) => {
@@ -96,5 +101,20 @@ describe("development discovery controls", () => {
     expect(toggle).toBeChecked();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(screen.getByRole("button", { name: "חיפוש עכשיו" })).toBeEnabled();
+  });
+
+  it("loads deterministic quality fixtures without starting a provider search", async () => {
+    const user = userEvent.setup();
+    render(<TestTools />);
+    await user.click(screen.getByRole("button", { name: "Development tools" }));
+    await user.click(screen.getByRole("button", { name: "Load demo jobs" }));
+    expect(hooks.seedQualityDemo).toHaveBeenCalledExactlyOnceWith({});
+    expect(hooks.discover).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Demo jobs loaded for this account."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Load demo jobs" }),
+    ).toBeEnabled();
   });
 });

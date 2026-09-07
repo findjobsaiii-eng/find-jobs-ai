@@ -1,6 +1,7 @@
 import type { Doc } from "./_generated/dataModel";
 import type { NormalizedJob, SearchProfile } from "./jobDiscoveryModel";
 import { distanceKm } from "./jobGeography";
+import { isActiveFeedLifecycle } from "./jobActivityPolicy";
 
 export type QualityEvaluation = {
   outcome: "eligible" | "excluded";
@@ -91,6 +92,14 @@ function bestOverlap(needles: string[], value: string) {
   return Math.max(0, ...needles.map((needle) => overlapScore(needle, value)));
 }
 
+function skillCoverage(needles: string[], haystack: string[]) {
+  if (!needles.length) return 0.5;
+  return (
+    needles.filter((skill) => bestOverlap(haystack, skill) >= 0.5).length /
+    needles.length
+  );
+}
+
 function locationMatches(job: QualityJob, profile: SearchProfile) {
   if (job.workArrangement === "remote") {
     const country = normalized(job.geo?.countryCode ?? job.country ?? "");
@@ -130,7 +139,12 @@ export function evaluateJobQuality(
   profile: SearchProfile,
 ): QualityEvaluation {
   const exclusions: string[] = [];
-  const roleMatch = bestOverlap(profile.targetJobTitles, job.title);
+  const targetRoleMatch = bestOverlap(profile.targetJobTitles, job.title);
+  const pastRoleMatch = bestOverlap(
+    profile.normalizedPastRoles ?? [],
+    job.title,
+  );
+  const roleMatch = Math.max(targetRoleMatch, pastRoleMatch * 0.85);
   if (roleMatch < 0.4) exclusions.push("target_role_conflict");
 
   const compatibleLocation = locationMatches(job, profile);
@@ -174,29 +188,58 @@ export function evaluateJobQuality(
     exclusions.push("work_authorization_conflict");
   }
 
+  const requiredSkills = skillCoverage(job.requiredSkills, profile.skills);
+  const preferredSkills = skillCoverage(job.preferredSkills, profile.skills);
+  const experience =
+    job.requiredExperienceYearsMin === null
+      ? 0.7
+      : Math.min(
+          1,
+          profile.yearsOfExperience /
+            Math.max(1, job.requiredExperienceYearsMin),
+        );
+  const workArrangement =
+    job.workArrangement === "unknown" ||
+    profile.workArrangements.includes(job.workArrangement)
+      ? 1
+      : 0;
+  const employmentType =
+    job.employmentType === "unknown" ||
+    profile.employmentTypes.includes(job.employmentType)
+      ? 1
+      : 0;
+  const scoreComponents = {
+    role: Math.round(roleMatch * 40),
+    requiredSkills: Math.round(requiredSkills * 20),
+    preferredSkills: Math.round(preferredSkills * 10),
+    experience: Math.round(experience * 10),
+    location: compatibleLocation ? 10 : 0,
+    workArrangement: workArrangement * 5,
+    employmentType: employmentType * 5,
+    language: compatibleLanguage ? 0 : 0,
+    education: 0,
+    semantic: 0,
+  };
   return {
     outcome: exclusions.length ? "excluded" : "eligible",
     exclusionReasons: exclusions,
-    relevanceScore: 0,
-    scoreComponents: {
-      role: 0,
-      requiredSkills: 0,
-      preferredSkills: 0,
-      experience: 0,
-      location: 0,
-      workArrangement: 0,
-      employmentType: 0,
-      language: 0,
-      education: 0,
-      semantic: 0,
-    },
-    matchReasons: [],
+    relevanceScore: Object.values(scoreComponents).reduce(
+      (sum, value) => sum + value,
+      0,
+    ),
+    scoreComponents,
+    matchReasons: [
+      ...(targetRoleMatch >= 0.4 ? ["target_role"] : []),
+      ...(pastRoleMatch >= 0.5 ? ["past_role"] : []),
+      ...(requiredSkills >= 0.5 ? ["core_skills"] : []),
+      ...(compatibleLocation ? ["location"] : []),
+    ],
   };
 }
 
 export function isDisplayEligibleJob(job: Doc<"jobs">) {
   return (
-    job.lifecycleStatus === "verified_active" &&
+    isActiveFeedLifecycle(job.lifecycleStatus) &&
     !job.canonicalJobId &&
     Boolean(job.bestSourceId)
   );

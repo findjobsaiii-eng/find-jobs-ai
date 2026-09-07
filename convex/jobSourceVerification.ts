@@ -25,6 +25,11 @@ export type SourceVerification = {
   rawSourceText?: string;
 };
 
+export type VerifiableJob = Pick<
+  NormalizedJob,
+  "title" | "companyName" | "sourceUrl" | "sourceType"
+>;
+
 const ATS_DOMAINS = [
   "greenhouse.io",
   "lever.co",
@@ -203,7 +208,7 @@ async function requestPinned(url: URL): Promise<PinnedResponse> {
   });
 }
 
-function visibleText(html: string) {
+export function visibleText(html: string) {
   return html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu, " ")
@@ -231,7 +236,7 @@ function expectedEntityPresent(text: string, value: string) {
   return matches >= Math.min(2, expected.length);
 }
 
-function isGenericDestination(url: URL) {
+export function isGenericDestination(url: URL) {
   const path = url.pathname
     .replace(/^\/+|\/+$/gu, "")
     .toLocaleLowerCase("en-US");
@@ -251,7 +256,10 @@ function isGenericDestination(url: URL) {
   return false;
 }
 
-function sourceTier(job: NormalizedJob, hostname: string) {
+function sourceTier(
+  job: VerifiableJob,
+  hostname: string,
+): SourceVerification["sourceTier"] {
   if (ATS_DOMAINS.some((domain) => domainMatches(hostname, domain)))
     return "ats";
   if (job.sourceType === "employer") return "employer";
@@ -281,7 +289,7 @@ function externalJobId(url: URL) {
 }
 
 function failure(
-  job: NormalizedJob,
+  job: VerifiableJob,
   activityStatus: "inactive" | "verification_failed",
   evidence: string,
   finalUrl?: string,
@@ -299,12 +307,134 @@ function failure(
   };
 }
 
+export function classifySourceFailure(
+  job: VerifiableJob,
+  category: string,
+  finalUrl?: string,
+) {
+  return failure(
+    job,
+    "verification_failed",
+    `Verification failed: ${category}`,
+    finalUrl,
+  );
+}
+
+const CLOSED_POSITION_PATTERN =
+  /(?:position|job|vacancy|role) (?:has been |is )?(?:closed|filled|expired|no longer available)|applications? (?:are )?closed|vacancy closed|position filled|משרה (?:זו )?(?:אוישה|נסגרה|אינה זמינה|אינה בתוקף)|הגשת המועמדות הסתיימה/iu;
+
+export function classifySourceResponse(args: {
+  job: VerifiableJob;
+  status: number;
+  finalUrl: string;
+  contentType?: string;
+  body?: string;
+  redirected?: boolean;
+  now?: number;
+}): SourceVerification {
+  const normalizedUrl = normalizePublicUrl(args.finalUrl);
+  const parsed = new URL(normalizedUrl ?? args.job.sourceUrl);
+  const hostname = parsed.hostname.toLocaleLowerCase("en-US");
+  const common = {
+    finalUrl: normalizedUrl,
+    domain: hostname,
+    sourceTier: sourceTier(args.job, hostname),
+    externalJobId: externalJobId(parsed),
+    verifiedAt: args.now ?? Date.now(),
+    verificationMethod: "http_content_v1" as const,
+  };
+  if (args.status === 404 || args.status === 410) {
+    return {
+      ...common,
+      activityStatus: "inactive",
+      verificationEvidence: `HTTP ${args.status}`,
+    };
+  }
+  if (args.status === 429 || args.status >= 500 || args.status < 200) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: `Temporary HTTP ${args.status}`,
+    };
+  }
+  if (args.status < 200 || args.status >= 300) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: `HTTP ${args.status}`,
+    };
+  }
+  if (
+    !/(text\/html|application\/xhtml\+xml|text\/plain)/iu.test(
+      args.contentType ?? "",
+    )
+  ) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Unsupported response type",
+    };
+  }
+  if (!normalizedUrl) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Unsafe final URL",
+    };
+  }
+  if (args.redirected && isGenericDestination(parsed)) {
+    return {
+      ...common,
+      activityStatus: "inactive",
+      verificationEvidence: "Redirected to generic careers page",
+    };
+  }
+  if (isGenericDestination(parsed)) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Generic destination page",
+    };
+  }
+  const text = visibleText(args.body ?? "");
+  if (CLOSED_POSITION_PATTERN.test(text)) {
+    return {
+      ...common,
+      activityStatus: "inactive",
+      verificationEvidence: "Closed-position marker present",
+      rawSourceText: text.slice(0, 32000),
+    };
+  }
+  if (!expectedEntityPresent(text, args.job.title)) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Expected role not confirmed",
+    };
+  }
+  if (!expectedEntityPresent(text, args.job.companyName)) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Expected company not confirmed",
+    };
+  }
+  return {
+    ...common,
+    rawSourceText: text.slice(0, 32000),
+    activityStatus: "verified_active",
+    verificationEvidence:
+      "HTTP 2xx; specific posting; expected role and company confirmed; no closure marker",
+  };
+}
+
 export async function verifyJobSource(
-  job: NormalizedJob,
+  job: VerifiableJob,
 ): Promise<SourceVerification> {
   let current = normalizePublicUrl(job.sourceUrl);
   if (!current) return failure(job, "verification_failed", "Unsafe source URL");
   try {
+    let redirected = false;
     for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
       const url = new URL(current);
       const response = await requestPinned(url);
@@ -331,10 +461,10 @@ export async function verifyJobSource(
             current,
           );
         }
-        const redirected = normalizePublicUrl(
+        const nextUrl = normalizePublicUrl(
           new URL(location, current).toString(),
         );
-        if (!redirected) {
+        if (!nextUrl) {
           return failure(
             job,
             "verification_failed",
@@ -342,89 +472,22 @@ export async function verifyJobSource(
             current,
           );
         }
-        current = redirected;
+        current = nextUrl;
+        redirected = true;
         continue;
       }
-      if (response.status < 200 || response.status >= 300) {
-        return failure(
-          job,
-          "verification_failed",
-          `HTTP ${response.status}`,
-          current,
-        );
-      }
-      const contentType = response.headers["content-type"] ?? "";
-      if (
-        !/(text\/html|application\/xhtml\+xml|text\/plain)/iu.test(contentType)
-      ) {
-        return failure(
-          job,
-          "verification_failed",
-          "Unsupported response type",
-          current,
-        );
-      }
-      const finalUrl = normalizePublicUrl(current);
-      if (!finalUrl || isGenericDestination(new URL(finalUrl))) {
-        return failure(
-          job,
-          "verification_failed",
-          "Generic destination page",
-          current,
-        );
-      }
-      const text = visibleText(response.text);
-      if (
-        /(position|job|vacancy|role) (has been |is )?(closed|filled|expired|no longer available)|applications? (are )?closed|המשרה (אוישה|נסגרה|אינה זמינה)/iu.test(
-          text,
-        )
-      ) {
-        return failure(
-          job,
-          "inactive",
-          "Closed-position marker present",
-          finalUrl,
-        );
-      }
-      if (!expectedEntityPresent(text, job.title)) {
-        return failure(
-          job,
-          "verification_failed",
-          "Expected role not confirmed",
-          finalUrl,
-        );
-      }
-      if (!expectedEntityPresent(text, job.companyName)) {
-        return failure(
-          job,
-          "verification_failed",
-          "Expected company not confirmed",
-          finalUrl,
-        );
-      }
-      const parsed = new URL(finalUrl);
-      const hostname = parsed.hostname.toLocaleLowerCase("en-US");
-      return {
-        rawSourceText: text.slice(0, 32000),
-        activityStatus: "verified_active",
-        finalUrl,
-        domain: hostname,
-        sourceTier: sourceTier(job, hostname),
-        externalJobId: externalJobId(parsed),
-        verifiedAt: Date.now(),
-        verificationMethod: "http_content_v1",
-        verificationEvidence:
-          "HTTP 2xx; specific posting; expected role and company confirmed; no closure marker",
-      };
+      return classifySourceResponse({
+        job,
+        status: response.status,
+        finalUrl: current,
+        contentType: String(response.headers["content-type"] ?? ""),
+        body: response.text,
+        redirected,
+      });
     }
   } catch (error) {
     const category = error instanceof Error ? error.message : "request_failed";
-    return failure(
-      job,
-      "verification_failed",
-      `Verification failed: ${category}`,
-      current,
-    );
+    return classifySourceFailure(job, category, current);
   }
   return failure(
     job,

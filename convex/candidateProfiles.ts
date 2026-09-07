@@ -594,6 +594,23 @@ export const saveCurrent = mutation({
 
     const existing = await getProfile(ctx, userId);
     const normalized = normalizeEditableFields(args.values);
+    const overrides = new Set(existing?.manualOverrideFields ?? []);
+    for (const field of Object.keys(args.values)) {
+      if (field === "targetJobTitleIds") overrides.add("targetJobTitles");
+      else if (field === "skillIds") overrides.add("skills");
+      else if (
+        field === "primaryLocation" ||
+        field === "preferredPlaceIds" ||
+        field === "locationRadiusKm"
+      )
+        overrides.add("location");
+      else if (field !== "preferredDisplayName")
+        overrides.add(
+          field as NonNullable<
+            Doc<"candidateProfiles">["manualOverrideFields"]
+          >[number],
+        );
+    }
     if (
       normalized.locationRadiusKm !== undefined &&
       !("primaryLocation" in normalized) &&
@@ -627,6 +644,8 @@ export const saveCurrent = mutation({
         ...normalized,
         onboardingStep: args.complete ? 4 : args.onboardingStep,
         onboardingCompleted: existing.onboardingCompleted || args.complete,
+        manualOverrideFields: [...overrides],
+        cvReviewPending: args.complete ? false : existing.cvReviewPending,
         updatedAt: now,
         completedAt: existing.completedAt ?? (args.complete ? now : undefined),
       });

@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and daily server-side job discovery and basic application tracking. Advanced application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
+An AI-powered job-search assistant with bilingual UI, Google OAuth through Convex Auth, CV-first career-profile creation, daily server-side job discovery, deterministic job quality checks, and basic application tracking. Resume writing, automatic applications, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -114,7 +114,7 @@ Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed C
 
 ### Candidate profiles
 
-After Google sign-in, the authenticated boundary loads the current user's candidate profile. Users with no completed profile enter a four-step onboarding flow; completed profiles continue to the current authenticated application screen. Every Continue action saves progress, and Save draft preserves the current step explicitly.
+After Google sign-in, users without an effective profile see one primary action: upload a PDF or DOCX CV. Convex Storage keeps the original private file; a Node action extracts the actual document text with PDF.js or Mammoth and then asks OpenAI for a server-validated structured career profile. The UI holds the analysis state for at least five seconds before showing a compact roles, strengths, seniority, experience, and location review. “Find jobs for me” accepts that summary and opens the personalized feed. The full four-step form remains available for later manual editing.
 
 Candidate ownership and Google identity fields are derived exclusively in Convex. The client never sends a user ID, email, Google display name, or profile image. All profile reads and writes reject unauthenticated callers and query the indexed profile belonging to the server-derived auth user.
 
@@ -134,7 +134,7 @@ Editable profile data is normalized and bounded on the server:
 | Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                  |
 | Languages                    | 1–10 unique supported languages, each with a proficiency selection   |
 
-Drafts may omit or clear fields so onboarding remains resumable. Completion is a separate server-validated transition and records created, updated, and completed timestamps. The profile contains only the stated onboarding and Google identity fields; no CV, generated content, mailbox data, job data, or profile score is stored.
+CV versions are stored in the owner-indexed `resumeDocuments` table. Raw text and the complete structured extraction remain server-only; clients receive only the concise review projection. `candidateProfiles.cvCareerProfile` keeps the normalized matching representation while the ordinary profile fields are the effective values used by discovery. Manual saves record field-level overrides. A replacement CV updates the CV-derived layer and recalculates unmodified effective fields, while intentional changes to roles, skills, location, seniority, work preferences, salary, languages, experience, and summary remain in place. Existing pre-CV completed profiles are treated as manually chosen, so their values are preserved on first import.
 
 ### Onboarding options
 
@@ -172,6 +172,7 @@ The Convex deployment requires these additional server-only variables:
 ```text
 OPENAI_API_KEY
 OPENAI_JOB_SEARCH_MODEL
+OPENAI_CV_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
 JOB_SEARCH_ENABLED
 JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
 JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
@@ -200,9 +201,27 @@ limits.
 Provider candidates enter a central job catalog. Each record retains the raw
 provider JSON and structured fields; each verified source retains bounded raw
 page text, verification state, and discovery/update timestamps. Consolidation
-checks final URL, provider job ID, normalized source URL, company/title/location,
-and exact content before inserting. Embedding-assisted consolidation remains a
-future measured improvement.
+checks a provider/domain job ID, canonical and final URLs, normalized source URL,
+canonical company/title/location identity, and content before inserting. URL
+normalization removes tracking, referral, session, and fragment noise while
+preserving unknown parameters that may identify a posting. Company identity
+removes conservative legal suffixes, title identity aligns punctuation and
+common forms such as `e-commerce`, and GeoNames place IDs align Hebrew and
+English locality names. Convex performs the lookup and insert in one transaction,
+so concurrent imports contend on the same indexed canonical key. Every
+observation is retained in `jobIngestionEvents` for debugging even when it merges
+into an existing job.
+
+Each source is rechecked at most every three days by an hourly bounded worker.
+HTTP 404/410, explicit English or Hebrew closure text, passed application
+deadlines, and redirects to generic career pages close or expire a job when the
+evidence is conclusive. HTTP 403/429/5xx, timeouts, and transport failures retain
+the prior state and retry with exponential backoff from six hours to seven days.
+A recently seen active source can remain `probably_active` for 14 days while it
+awaits a successful recheck. Jobs with no recent conclusive evidence become
+`unknown`; after 45 days without observation they become `expired`. Only
+`verified_active` and `probably_active` canonical jobs enter the normal feed.
+Historical application snapshots remain visible with an unavailable label.
 
 Jobs receive a local GeoNames Israel locality centroid when their location has
 one unambiguous match. Feed filtering uses Haversine distance against the
@@ -214,9 +233,13 @@ under CC BY 4.0.
 
 ### Homepage and development controls
 
-The homepage contains a compact Suggestions / In progress tab bar and jobs.
+The homepage contains a compact Suggestions / In progress tab bar and scannable
+job cards. Each card prioritizes title, company, location, work model, posting or
+discovery date, a short summary, up to five key skills, source, and the two
+available actions. Raw provider and verification diagnostics never appear in the
+normal UI.
 The fixed profile button sits at the logical start (left in English, right in
-Hebrew) and opens profile editing, language switching, and sign-out.
+Hebrew) and opens profile editing, CV replacement, language switching, and sign-out.
 “Sent résumé” saves an owner-scoped application snapshot and moves the job to
 In progress. Undo removes the marker. Snapshots remain available after a job
 expires from suggestions; the action records tracking only and never sends a CV.

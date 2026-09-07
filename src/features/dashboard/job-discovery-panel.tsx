@@ -6,6 +6,9 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import {
   BriefcaseBusiness,
+  Building2,
+  CalendarDays,
+  CircleOff,
   ExternalLink,
   LoaderCircle,
   MapPin,
@@ -24,6 +27,7 @@ export function JobDiscoveryPanel() {
   const [notice, setNotice] = useState<string | null>(null);
   const updateApplication = useMutation(api.jobDiscovery.setApplicationStatus);
   const result = useQuery(api.jobDiscovery.listCurrentUserJobs, { view });
+
   const markApplied = async (jobId: Id<"jobs">, applied: boolean) => {
     if (pendingRef.current) return;
     pendingRef.current = true;
@@ -40,8 +44,13 @@ export function JobDiscoveryPanel() {
       setPending(null);
     }
   };
+
   const jobs = result?.jobs ?? [];
   const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }),
+    [i18n.language],
+  );
+  const dateTimeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(i18n.language, {
         dateStyle: "medium",
@@ -49,7 +58,7 @@ export function JobDiscoveryPanel() {
       }),
     [i18n.language],
   );
-  const formatDateTime = (value: number) => dateFormatter.format(value);
+
   return (
     <section aria-labelledby="jobs-title" className="min-w-0">
       <h1 id="jobs-title" className="sr-only">
@@ -121,131 +130,176 @@ export function JobDiscoveryPanel() {
               </p>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {jobs.map((job) => {
-                const salary =
-                  job.salaryMin === null && job.salaryMax === null
-                    ? null
-                    : t("jobDiscovery.salary", {
-                        min:
-                          job.salaryMin?.toLocaleString(i18n.language) ?? "—",
-                        max:
-                          job.salaryMax?.toLocaleString(i18n.language) ?? "—",
-                        currency: job.salaryCurrency ?? "",
-                        period: job.salaryPeriod
-                          ? t(`jobDiscovery.salaryPeriods.${job.salaryPeriod}`)
-                          : "",
-                      });
+                const postedTimestamp = job.postedAt
+                  ? Date.parse(job.postedAt)
+                  : Number.NaN;
+                const hasPostedDate = Number.isFinite(postedTimestamp);
+                const visibleDate = hasPostedDate
+                  ? postedTimestamp
+                  : job.discoveredAt;
+                const skills = (job.requiredSkills ?? []).slice(0, 5);
                 return (
-                  <li
-                    key={job.id}
-                    className="bg-card border-border rounded-2xl border p-5 shadow-sm"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="bg-primary/10 text-primary grid size-11 shrink-0 place-items-center rounded-xl">
-                        <BriefcaseBusiness
-                          aria-hidden="true"
-                          className="size-5"
-                        />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold break-words">
-                          {job.title}
-                        </h2>
-                        <p className="text-muted-foreground mt-1 break-words">
-                          {job.companyName}
+                  <li key={job.id}>
+                    <article
+                      className={`bg-card rounded-2xl border p-5 shadow-sm transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none sm:p-6 ${
+                        job.unavailable
+                          ? "border-destructive/25"
+                          : "border-border hover:border-primary/25 hover:-translate-y-0.5 hover:shadow-md"
+                      }`}
+                    >
+                      {job.unavailable ? (
+                        <p className="text-destructive mb-4 flex items-center gap-2 text-sm font-medium">
+                          <CircleOff aria-hidden="true" className="size-4" />
+                          {t("jobDiscovery.noLongerActive")}
                         </p>
-                      </div>
-                    </div>
-                    <dl className="text-muted-foreground mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-                      {job.locationText ? (
-                        <div className="flex items-center gap-2">
-                          <MapPin aria-hidden="true" className="size-4" />
-                          <dt className="sr-only">
-                            {t("jobDiscovery.location")}
-                          </dt>
-                          <dd>{job.locationText}</dd>
-                        </div>
                       ) : null}
-                      {job.workArrangement !== "unknown" ? (
-                        <div>
+                      <div className="flex items-start gap-3.5">
+                        <span className="bg-primary/10 text-primary grid size-11 shrink-0 place-items-center rounded-xl">
+                          <BriefcaseBusiness
+                            aria-hidden="true"
+                            className="size-5"
+                          />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-foreground text-lg leading-6 font-semibold break-words sm:text-xl">
+                            {job.title}
+                          </h2>
+                          <p className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-sm font-medium break-words">
+                            <Building2
+                              aria-hidden="true"
+                              className="size-4 shrink-0"
+                            />
+                            {job.companyName}
+                          </p>
+                        </div>
+                      </div>
+
+                      <dl className="text-muted-foreground mt-4 flex flex-wrap gap-2 text-sm">
+                        {job.locationText ? (
+                          <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
+                            <MapPin aria-hidden="true" className="size-3.5" />
+                            <dt className="sr-only">
+                              {t("jobDiscovery.location")}
+                            </dt>
+                            <dd>{job.locationText}</dd>
+                          </div>
+                        ) : null}
+                        {job.workArrangement !== "unknown" ? (
+                          <div className="bg-muted/70 rounded-lg px-2.5 py-1.5">
+                            <dt className="sr-only">
+                              {t("jobDiscovery.arrangement")}
+                            </dt>
+                            <dd>
+                              {t(
+                                `onboarding.options.workArrangement.${job.workArrangement}`,
+                              )}
+                            </dd>
+                          </div>
+                        ) : null}
+                        <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
+                          <CalendarDays
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
                           <dt className="sr-only">
-                            {t("jobDiscovery.arrangement")}
+                            {t(
+                              hasPostedDate
+                                ? "jobDiscovery.posted"
+                                : "jobDiscovery.discovered",
+                            )}
                           </dt>
                           <dd>
                             {t(
-                              `onboarding.options.workArrangement.${job.workArrangement}`,
+                              hasPostedDate
+                                ? "jobDiscovery.postedAt"
+                                : "jobDiscovery.discoveredAt",
+                              { date: dateFormatter.format(visibleDate) },
                             )}
                           </dd>
                         </div>
+                      </dl>
+
+                      {job.descriptionText ? (
+                        <p className="text-foreground/80 mt-4 line-clamp-3 text-sm leading-6">
+                          {job.descriptionText}
+                        </p>
                       ) : null}
-                      {salary ? (
-                        <div>
-                          <dt className="sr-only">
-                            {t("jobDiscovery.salaryLabel")}
-                          </dt>
-                          <dd>{salary}</dd>
+
+                      {skills.length ? (
+                        <div className="mt-4">
+                          <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                            {t("jobDiscovery.keySkills")}
+                          </h3>
+                          <ul className="mt-2 flex flex-wrap gap-2">
+                            {skills.map((skill) => (
+                              <li
+                                key={skill}
+                                className="border-border text-foreground/80 rounded-full border px-2.5 py-1 text-xs"
+                              >
+                                {skill}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       ) : null}
-                      <div>
-                        <dt className="sr-only">
-                          {t("jobDiscovery.verified")}
-                        </dt>
-                        <dd>
-                          {t("jobDiscovery.verifiedAt", {
-                            date: formatDateTime(job.lastVerifiedAt),
+
+                      {job.appliedAt ? (
+                        <p className="text-primary mt-4 text-sm">
+                          {t("applications.sentAt", {
+                            date: dateTimeFormatter.format(job.appliedAt),
                           })}
-                        </dd>
-                      </div>
-                    </dl>
-                    {"appliedAt" in job && job.appliedAt ? (
-                      <p className="text-primary mt-4 text-sm">
-                        {t("applications.sentAt", {
-                          date: formatDateTime(job.appliedAt),
-                        })}
-                      </p>
-                    ) : null}
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                      <span className="text-muted-foreground text-xs">
-                        {t("jobDiscovery.source", {
-                          source:
-                            job.sourceName ?? new URL(job.sourceUrl).hostname,
-                        })}
-                        {" · "}
-                        {t(`jobDiscovery.sourceTiers.${job.sourceTier}`)}
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant={view === "inProgress" ? "ghost" : "outline"}
-                          className="min-h-11"
-                          disabled={pending !== null}
-                          onClick={() =>
-                            void markApplied(job.id, view !== "inProgress")
-                          }
-                        >
-                          {pending === job.id ? (
-                            <LoaderCircle
+                        </p>
+                      ) : null}
+
+                      <div className="border-border mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                        <span className="text-muted-foreground text-xs">
+                          {t("jobDiscovery.source", {
+                            source:
+                              job.sourceName ?? new URL(job.sourceUrl).hostname,
+                          })}
+                          {" · "}
+                          {t(`jobDiscovery.sourceTiers.${job.sourceTier}`)}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant={
+                              view === "inProgress" ? "ghost" : "outline"
+                            }
+                            className="min-h-11"
+                            disabled={pending !== null}
+                            onClick={() =>
+                              void markApplied(job.id, view !== "inProgress")
+                            }
+                          >
+                            {pending === job.id ? (
+                              <LoaderCircle
+                                aria-hidden="true"
+                                className="animate-spin"
+                              />
+                            ) : null}
+                            {t(
+                              view === "inProgress"
+                                ? "applications.undo"
+                                : "applications.sentResume",
+                            )}
+                          </Button>
+                          <a
+                            href={job.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring/40 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none"
+                          >
+                            {t("jobDiscovery.openPosting")}
+                            <ExternalLink
                               aria-hidden="true"
-                              className="animate-spin"
+                              className="size-4"
                             />
-                          ) : null}
-                          {t(
-                            view === "inProgress"
-                              ? "applications.undo"
-                              : "applications.sentResume",
-                          )}
-                        </Button>
-                        <a
-                          href={job.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="border-border bg-background hover:bg-muted focus-visible:ring-ring/40 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium outline-none focus-visible:ring-3"
-                        >
-                          {t("jobDiscovery.openPosting")}
-                          <ExternalLink aria-hidden="true" className="size-4" />
-                        </a>
+                          </a>
+                        </div>
                       </div>
-                    </div>
+                    </article>
                   </li>
                 );
               })}

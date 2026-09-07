@@ -14,18 +14,25 @@ import type * as candidateProfiles from "../candidateProfiles.js";
 import type * as crons from "../crons.js";
 import type * as dailyDiscovery from "../dailyDiscovery.js";
 import type * as http from "../http.js";
+import type * as jobActivity from "../jobActivity.js";
+import type * as jobActivityActions from "../jobActivityActions.js";
+import type * as jobActivityPolicy from "../jobActivityPolicy.js";
 import type * as jobDiscovery from "../jobDiscovery.js";
 import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
 import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
 import type * as jobGeography from "../jobGeography.js";
 import type * as jobGeographyData from "../jobGeographyData.js";
 import type * as jobQuality from "../jobQuality.js";
+import type * as jobQualityFixtures from "../jobQualityFixtures.js";
 import type * as jobSearchPolicy from "../jobSearchPolicy.js";
 import type * as jobSearchRuntimeConfig from "../jobSearchRuntimeConfig.js";
 import type * as jobSourceVerification from "../jobSourceVerification.js";
 import type * as openAIJobProvider from "../openAIJobProvider.js";
 import type * as referenceCatalogData from "../referenceCatalogData.js";
 import type * as referenceData from "../referenceData.js";
+import type * as resumeActions from "../resumeActions.js";
+import type * as resumeProfileModel from "../resumeProfileModel.js";
+import type * as resumes from "../resumes.js";
 
 import type {
   ApiFromModules,
@@ -40,18 +47,25 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   dailyDiscovery: typeof dailyDiscovery;
   http: typeof http;
+  jobActivity: typeof jobActivity;
+  jobActivityActions: typeof jobActivityActions;
+  jobActivityPolicy: typeof jobActivityPolicy;
   jobDiscovery: typeof jobDiscovery;
   jobDiscoveryActions: typeof jobDiscoveryActions;
   jobDiscoveryModel: typeof jobDiscoveryModel;
   jobGeography: typeof jobGeography;
   jobGeographyData: typeof jobGeographyData;
   jobQuality: typeof jobQuality;
+  jobQualityFixtures: typeof jobQualityFixtures;
   jobSearchPolicy: typeof jobSearchPolicy;
   jobSearchRuntimeConfig: typeof jobSearchRuntimeConfig;
   jobSourceVerification: typeof jobSourceVerification;
   openAIJobProvider: typeof openAIJobProvider;
   referenceCatalogData: typeof referenceCatalogData;
   referenceData: typeof referenceData;
+  resumeActions: typeof resumeActions;
+  resumeProfileModel: typeof resumeProfileModel;
+  resumes: typeof resumes;
 }>;
 
 /**

@@ -88,10 +88,14 @@ export type SearchProfile = {
   employmentTypes: string[];
   languages: Array<{ languageCode: string; proficiency: string }>;
   minimumMonthlySalaryIls: number;
+  normalizedPastRoles?: string[];
+  seniority?: string;
+  professionalDomains?: string[];
 };
 
 export type NormalizedJob = OpenAIJob & {
   normalizedSourceUrl: string;
+  canonicalKey: string;
   jobFingerprint: string;
   contentHash: string;
   rawProviderJson?: string;
@@ -114,6 +118,32 @@ export function hashText(value: string) {
 
 function normalizeWhitespace(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
+}
+
+function normalizeIdentityText(value: string) {
+  return normalizeWhitespace(value)
+    .toLocaleLowerCase("en-US")
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/[’'`]/gu, "")
+    .replace(/&/gu, " and ")
+    .replace(/[^\p{L}\p{N}+#]+/gu, " ")
+    .trim();
+}
+
+export function normalizeCompanyIdentity(value: string) {
+  return normalizeIdentityText(value)
+    .replace(/\b(?:incorporated|corporation|corp|limited|ltd|llc|plc)\b$/u, "")
+    .replace(/\s+(?:בעמ|בע\s+מ)$/u, "")
+    .trim();
+}
+
+export function normalizeTitleIdentity(value: string) {
+  return normalizeIdentityText(value)
+    .replace(/\be\s+commerce\b/gu, "ecommerce")
+    .replace(/\bfront\s+end\b/gu, "frontend")
+    .replace(/\bback\s+end\b/gu, "backend")
+    .trim();
 }
 
 export function normalizedKey(value: string) {
@@ -183,10 +213,16 @@ export function normalizePublicUrl(value: string) {
   }
   url.hash = "";
   for (const key of [...url.searchParams.keys()]) {
-    if (/^(utm_|gclid|fbclid|ref$|source$)/iu.test(key)) {
+    if (
+      /^(?:utm_.+|gclid|dclid|fbclid|msclkid|mc_(?:cid|eid)|ref(?:errer)?|referral|source|campaign|session(?:id)?|sid|trk|tracking_id|trackingId)$/iu.test(
+        key,
+      )
+    ) {
       url.searchParams.delete(key);
     }
   }
+  url.hostname = hostname.replace(/^www\./u, "");
+  url.searchParams.sort();
   if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/u, "");
   return url.toString();
 }
@@ -277,19 +313,33 @@ export function normalizeJob(
   ) {
     return null;
   }
-  const locationKey = normalizedKey(
-    normalized.city ?? normalized.locationText ?? normalized.country ?? "",
-  );
-  const jobFingerprint = hashText(
-    [normalizedKey(companyName), normalizedKey(title), locationKey].join("|"),
-  );
-  const contentHash = hashText(JSON.stringify(normalized));
   const geo = resolveJobGeography(normalized);
+  const locationKey = geo?.placeId
+    ? `geo:${geo.placeId}`
+    : normalizeIdentityText(
+        normalized.city ?? normalized.locationText ?? normalized.country ?? "",
+      );
+  const canonicalKey = [
+    normalizeCompanyIdentity(companyName),
+    normalizeTitleIdentity(title),
+    locationKey,
+  ].join("|");
+  const jobFingerprint = hashText(canonicalKey);
+  const contentHash = hashText(
+    [
+      normalizeTitleIdentity(title),
+      normalizeCompanyIdentity(companyName),
+      normalizeIdentityText(normalized.descriptionText ?? ""),
+      normalizeIdentityText(normalized.requirementsText ?? ""),
+      normalized.requiredSkills.map(normalizeIdentityText).sort().join("|"),
+    ].join("\n"),
+  );
   return {
     ...normalized,
     rawProviderJson: JSON.stringify(parsed.data),
     ...(geo ? { geo } : {}),
     normalizedSourceUrl: sourceUrl,
+    canonicalKey,
     jobFingerprint,
     contentHash,
   };

@@ -126,7 +126,7 @@ describe("dashboard and completed profile editing", () => {
       screen.queryByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "שמירת טיוטה" }),
+      screen.getByRole("button", { name: "העלאת קורות חיים" }),
     ).toBeInTheDocument();
   });
 

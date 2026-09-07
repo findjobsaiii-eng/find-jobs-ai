@@ -11,6 +11,12 @@ import {
   query,
 } from "./_generated/server";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
+import {
+  deriveJobLifecycle,
+  isActiveFeedLifecycle,
+  JOB_ACTIVITY_POLICY,
+  retryDelayMs,
+} from "./jobActivityPolicy";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { normalizedKey } from "./jobDiscoveryModel";
 import {
@@ -56,6 +62,9 @@ const searchProfileValidator = v.object({
     v.object({ languageCode: v.string(), proficiency: v.string() }),
   ),
   minimumMonthlySalaryIls: v.number(),
+  normalizedPastRoles: v.optional(v.array(v.string())),
+  seniority: v.optional(v.string()),
+  professionalDomains: v.optional(v.array(v.string())),
 });
 const sourceVerificationValidator = v.object({
   activityStatus: v.union(
@@ -89,6 +98,7 @@ const jobInputValidator = v.object({
     }),
   ),
   normalizedSourceUrl: v.string(),
+  canonicalKey: v.string(),
   jobFingerprint: v.string(),
   contentHash: v.string(),
   title: v.string(),
@@ -190,14 +200,8 @@ async function loadSearchProfile(
   if (
     !profile?.onboardingCompleted ||
     !profile.targetJobTitleIds?.length ||
-    profile.yearsOfExperience === undefined ||
-    !profile.skillIds?.length ||
     !profile.preferredPlaceIds?.[0] ||
-    profile.locationRadiusKm === undefined ||
-    !profile.workArrangements?.length ||
-    !profile.employmentTypes?.length ||
-    !profile.languages?.length ||
-    profile.minimumMonthlySalaryIls === undefined
+    profile.locationRadiusKm === undefined
   ) {
     profileIncomplete();
   }
@@ -212,7 +216,9 @@ async function loadSearchProfile(
     Promise.all(
       profile.targetJobTitleIds.map((id) => ctx.db.get("catalogItems", id)),
     ),
-    Promise.all(profile.skillIds.map((id) => ctx.db.get("catalogItems", id))),
+    Promise.all(
+      (profile.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
+    ),
   ]);
   const label = (item: Doc<"catalogItems"> | null) =>
     item?.active &&
@@ -225,16 +231,23 @@ async function loadSearchProfile(
   const selectedSkills = skills
     .map(label)
     .filter((value): value is string => Boolean(value));
-  if (!targetJobTitles.length || !selectedSkills.length) profileIncomplete();
+  if (!targetJobTitles.length) profileIncomplete();
   return {
     targetJobTitles,
     skills: selectedSkills,
-    yearsOfExperience: profile.yearsOfExperience,
+    yearsOfExperience: profile.yearsOfExperience ?? 0,
     location: profile.primaryLocation,
-    workArrangements: profile.workArrangements,
-    employmentTypes: profile.employmentTypes,
-    languages: profile.languages,
-    minimumMonthlySalaryIls: profile.minimumMonthlySalaryIls,
+    workArrangements: profile.workArrangements?.length
+      ? profile.workArrangements
+      : ["onsite", "hybrid", "remote"],
+    employmentTypes: profile.employmentTypes?.length
+      ? profile.employmentTypes
+      : ["full-time", "part-time", "contract"],
+    languages: profile.languages ?? [],
+    minimumMonthlySalaryIls: profile.minimumMonthlySalaryIls ?? 0,
+    normalizedPastRoles: profile.cvCareerProfile?.normalizedPastRoles ?? [],
+    seniority: profile.seniority,
+    professionalDomains: profile.cvCareerProfile?.domains ?? [],
   };
 }
 
@@ -532,10 +545,14 @@ async function canMergeCandidate(
     .query("jobSources")
     .withIndex("by_jobId", (q) => q.eq("jobId", existing._id))
     .take(20);
-  return !sources.some(
+  const conflictingSameProvider = sources.some(
     (source) =>
+      source.domain === verification.domain &&
       source.externalJobId &&
       source.externalJobId !== verification.externalJobId,
+  );
+  return (
+    !conflictingSameProvider || existing.contentHash === candidate.contentHash
   );
 }
 
@@ -547,6 +564,21 @@ async function findCanonicalJob(
   job: JobInput,
   verification: VerificationInput,
 ) {
+  const providerKey = verification.externalJobId
+    ? `${verification.domain}:${verification.externalJobId}`
+    : null;
+  if (providerKey) {
+    const byProviderKey = await ctx.db
+      .query("jobSources")
+      .withIndex("by_providerKey", (q) => q.eq("providerKey", providerKey))
+      .first();
+    if (byProviderKey) {
+      return {
+        job: await ctx.db.get("jobs", byProviderKey.jobId),
+        reason: "provider_job_id",
+      };
+    }
+  }
   if (verification.finalUrl) {
     const byFinalUrl = await ctx.db
       .query("jobSources")
@@ -589,6 +621,15 @@ async function findCanonicalJob(
       reason: "normalized_url",
     };
   }
+  const byCanonicalKey = await ctx.db
+    .query("jobs")
+    .withIndex("by_canonicalKey", (q) => q.eq("canonicalKey", job.canonicalKey))
+    .take(5);
+  for (const candidate of byCanonicalKey) {
+    if (await canMergeCandidate(ctx, candidate, job, verification)) {
+      return { job: candidate, reason: "canonical_company_title_location" };
+    }
+  }
   const byFingerprint = await ctx.db
     .query("jobs")
     .withIndex("by_jobFingerprint", (q) =>
@@ -611,9 +652,15 @@ async function findCanonicalJob(
     .take(5);
   let compatibleContent: Doc<"jobs"> | undefined;
   for (const candidate of byContent) {
+    const sameLocation =
+      (candidate.geo?.placeId !== undefined &&
+        candidate.geo.placeId === job.geo?.placeId) ||
+      normalizedKey(candidate.city ?? candidate.locationText ?? "") ===
+        normalizedKey(job.city ?? job.locationText ?? "");
     if (
       normalizedKey(candidate.companyName) === normalizedKey(job.companyName) &&
       normalizedKey(candidate.title) === normalizedKey(job.title) &&
+      sameLocation &&
       (await canMergeCandidate(ctx, candidate, job, verification))
     ) {
       compatibleContent = candidate;
@@ -630,6 +677,7 @@ async function upsertSource(
   args: {
     jobId: Id<"jobs">;
     sourceUrl: string;
+    sourceName: string | null;
     normalizedUrl: string;
     verification: VerificationInput;
     duplicateReason: string | null;
@@ -642,26 +690,67 @@ async function upsertSource(
       q.eq("normalizedUrl", args.normalizedUrl),
     )
     .first();
+  const providerKey = args.verification.externalJobId
+    ? `${args.verification.domain}:${args.verification.externalJobId}`
+    : undefined;
+  const byProviderKey = providerKey
+    ? await ctx.db
+        .query("jobSources")
+        .withIndex("by_providerKey", (q) => q.eq("providerKey", providerKey))
+        .first()
+    : null;
+  const existingSource = existing ?? byProviderKey;
+  const temporaryFailure =
+    args.verification.activityStatus === "verification_failed";
+  const failureCount = temporaryFailure
+    ? (existingSource?.verificationFailureCount ?? 0) + 1
+    : 0;
   const values = {
     jobId: args.jobId,
+    sourceName: args.sourceName,
     sourceUrl: args.sourceUrl,
     normalizedUrl: args.normalizedUrl,
-    finalUrl: args.verification.finalUrl ?? undefined,
+    finalUrl: temporaryFailure
+      ? existingSource?.finalUrl
+      : (args.verification.finalUrl ?? undefined),
     domain: args.verification.domain,
     sourceTier: args.verification.sourceTier,
     externalJobId: args.verification.externalJobId ?? undefined,
+    providerKey,
     lastSeenAt: args.now,
-    lastVerifiedAt: args.verification.verifiedAt,
-    activityStatus: args.verification.activityStatus,
+    lastVerificationAttemptAt: args.verification.verifiedAt,
+    nextVerificationAt: temporaryFailure
+      ? args.now + retryDelayMs(failureCount)
+      : args.now + JOB_ACTIVITY_POLICY.activeVerificationTtlMs,
+    verificationFailureCount: failureCount,
+    verificationLeaseUntil: undefined,
+    lastVerifiedAt: temporaryFailure
+      ? existingSource?.lastVerifiedAt
+      : args.verification.verifiedAt,
+    activityStatus: temporaryFailure
+      ? (existingSource?.activityStatus ?? "verification_failed")
+      : args.verification.activityStatus,
     verificationMethod: args.verification.verificationMethod,
     verificationEvidence: args.verification.verificationEvidence,
-    rawSourceText: args.verification.rawSourceText,
+    rawSourceText: temporaryFailure
+      ? existingSource?.rawSourceText
+      : args.verification.rawSourceText,
+    closedAt: temporaryFailure
+      ? existingSource?.closedAt
+      : args.verification.activityStatus === "inactive"
+        ? args.verification.verifiedAt
+        : undefined,
+    closureReason: temporaryFailure
+      ? existingSource?.closureReason
+      : args.verification.activityStatus === "inactive"
+        ? args.verification.verificationEvidence
+        : undefined,
     duplicateReason: args.duplicateReason ?? undefined,
     canonicalJobId: args.duplicateReason ? args.jobId : undefined,
   } as const;
-  if (existing) {
-    await ctx.db.patch("jobSources", existing._id, values);
-    return existing._id;
+  if (existingSource) {
+    await ctx.db.patch("jobSources", existingSource._id, values);
+    return existingSource._id;
   }
   return await ctx.db.insert("jobSources", {
     ...values,
@@ -674,20 +763,35 @@ async function refreshBestSource(
   jobId: Id<"jobs">,
   now: number,
 ) {
-  const activeSources = await ctx.db
+  const job = await ctx.db.get("jobs", jobId);
+  if (!job) return null;
+  const allSources = await ctx.db
     .query("jobSources")
-    .withIndex("by_jobId_and_activityStatus", (q) =>
-      q.eq("jobId", jobId).eq("activityStatus", "verified_active"),
-    )
-    .take(20);
+    .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
+    .take(50);
+  const activeSources = allSources.filter(
+    (source) => source.activityStatus === "verified_active",
+  );
   activeSources.sort((a, b) => sourcePriority(a) - sourcePriority(b));
   const best = activeSources[0];
+  const lifecycle = deriveJobLifecycle({
+    sources: allSources,
+    lastSeenAt: job.lastDiscoveredAt,
+    applicationDeadline: job.applicationDeadline,
+    now,
+  });
   await ctx.db.patch("jobs", jobId, {
     bestSourceId: best?._id,
     ...(best ? { sourceUrl: best.finalUrl ?? best.normalizedUrl } : {}),
     lastVerifiedAt: best?.lastVerifiedAt,
-    lifecycleStatus: best ? "verified_active" : "verification_failed",
-    activityStatus: best ? "active" : "inactive",
+    lifecycleStatus: lifecycle.status,
+    activityStatus: isActiveFeedLifecycle(lifecycle.status)
+      ? "active"
+      : lifecycle.status === "unknown"
+        ? "unknown"
+        : "inactive",
+    activityReason: lifecycle.reason,
+    closedAt: lifecycle.closedAt,
     lastDiscoveredAt: now,
   });
   return best ?? null;
@@ -775,13 +879,26 @@ export const completeSearch = internalMutation({
         });
         insertedCount += 1;
       }
-      await upsertSource(ctx, {
+      const sourceId = await upsertSource(ctx, {
         jobId,
         sourceUrl: job.sourceUrl,
+        sourceName: job.sourceName,
         normalizedUrl: job.normalizedSourceUrl,
         verification,
         duplicateReason: canonical.reason,
         now,
+      });
+      await ctx.db.insert("jobIngestionEvents", {
+        jobId,
+        sourceId,
+        sourceUrl: job.sourceUrl,
+        providerKey: verification.externalJobId
+          ? `${verification.domain}:${verification.externalJobId}`
+          : undefined,
+        contentHash: job.contentHash,
+        rawProviderJson: job.rawProviderJson,
+        mergeReason: canonical.reason ?? undefined,
+        observedAt: now,
       });
       const bestSource = await refreshBestSource(ctx, jobId, now);
       centralJob = await ctx.db.get("jobs", jobId);
@@ -961,9 +1078,10 @@ async function feedItem(
   job: Doc<"jobs">,
   profile: SearchProfile,
 ) {
+  const quality = evaluateJobQuality(job, profile);
   if (
     !isDisplayEligibleJob(job) ||
-    evaluateJobQuality(job, profile).outcome !== "eligible" ||
+    quality.outcome !== "eligible" ||
     !job.bestSourceId
   )
     return null;
@@ -976,11 +1094,16 @@ async function feedItem(
   )
     return null;
   return {
+    appliedAt: undefined,
     id: job._id,
     title: job.title,
     companyName: job.companyName,
+    descriptionText: job.descriptionText,
+    requiredSkills: job.requiredSkills.slice(0, 6),
+    postedAt: job.postedAt,
+    unavailable: false,
     sourceUrl: source.finalUrl,
-    sourceName: job.sourceName,
+    sourceName: source.sourceName ?? source.domain ?? null,
     sourceTier: source.sourceTier,
     locationText: job.locationText,
     workArrangement: job.workArrangement,
@@ -990,8 +1113,8 @@ async function feedItem(
     salaryPeriod: job.salaryPeriod,
     discoveredAt: job.firstDiscoveredAt,
     lastVerifiedAt: source.lastVerifiedAt,
-    relevanceScore: 0,
-    matchReasons: [],
+    relevanceScore: quality.relevanceScore,
+    matchReasons: quality.matchReasons,
     resultSource: "central" as const,
   };
 }
@@ -1011,12 +1134,17 @@ export const listCurrentUserJobs = query({
         .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
         .order("desc")
         .take(100);
-      return {
-        jobs: applications.map((a) => ({
-          ...a.snapshot,
-          appliedAt: a.appliedAt,
-        })),
-      };
+      const jobs = await Promise.all(
+        applications.map(async (application) => {
+          const current = await ctx.db.get("jobs", application.jobId);
+          return {
+            ...application.snapshot,
+            appliedAt: application.appliedAt,
+            unavailable: !current || !isDisplayEligibleJob(current),
+          };
+        }),
+      );
+      return { jobs };
     }
     let profile: SearchProfile;
     try {
@@ -1024,13 +1152,27 @@ export const listCurrentUserJobs = query({
     } catch {
       return { jobs: [] };
     }
-    const candidates = await ctx.db
-      .query("jobs")
-      .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
-        q.eq("lifecycleStatus", "verified_active"),
-      )
-      .order("desc")
-      .take(500);
+    const [verified, probable] = await Promise.all([
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+          q.eq("lifecycleStatus", "verified_active"),
+        )
+        .order("desc")
+        .take(400),
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+          q.eq("lifecycleStatus", "probably_active"),
+        )
+        .order("desc")
+        .take(100),
+    ]);
+    const candidates = [...verified, ...probable].sort(
+      (a, b) =>
+        (b.postedAt ? Date.parse(b.postedAt) || 0 : b.firstDiscoveredAt) -
+        (a.postedAt ? Date.parse(a.postedAt) || 0 : a.firstDiscoveredAt),
+    );
     const jobs = [];
     for (const job of candidates) {
       const item = await feedItem(ctx, job, profile);
@@ -1044,6 +1186,12 @@ export const listCurrentUserJobs = query({
       if (!applied) jobs.push(item);
       if (jobs.length === 50) break;
     }
+    jobs.sort(
+      (a, b) =>
+        b.relevanceScore - a.relevanceScore ||
+        (b.postedAt ? Date.parse(b.postedAt) || 0 : b.discoveredAt) -
+          (a.postedAt ? Date.parse(a.postedAt) || 0 : a.discoveredAt),
+    );
     return { jobs };
   },
 });

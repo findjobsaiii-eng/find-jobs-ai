@@ -1,5 +1,5 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
-import { BrowserRouter } from "react-router";
+import { BrowserRouter, useNavigate } from "react-router";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { AuthShell } from "@/features/auth/auth-shell";
 import { DashboardWorkspace } from "@/features/dashboard/dashboard-screen";
-import { OnboardingScreen } from "./onboarding-screen";
+import { ResumeOnboarding } from "./resume-onboarding";
 
 type ErrorBoundaryProps = {
   children: ReactNode;
@@ -35,14 +35,20 @@ class ProfileErrorBoundary extends Component<
 }
 
 function ProfileRoute() {
+  const navigate = useNavigate();
   const profileState = useQuery(api.candidateProfiles.getCurrent);
-  if (profileState === undefined) {
+  const resume = useQuery(api.resumes.getCurrent);
+  if (profileState === undefined || resume === undefined) {
     return <AuthLoadingScreen variant="profile" />;
   }
-  return profileState.profile?.onboardingCompleted ? (
+  return profileState.profile?.onboardingCompleted &&
+    !profileState.profile.cvReviewPending ? (
     <DashboardWorkspace data={profileState} />
   ) : (
-    <OnboardingScreen initialData={profileState} />
+    <ResumeOnboarding
+      resume={resume}
+      onEdit={() => void navigate("/profile")}
+    />
   );
 }
 

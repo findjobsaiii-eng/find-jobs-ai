@@ -5,7 +5,14 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { buildSearchPlan, normalizeJob } from "./jobDiscoveryModel";
+import {
+  buildSearchPlan,
+  normalizeJob,
+  normalizePublicUrl,
+  normalizeTitleIdentity,
+} from "./jobDiscoveryModel";
+import type { OpenAIJob } from "./jobDiscoveryModel";
+import type { SourceVerification } from "./jobSourceVerification";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -139,7 +146,7 @@ async function addCompletedProfile(
   });
 }
 
-const rawJob = {
+const rawJob: OpenAIJob = {
   title: "Frontend Engineer",
   companyName: "Example Company",
   sourceUrl: "https://careers.example.com/jobs/role-1",
@@ -181,7 +188,7 @@ function normalizedJob() {
   return job;
 }
 
-function verification() {
+function verification(): SourceVerification {
   return {
     activityStatus: "verified_active" as const,
     finalUrl: rawJob.sourceUrl,
@@ -193,6 +200,41 @@ function verification() {
     verificationEvidence: "Expected role and company confirmed",
     rawSourceText: "Original public posting text",
   };
+}
+
+function normalizeCandidate(candidate: typeof rawJob) {
+  const sourceUrl = normalizePublicUrl(candidate.sourceUrl);
+  if (!sourceUrl) throw new Error("Invalid test URL");
+  const job = normalizeJob(candidate, new Set([sourceUrl]));
+  if (!job) throw new Error("Test job did not normalize");
+  return job;
+}
+
+async function ingestCandidates(
+  t: TestConvex<typeof schema>,
+  userId: Id<"users">,
+  candidates: Array<{
+    job: ReturnType<typeof normalizeCandidate>;
+    verification: ReturnType<typeof verification>;
+  }>,
+) {
+  await setPlan(t, userId, "pro");
+  const run = await t.mutation(
+    internal.jobDiscovery.beginSearch,
+    beginArgs(userId, `dedupe-${Math.random()}`),
+  );
+  if (!run) throw new Error("Expected reservation");
+  return await t.mutation(internal.jobDiscovery.completeSearch, {
+    userId,
+    runId: run.runId,
+    reservationId: run.reservationId,
+    returnedCandidateCount: candidates.length,
+    rejectedCount: 0,
+    webSearchToolCallCount: 1,
+    usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+    profile: searchProfile,
+    jobs: candidates,
+  });
 }
 
 describe("shared job discovery", () => {
@@ -382,5 +424,356 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries).toHaveLength(2);
     expect(plan.generatedQueries.join(" ")).toContain("Frontend Engineer");
     expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
+  });
+});
+
+describe("canonical job identity", () => {
+  it("merges identical URLs", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
+    });
+  });
+
+  it("removes tracking, referral, session, fragments, and query ordering", () => {
+    expect(
+      normalizePublicUrl(
+        "https://www.example.com/jobs/42/?b=2&utm_source=x&ref=mail&sessionId=abc&a=1#apply",
+      ),
+    ).toBe("https://example.com/jobs/42?a=1&b=2");
+  });
+
+  it("merges tracked URL variants during ingestion", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const tracked = normalizeCandidate({
+      ...rawJob,
+      sourceUrl:
+        "https://careers.example.com/jobs/role-1?utm_source=mail&ref=friend&sessionId=abc#apply",
+      sourceEvidence: [
+        {
+          url: "https://careers.example.com/jobs/role-1?utm_source=mail&ref=friend&sessionId=abc#apply",
+          title: rawJob.title,
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: tracked,
+        verification: {
+          ...verification(),
+          finalUrl: tracked.sourceUrl,
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(1);
+    });
+  });
+
+  it("normalizes common e-commerce title formatting without removing seniority", () => {
+    expect(normalizeTitleIdentity("eCommerce Manager")).toBe(
+      normalizeTitleIdentity("E-Commerce Manager"),
+    );
+    expect(normalizeTitleIdentity("Ecommerce Manager")).toBe(
+      normalizeTitleIdentity("E-Commerce Manager"),
+    );
+    expect(normalizeTitleIdentity("Senior Product Manager")).not.toBe(
+      normalizeTitleIdentity("Product Manager"),
+    );
+  });
+
+  it("merges different URLs with the same provider job ID", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const second = normalizeCandidate({
+      ...rawJob,
+      sourceUrl: "https://careers.example.com/openings/frontend",
+      sourceEvidence: [
+        {
+          url: "https://careers.example.com/openings/frontend",
+          title: rawJob.title,
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: second,
+        verification: {
+          ...verification(),
+          finalUrl: second.sourceUrl,
+          externalJobId: "role-1",
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(1);
+    });
+  });
+
+  it("merges equivalent company, title, and Israeli location across providers", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const repost = normalizeCandidate({
+      ...rawJob,
+      title: "Front-End Engineer",
+      companyName: "Example Company Ltd.",
+      sourceUrl: "https://jobs.example.net/listing/98765",
+      sourceName: "Example Jobs",
+      sourceType: "job_board",
+      city: "תל אביב",
+      locationText: "תל אביב, ישראל",
+      sourceEvidence: [
+        {
+          url: "https://jobs.example.net/listing/98765",
+          title: "Front-End Engineer",
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: repost,
+        verification: {
+          ...verification(),
+          finalUrl: repost.sourceUrl,
+          domain: "jobs.example.net",
+          sourceTier: "job_board",
+          externalJobId: "98765",
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(1);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
+      expect(await ctx.db.query("jobIngestionEvents").collect()).toHaveLength(
+        2,
+      );
+    });
+  });
+
+  it("keeps senior and non-senior roles separate", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const senior = normalizeCandidate({
+      ...rawJob,
+      title: "Senior Frontend Engineer",
+      sourceUrl: "https://careers.example.com/jobs/role-2",
+      sourceEvidence: [
+        {
+          url: "https://careers.example.com/jobs/role-2",
+          title: "Senior Frontend Engineer",
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: senior,
+        verification: {
+          ...verification(),
+          finalUrl: senior.sourceUrl,
+          externalJobId: "role-2",
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(2);
+    });
+  });
+
+  it("keeps the same company and role in different cities separate", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const haifa = normalizeCandidate({
+      ...rawJob,
+      city: "Haifa",
+      locationText: "Haifa, Israel",
+      sourceUrl: "https://careers.example.com/jobs/role-haifa",
+      sourceEvidence: [
+        {
+          url: "https://careers.example.com/jobs/role-haifa",
+          title: rawJob.title,
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: haifa,
+        verification: {
+          ...verification(),
+          finalUrl: haifa.sourceUrl,
+          externalJobId: "role-haifa",
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(2);
+    });
+  });
+});
+
+describe("stored job activity", () => {
+  it("updates lastSeenAt and retains an ingestion event on a fresh provider sighting", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    await t.run(async (ctx) => {
+      const source = await ctx.db.query("jobSources").first();
+      if (!source) throw new Error("Expected source");
+      await ctx.db.patch("jobSources", source._id, { lastSeenAt: 1 });
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    await t.run(async (ctx) => {
+      const source = await ctx.db.query("jobSources").first();
+      expect(source?.lastSeenAt).toBeGreaterThan(1);
+      expect(await ctx.db.query("jobIngestionEvents").collect()).toHaveLength(
+        2,
+      );
+    });
+  });
+
+  it("retains active state after a temporary verification failure", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const sourceId = await t.run(
+      async (ctx) => (await ctx.db.query("jobSources").first())?._id,
+    );
+    if (!sourceId) throw new Error("Expected source");
+    await t.mutation(internal.jobActivity.recordVerification, {
+      sourceId,
+      verification: {
+        ...verification(),
+        activityStatus: "verification_failed",
+        verificationEvidence: "Temporary HTTP 500",
+      },
+    });
+    await t.run(async (ctx) => {
+      const source = await ctx.db.get("jobSources", sourceId);
+      const job = await ctx.db.query("jobs").first();
+      expect(source).toMatchObject({
+        activityStatus: "verified_active",
+        verificationFailureCount: 1,
+        verificationEvidence: "Temporary HTTP 500",
+      });
+      expect(job?.lifecycleStatus).toBe("verified_active");
+    });
+  });
+
+  it("hides closed jobs from suggestions but keeps application history", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const ids = await t.run(async (ctx) => ({
+      jobId: (await ctx.db.query("jobs").first())?._id,
+      sourceId: (await ctx.db.query("jobSources").first())?._id,
+    }));
+    if (!ids.jobId || !ids.sourceId) throw new Error("Expected stored job");
+    await asUser(t, userId).mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId: ids.jobId,
+      applied: true,
+    });
+    await t.mutation(internal.jobActivity.recordVerification, {
+      sourceId: ids.sourceId,
+      verification: {
+        ...verification(),
+        activityStatus: "inactive",
+        verificationEvidence: "HTTP 410",
+      },
+    });
+    const suggestions = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    const history = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "inProgress" },
+    );
+    expect(suggestions.jobs).toHaveLength(0);
+    expect(history.jobs).toHaveLength(1);
+    expect(history.jobs[0].unavailable).toBe(true);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get("jobs", ids.jobId!)).toMatchObject({
+        lifecycleStatus: "closed",
+        activityReason: "HTTP 410",
+      });
+    });
+  });
+
+  it("exposes authenticated development diagnostics", async () => {
+    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const jobId = await t.run(
+      async (ctx) => (await ctx.db.query("jobs").first())?._id,
+    );
+    if (!jobId) throw new Error("Expected job");
+    const diagnostics = await asUser(t, userId).query(
+      api.jobActivity.getDiagnostics,
+      { jobId },
+    );
+    expect(diagnostics).toMatchObject({
+      canonicalJobId: jobId,
+      sourceCount: 1,
+      lifecycleStatus: "verified_active",
+      activityStatus: "active",
+    });
+    expect(diagnostics.sources[0]).toMatchObject({
+      activityStatus: "verified_active",
+    });
+  });
+});
+
+describe("development quality fixture", () => {
+  it("is idempotent and creates canonical active and retained closed states", async () => {
+    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    const first = await asUser(t, userId).mutation(
+      api.jobQualityFixtures.seedForCurrentUser,
+      {},
+    );
+    const second = await t.mutation(
+      internal.jobQualityFixtures.seedForLatestCompletedUser,
+      {},
+    );
+    expect(second).toEqual(first);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(2);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
+      expect(await ctx.db.query("jobIngestionEvents").collect()).toHaveLength(
+        2,
+      );
+      expect(await ctx.db.query("jobApplications").collect()).toHaveLength(1);
+    });
   });
 });

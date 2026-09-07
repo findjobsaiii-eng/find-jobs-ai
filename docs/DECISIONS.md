@@ -160,8 +160,9 @@ migration and rollback policy before this decision changes.
 Status: Accepted (updated 2026-09-07)
 
 The authenticated homepage is a Suggestions / In progress feed. The floating
-logical-start profile panel contains editing, language, and sign-out. Profile
-editing reuses the existing four-step onboarding form and owner-scoped save
+logical-start profile panel contains CV replacement, profile editing, language,
+and sign-out. New users enter through CV-first onboarding; the existing detailed
+form remains available for later corrections through the owner-scoped save
 mutation. Temporary search filters, completion cards, placeholder tools, and
 mobile navigation have been removed.
 
@@ -234,15 +235,21 @@ A Web Search result is untrusted. The server pins a validated public DNS address
 uses strict time/body/redirect bounds, rejects private destinations, generic
 pages, HTTP 404/410, closure markers, and pages that do not confirm the expected
 role and company. HTML is reduced to bounded plain text for verification, stored
-as raw source evidence, and never rendered. Only `verified_active` canonical jobs with a currently
-verified source are displayable; verification expires after seven days.
+as raw source evidence, and never rendered. Only `verified_active` and bounded
+`probably_active` canonical jobs are displayable.
 
 Sources rank: employer careers page, employer ATS, established job board, then
-aggregator. Consolidation uses normalized final URL, source external ID,
-normalized source URL, company/title/location fingerprint, and exact content
-hash, with requirement and conflicting-external-ID safeguards. Embedding-based
-merging is deferred until its extra provider cost and measured quality benefit
-justify a separately metered model.
+aggregator. Consolidation uses domain/provider ID, canonical final/source URL,
+and an indexed company/title/location key, with content and requirement guards.
+URLs discard known tracking, referral, session, and fragment noise but preserve
+unknown query identifiers. Company normalization removes only conservative legal
+suffixes. Title normalization aligns casing, punctuation, hyphens, and a small
+set of formatting variants while preserving seniority. Resolved GeoNames IDs
+make Hebrew and English location labels equivalent. The lookup and insert share
+one Convex transaction, so concurrent imports conflict and retry instead of
+creating two canonical rows. `jobIngestionEvents` preserves every source payload,
+content hash, provider key, timestamp, and merge reason. Embedding-based merging
+remains deferred.
 
 The central job row also stores the original provider JSON alongside extracted
 fields. Hard exclusions cover target role, radius,
@@ -284,6 +291,54 @@ keeps the snapshot after source expiry. Undo removes only the caller's marker.
 This records an application and never submits a résumé. Interview stages and
 tracking pagination beyond the latest 100 applications remain future work.
 
+### D-020: Job activity is cached, conservative, and historical
+
+Status: Accepted
+
+Evidence: `convex/jobActivityPolicy.ts`, `convex/jobActivity.ts`,
+`convex/jobActivityActions.ts`, `convex/jobSourceVerification.ts`, and
+`convex/crons.ts`.
+
+Fresh verification is cached for three days. An hourly worker leases and checks
+at most 20 due sources, and follows with another bounded batch when necessary.
+Conclusive 404/410 responses, explicit English/Hebrew closure text, redirects to
+a generic careers page, or a passed application deadline produce `closed` or
+`expired` when all available sources support that conclusion. Direct generic
+pages and missing role/company evidence remain inconclusive.
+
+HTTP 403/429/5xx, timeouts, DNS failures, and transport errors do not close a
+previously active source. They record the failed attempt, preserve the last good
+state, and retry with exponential backoff from six hours to seven days. A source
+observed within 14 days can be `probably_active` while awaiting recheck. A job
+without conclusive recent evidence becomes `unknown`; after 45 days without a
+provider observation it becomes `expired`. Unknown, closed, and expired jobs are
+hidden from suggestions and retained in storage. Application snapshots remain
+visible and are hydrated with an unavailable flag from the current canonical
+job. Development-only authenticated diagnostics expose source count, canonical
+ID, timestamps, activity, and merge/closure reasons.
+
+### D-021: CV-derived data and user overrides produce one effective profile
+
+Status: Accepted
+
+Evidence: `convex/resumeProfileModel.ts`, `convex/resumes.ts`,
+`convex/resumeActions.ts`, `src/features/profile/resume-onboarding.tsx`, and
+`convex/jobDiscovery.ts`.
+
+Store every CV as an owner-scoped version with its private file, extracted text,
+validated structured result, confidence, and normalized summary fields. Keep a
+separate compact CV career representation on the candidate profile. Discovery
+reads the effective candidate fields; it never reparses the raw CV per job.
+
+Manual profile saves record explicit override fields. Reprocessing replaces the
+CV-derived representation and updates only effective fields without overrides.
+Treat completed profiles created before this model as fully manual during their
+first CV import. Missing location remains missing and blocks the final review;
+other absent noncritical details do not force a long questionnaire. Calculate
+employment duration and overlap, skill deduplication, and Israel location
+resolution deterministically. OpenAI structures factual CV text and proposes at
+most five career-consistent target roles.
+
 ## URL-based workspace navigation
 
 Status: Accepted
@@ -318,9 +373,9 @@ and refresh tokens in `localStorage`. This supports refresh and browser-restart
 persistence but places greater weight on XSS prevention. The product owner must
 decide whether that tradeoff is acceptable before production launch.
 
-### P-008: Job freshness and semantic retrieval
+### P-008: Semantic retrieval
 
 Status: Pending
 
-Periodic source revalidation, query/job embeddings, and exact geospatial job
-coordinates need separate cost and quality decisions before implementation.
+Query/job embeddings and exact workplace coordinates need separate cost and
+quality decisions before implementation.

@@ -14,6 +14,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   Check,
+  FileText,
   Languages,
   LoaderCircle,
   LogOut,
@@ -22,7 +23,9 @@ import {
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { FloatingPanel } from "@/components/ui/floating-panel";
+import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { OnboardingScreen } from "@/features/profile/onboarding-screen";
+import { ResumeOnboarding } from "@/features/profile/resume-onboarding";
 import type { CurrentProfile } from "@/features/profile/profile-types";
 import { JobDiscoveryPanel } from "./job-discovery-panel";
 import { DevelopmentTools } from "./development-tools";
@@ -55,6 +58,7 @@ export function DashboardWorkspace({ data }: { data: CurrentProfile }) {
           />
         }
       />
+      <Route path="/resume" element={<ResumeReplacement />} />
       <Route
         path="/"
         element={
@@ -71,6 +75,19 @@ export function DashboardWorkspace({ data }: { data: CurrentProfile }) {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
+function ResumeReplacement() {
+  const navigate = useNavigate();
+  const resume = useQuery(api.resumes.getCurrent);
+  if (resume === undefined) return <AuthLoadingScreen variant="profile" />;
+  return (
+    <ResumeOnboarding
+      resume={resume}
+      replaceMode
+      onEdit={() => void navigate("/profile")}
+    />
   );
 }
 
@@ -129,6 +146,16 @@ function DashboardScreen({
           >
             <UserRound aria-hidden="true" />
             {t("dashboard.editProfile")}
+          </Button>
+          <Button
+            variant="ghost"
+            className="min-h-11 w-full justify-start"
+            render={<Link to="/resume" />}
+            nativeButton={false}
+            role="link"
+          >
+            <FileText aria-hidden="true" />
+            {t("dashboard.replaceResume")}
           </Button>
           <Button
             variant="ghost"

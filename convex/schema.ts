@@ -57,6 +57,10 @@ const jobLifecycleStatus = v.union(
   v.literal("discovered"),
   v.literal("pending_verification"),
   v.literal("verified_active"),
+  v.literal("probably_active"),
+  v.literal("closed"),
+  v.literal("expired"),
+  v.literal("unknown"),
   v.literal("inactive"),
   v.literal("verification_failed"),
   v.literal("duplicate"),
@@ -68,6 +72,31 @@ const sourceActivityStatus = v.union(
   v.literal("inactive"),
   v.literal("verification_failed"),
 );
+
+const profileOverrideField = v.union(
+  v.literal("targetJobTitles"),
+  v.literal("professionalSummary"),
+  v.literal("yearsOfExperience"),
+  v.literal("skills"),
+  v.literal("location"),
+  v.literal("workArrangements"),
+  v.literal("employmentTypes"),
+  v.literal("minimumMonthlySalaryIls"),
+  v.literal("languages"),
+  v.literal("seniority"),
+);
+
+const normalizedProfileLocation = v.object({
+  placeId: v.string(),
+  formattedAddress: v.string(),
+  city: v.optional(v.string()),
+  administrativeArea: v.optional(v.string()),
+  country: v.string(),
+  countryCode: v.string(),
+  latitude: v.number(),
+  longitude: v.number(),
+  radiusKm: v.number(),
+});
 
 const relevanceComponents = v.object({
   role: v.number(),
@@ -87,6 +116,10 @@ export const jobFeedItem = v.object({
   id: v.id("jobs"),
   title: v.string(),
   companyName: v.string(),
+  descriptionText: v.optional(nullableString),
+  requiredSkills: v.optional(v.array(v.string())),
+  postedAt: v.optional(nullableString),
+  unavailable: v.optional(v.boolean()),
   sourceUrl: v.string(),
   sourceName: v.union(v.string(), v.null()),
   sourceTier: v.string(),
@@ -149,19 +182,7 @@ const schema = defineSchema({
     skillIds: v.optional(v.array(v.id("catalogItems"))),
     preferredPlaceIds: v.optional(v.array(v.string())),
     locationRadiusKm: v.optional(v.number()),
-    primaryLocation: v.optional(
-      v.object({
-        placeId: v.string(),
-        formattedAddress: v.string(),
-        city: v.optional(v.string()),
-        administrativeArea: v.optional(v.string()),
-        country: v.string(),
-        countryCode: v.string(),
-        latitude: v.number(),
-        longitude: v.number(),
-        radiusKm: v.number(),
-      }),
-    ),
+    primaryLocation: v.optional(normalizedProfileLocation),
     workArrangements: v.optional(v.array(workArrangement)),
     employmentTypes: v.optional(v.array(employmentType)),
     minimumMonthlySalaryIls: v.optional(v.number()),
@@ -178,9 +199,85 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
+    activeResumeId: v.optional(v.id("resumeDocuments")),
+    cvReviewPending: v.optional(v.boolean()),
+    profileSourceVersion: v.optional(v.number()),
+    manualOverrideFields: v.optional(v.array(profileOverrideField)),
+    seniority: v.optional(
+      v.union(
+        v.literal("entry"),
+        v.literal("mid"),
+        v.literal("senior"),
+        v.literal("lead"),
+        v.literal("executive"),
+        v.literal("unknown"),
+      ),
+    ),
+    cvCareerProfile: v.optional(
+      v.object({
+        resumeId: v.id("resumeDocuments"),
+        currentTitle: v.optional(v.string()),
+        normalizedPastRoles: v.array(v.string()),
+        seniority: v.string(),
+        domains: v.array(v.string()),
+        coreSkills: v.array(v.string()),
+        totalExperienceMonths: v.number(),
+        experienceByDomain: v.array(
+          v.object({ domain: v.string(), months: v.number() }),
+        ),
+        updatedAt: v.number(),
+      }),
+    ),
   })
     .index("by_userId", ["userId"])
     .index("by_onboardingCompleted", ["onboardingCompleted"]),
+  resumeDocuments: defineTable({
+    userId: v.id("users"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("ready"),
+      v.literal("needs_confirmation"),
+      v.literal("failed"),
+      v.literal("replaced"),
+    ),
+    extractedText: v.optional(v.string()),
+    structuredProfileJson: v.optional(v.string()),
+    currentTitle: v.optional(v.string()),
+    professionalDomain: v.optional(v.string()),
+    seniority: v.optional(
+      v.union(
+        v.literal("entry"),
+        v.literal("mid"),
+        v.literal("senior"),
+        v.literal("lead"),
+        v.literal("executive"),
+        v.literal("unknown"),
+      ),
+    ),
+    summary: v.optional(v.string()),
+    targetJobTitleIds: v.optional(v.array(v.id("catalogItems"))),
+    skillIds: v.optional(v.array(v.id("catalogItems"))),
+    normalizedLocation: v.optional(normalizedProfileLocation),
+    totalExperienceMonths: v.optional(v.number()),
+    confidence: v.optional(
+      v.object({
+        currentTitle: v.string(),
+        location: v.string(),
+        dates: v.string(),
+        targetRoles: v.string(),
+      }),
+    ),
+    failureCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_userId_and_status", ["userId", "status"]),
   jobApplications: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
@@ -255,6 +352,7 @@ const schema = defineSchema({
     normalizedSourceUrl: v.string(),
     jobFingerprint: v.string(),
     contentHash: v.string(),
+    canonicalKey: v.optional(v.string()),
     title: v.string(),
     companyName: v.string(),
     sourceUrl: v.string(),
@@ -301,6 +399,8 @@ const schema = defineSchema({
     firstDiscoveredAt: v.number(),
     lastDiscoveredAt: v.number(),
     lastVerifiedAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    activityReason: v.optional(v.string()),
     activityStatus: v.union(
       v.literal("unknown"),
       v.literal("active"),
@@ -315,12 +415,14 @@ const schema = defineSchema({
     .index("by_normalizedSourceUrl", ["normalizedSourceUrl"])
     .index("by_jobFingerprint", ["jobFingerprint"])
     .index("by_contentHash", ["contentHash"])
+    .index("by_canonicalKey", ["canonicalKey"])
     .index("by_lifecycleStatus_and_lastVerifiedAt", [
       "lifecycleStatus",
       "lastVerifiedAt",
     ]),
   jobSources: defineTable({
     jobId: v.id("jobs"),
+    sourceName: v.optional(nullableString),
     rawSourceText: v.optional(v.string()),
     sourceUrl: v.string(),
     normalizedUrl: v.string(),
@@ -333,9 +435,16 @@ const schema = defineSchema({
       v.literal("aggregator"),
     ),
     externalJobId: v.optional(v.string()),
+    providerKey: v.optional(v.string()),
     firstSeenAt: v.number(),
     lastSeenAt: v.number(),
     lastVerifiedAt: v.optional(v.number()),
+    lastVerificationAttemptAt: v.optional(v.number()),
+    nextVerificationAt: v.optional(v.number()),
+    verificationFailureCount: v.optional(v.number()),
+    verificationLeaseUntil: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    closureReason: v.optional(v.string()),
     activityStatus: sourceActivityStatus,
     verificationMethod: v.optional(v.string()),
     verificationEvidence: v.optional(v.string()),
@@ -345,8 +454,22 @@ const schema = defineSchema({
     .index("by_normalizedUrl", ["normalizedUrl"])
     .index("by_finalUrl", ["finalUrl"])
     .index("by_domain_and_externalJobId", ["domain", "externalJobId"])
+    .index("by_providerKey", ["providerKey"])
+    .index("by_nextVerificationAt", ["nextVerificationAt"])
     .index("by_jobId", ["jobId"])
     .index("by_jobId_and_activityStatus", ["jobId", "activityStatus"]),
+  jobIngestionEvents: defineTable({
+    jobId: v.id("jobs"),
+    sourceId: v.id("jobSources"),
+    sourceUrl: v.string(),
+    providerKey: v.optional(v.string()),
+    contentHash: v.string(),
+    rawProviderJson: v.optional(v.string()),
+    mergeReason: v.optional(v.string()),
+    observedAt: v.number(),
+  })
+    .index("by_jobId_and_observedAt", ["jobId", "observedAt"])
+    .index("by_sourceId_and_observedAt", ["sourceId", "observedAt"]),
   jobDiscoveries: defineTable({
     jobId: v.id("jobs"),
     searchRunId: v.id("jobSearchRuns"),

@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   CheckCircle2,
+  DatabaseZap,
+  FileText,
   LoaderCircle,
   RefreshCw,
   Search,
@@ -32,9 +34,15 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
   const discover = useAction(
     api.jobDiscoveryActions.discoverJobsForCurrentUser,
   );
+  const seedResumeDemo = useAction(api.resumeActions.seedDevelopmentResume);
   const setPlan = useMutation(api.jobDiscovery.setDevelopmentPlan);
+  const seedQualityDemo = useMutation(
+    api.jobQualityFixtures.seedForCurrentUser,
+  );
   const busyRef = useRef(false);
-  const [pending, setPending] = useState<"plan" | "search" | null>(null);
+  const [pending, setPending] = useState<
+    "plan" | "search" | "fixture" | "resume" | null
+  >(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const paid = discoveryState?.plan !== "free";
@@ -83,6 +91,41 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                     ? "configuration"
                     : "provider",
       );
+    } finally {
+      busyRef.current = false;
+      setPending(null);
+    }
+  };
+
+  const handleQualityDemo = async () => {
+    if (busyRef.current || busy) return;
+    busyRef.current = true;
+    setPending("fixture");
+    setError(null);
+    setStatus(null);
+    try {
+      await seedQualityDemo({});
+      setStatus("qualityDemo");
+    } catch (cause) {
+      setError(
+        errorCode(cause) === "DEV_TOOLS_DISABLED" ? "devDisabled" : "demo",
+      );
+    } finally {
+      busyRef.current = false;
+      setPending(null);
+    }
+  };
+
+  const handleResumeDemo = async () => {
+    if (busyRef.current || busy) return;
+    busyRef.current = true;
+    setPending("resume");
+    setError(null);
+    setStatus(null);
+    try {
+      await seedResumeDemo({});
+    } catch {
+      setError("demo");
     } finally {
       busyRef.current = false;
       setPending(null);
@@ -138,6 +181,40 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
             : paid
               ? "jobDiscovery.start"
               : "jobDiscovery.refresh",
+        )}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => void handleQualityDemo()}
+        disabled={!discoveryState || busy}
+        className="mt-2 min-h-11 w-full"
+      >
+        {pending === "fixture" ? (
+          <LoaderCircle aria-hidden="true" className="animate-spin" />
+        ) : (
+          <DatabaseZap aria-hidden="true" />
+        )}
+        {t(
+          pending === "fixture"
+            ? "jobDiscovery.loadingDemo"
+            : "jobDiscovery.loadDemo",
+        )}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => void handleResumeDemo()}
+        disabled={!discoveryState || busy}
+        className="mt-2 min-h-11 w-full"
+      >
+        {pending === "resume" ? (
+          <LoaderCircle aria-hidden="true" className="animate-spin" />
+        ) : (
+          <FileText aria-hidden="true" />
+        )}
+        {t(
+          pending === "resume"
+            ? "jobDiscovery.loadingResumeDemo"
+            : "jobDiscovery.loadResumeDemo",
         )}
       </Button>
       {status ? (

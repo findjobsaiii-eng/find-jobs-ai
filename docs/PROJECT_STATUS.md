@@ -38,7 +38,9 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - A GitHub Actions quality gate using the committed npm lockfile and Node.js 22.
 - English and Hebrew UI copy, document language/direction synchronization, and persisted language detection.
 - A shared button primitive, semantic theme tokens, local font packages, responsive layout, focus styles, and reduced-motion handling.
-- A secure, four-step candidate-profile onboarding flow after sign-in, with read-only Google identity, field validation, progress, Back/Continue/Save draft/Finish actions, duplicate-submit protection, and responsive LTR/RTL behavior.
+- Resume-first onboarding after sign-in: one PDF/DOCX upload, private Convex Storage, actual text extraction, structured career parsing, at least five seconds of analysis feedback, a compact role/strength/seniority/location review, and direct entry to personalized jobs. The full four-step form remains the profile editor.
+- Versioned CV-derived career profiles include factual role history, responsibilities and explicit achievements, normalized skills by group, education, explicit languages, overlap-safe experience totals, domains, seniority, confidence, target-role candidates, and normalized Israeli location when supported.
+- Effective candidate profiles preserve field-level manual overrides across CV replacement. Existing pre-CV profiles are treated as manually chosen on first import. Raw CV text and structured detail stay server-side.
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
 - Searchable bilingual job-title and skill catalogs, with bounded per-user private additions that cannot leak across accounts or become shared automatically.
 - Google Places autocomplete for one primary Israeli city or region, with a compact selected-location summary, accessible 5–100 km radius presets (25 km by default), localized results, and optional current-location search bias that does not persist coordinates. Earlier multi-location drafts remain readable, but onboarding presents and replaces only the primary location.
@@ -50,21 +52,22 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Paid profiles generate one shared query per unique target role, capped at five. Exact normalized role/location queries are claimed once per Israel calendar day across all users; a failed owning run releases its claim for retry.
 - Automatic provider calls fail closed behind a kill switch, daily run/query ceilings, concurrency ceiling, and a configurable output-token cap. SDK retries remain disabled and usage is recorded.
 - Provider output is treated as untrusted. Every candidate needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Source verification pins the resolved public IP, bounds redirects/time/body size, rejects private addresses, 404/410, closure markers, generic pages, and content that does not confirm the expected role and company.
-- Central vacancies can own several source records. Deterministic consolidation checks final URL, provider job ID, normalized source URL, company/title/location, and content hash. Central rows retain raw provider JSON plus extracted fields; verified sources retain bounded raw page text and verification metadata.
-- Only canonical `verified_active` jobs with a verified source and no hard-filter contradiction appear. Feeds are computed directly from the central catalog; the UI no longer presents a premature relevance score.
+- Central vacancies can own several source records. Deterministic consolidation checks domain/provider ID, canonical URLs, normalized company/title/location, and content. URL tracking noise and common formatting differences collapse while seniority and distinct cities remain separate. Transactional indexed lookups protect concurrent ingestion. Every observation is retained in an ingestion event.
+- Only canonical `verified_active` or recently observed `probably_active` jobs with no hard-filter contradiction appear. Feeds are computed directly from the central catalog and expose one preferred source. Employer pages outrank ATS pages, job boards, and aggregators.
+- An hourly bounded worker rechecks due sources after a three-day cache interval. Conclusive 404/410, closure markers, redirects to generic careers pages, and passed deadlines close listings. Temporary failures preserve prior state and retry with bounded exponential backoff. Unknown, closed, and expired records remain stored but are hidden from suggestions.
 - Job locations resolve through an offline GeoNames Israel locality dataset. Jobs store a stable place ID and locality centroid, and radius filtering uses Haversine distance without AI. Unknown, ambiguous, and foreign locations are excluded.
 
-- The homepage is a job feed with Suggestions / In progress tabs, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
-- Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. This does not send a résumé or implement interview stages.
+- The homepage is a job feed with Suggestions / In progress tabs, clean cards for title, company, location, work model, date, summary, skills, source, and actions, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
+- Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. Closed jobs remain in history with an unavailable label. This does not send a résumé or implement interview stages.
 - An hourly internal Convex cron claims eligible paid profiles in bounded pages once per Israel calendar day. Free profiles are never queued for provider work.
 - Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`. Free mode refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs.
 
 ## Incomplete or unknown areas
 
 - Live Google OAuth was reported successful after the replacement client was configured; this task did not repeat that external smoke test.
-- No CV upload, resume generation, automatic applications, Gmail access, embeddings, or multi-stage application workflow exists.
-- There is no semantic query reuse, periodic job-activity recheck, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
-- Embedding-based duplicate detection, semantic relevance, and internal scoring are deferred. Current filtering applies explicit profile constraints only.
+- Resume generation, automatic applications, Gmail access, embeddings, and multi-stage application workflow do not exist. CV ingestion and profile creation are implemented.
+- There is no semantic query reuse, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
+- Embedding-based duplicate detection and semantic relevance are deferred. Deterministic relevance now ranks eligible jobs by effective target/past roles, core skills, experience, location, work arrangement, and employment type.
 - GeoNames coordinates are locality centroids, so radius checks are city-level approximations rather than exact workplace distances. Jobs with unresolved or ambiguous locations are hidden.
 - Pro/admin entitlements have no billing source. The development-only switch creates test entitlements; all users otherwise resolve to `free`.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
@@ -77,16 +80,15 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
 - Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
 - Runtime job discovery depends on server-only `OPENAI_API_KEY` and `OPENAI_JOB_SEARCH_MODEL` configuration and on the selected model continuing to support Responses API Web Search plus Structured Outputs.
-- Source verification intentionally favors precision and can hide legitimate client-rendered, bot-protected, or temporarily unavailable job pages. Verified sources expire from display after seven days because periodic revalidation is not implemented yet.
+- Source verification intentionally favors precision and can hide legitimate client-rendered or bot-protected job pages. Temporary access failures preserve prior state, but jobs eventually leave suggestions when recent activity cannot be established.
 - DNS resolution is checked and the selected public address is pinned for the HTTP request, but source verification still depends on the correctness of public DNS and TLS infrastructure.
 - Global ceilings are cost controls rather than billing. Production operators need monitoring, an entitlement-management process, and an incident runbook before launch.
 
 ## Next recommended milestone
 
-Add a bounded source-reverification workflow and operational monitoring for
-scheduled discovery. After real-world false-positive/false-negative data exists,
-evaluate whether a separately metered embedding model materially improves the
-deterministic duplicate and relevance gates. Billing, CV ingestion, and
+Add operational monitoring for CV extraction, scheduled discovery, and activity
+verification. After real-world extraction data exists, add an admin-only view for
+low-confidence fields and decide on CV retention/deletion periods. Billing and
 automated applications remain separate milestones.
 
 ## Job discovery verification
