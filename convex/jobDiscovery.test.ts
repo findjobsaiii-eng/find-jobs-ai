@@ -306,6 +306,64 @@ describe("job discovery quality and usage controls", () => {
       resultSource: "cache",
       acceptedCount: 1,
     });
+    const user = asUser(t, userId);
+    const before = await user.query(api.jobDiscovery.listCurrentUserJobs, {});
+    const jobId = before.jobs[0].id;
+    const other = asUser(t, await createUser(t));
+    await expect(
+      other.mutation(api.jobDiscovery.setApplicationStatus, {
+        jobId,
+        applied: true,
+      }),
+    ).rejects.toThrow(/JOB_NOT_AVAILABLE/u);
+    await user.mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: true,
+    });
+    await user.mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: true,
+    });
+    expect(
+      (await user.query(api.jobDiscovery.listCurrentUserJobs, {})).jobs,
+    ).toHaveLength(0);
+    expect(
+      (
+        await other.query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "inProgress",
+        })
+      ).jobs,
+    ).toHaveLength(0);
+    await t.run(async (ctx) => {
+      await ctx.db.patch("jobs", jobId, { lifecycleStatus: "inactive" });
+    });
+    const tracked = await user.query(api.jobDiscovery.listCurrentUserJobs, {
+      view: "inProgress",
+    });
+    expect(tracked.jobs).toHaveLength(1);
+    expect(tracked.jobs[0].title).toBe(before.jobs[0].title);
+    await other.mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: false,
+    });
+    expect(
+      (
+        await user.query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "inProgress",
+        })
+      ).jobs,
+    ).toHaveLength(1);
+    await user.mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: false,
+    });
+    expect(
+      (
+        await user.query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "inProgress",
+        })
+      ).jobs,
+    ).toHaveLength(0);
     await t.run(async (ctx) => {
       const usage = await ctx.db.query("jobSearchUsage").collect();
       expect(usage).toHaveLength(1);

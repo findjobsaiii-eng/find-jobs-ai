@@ -1,9 +1,11 @@
+import { jobFeedItem } from "./schema";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   env,
+  mutation,
   internalMutation,
   internalQuery,
   query,
@@ -237,10 +239,10 @@ async function loadSearchProfile(
 }
 
 export const getCurrentSearchProfile = internalQuery({
-  args: {},
+  args: { userId: v.optional(v.id("users")) },
   returns: searchProfileValidator,
-  handler: async (ctx): Promise<SearchProfile> => {
-    const userId = await requireUserId(ctx);
+  handler: async (ctx, args): Promise<SearchProfile> => {
+    const userId = args.userId ?? (await requireUserId(ctx));
     return await loadSearchProfile(ctx, userId);
   },
 });
@@ -583,6 +585,7 @@ const beginResultValidator = v.union(
 
 export const beginSearch = internalMutation({
   args: {
+    userId: v.optional(v.id("users")),
     fingerprint: v.string(),
     normalizedCriteria: v.string(),
     generatedQueries: v.array(v.string()),
@@ -598,7 +601,7 @@ export const beginSearch = internalMutation({
   },
   returns: beginResultValidator,
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = args.userId ?? (await requireUserId(ctx));
     const now = Date.now();
     const plan = await currentPlan(ctx, userId, now);
     const policy = JOB_SEARCH_PLAN_POLICIES[plan];
@@ -782,10 +785,14 @@ export const beginSearch = internalMutation({
 });
 
 export const markProviderStarted = internalMutation({
-  args: { runId: v.id("jobSearchRuns"), reservationId: v.string() },
+  args: {
+    userId: v.optional(v.id("users")),
+    runId: v.id("jobSearchRuns"),
+    reservationId: v.string(),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = args.userId ?? (await requireUserId(ctx));
     const run = await ctx.db.get("jobSearchRuns", args.runId);
     if (
       !run ||
@@ -1016,6 +1023,7 @@ async function refreshBestSource(
 
 export const completeSearch = internalMutation({
   args: {
+    userId: v.optional(v.id("users")),
     runId: v.id("jobSearchRuns"),
     reservationId: v.string(),
     returnedCandidateCount: v.number(),
@@ -1032,7 +1040,7 @@ export const completeSearch = internalMutation({
     rejectedCount: v.number(),
   }),
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = args.userId ?? (await requireUserId(ctx));
     const run = await ctx.db.get("jobSearchRuns", args.runId);
     if (
       !run ||
@@ -1177,13 +1185,14 @@ export const completeSearch = internalMutation({
 
 export const failSearch = internalMutation({
   args: {
+    userId: v.optional(v.id("users")),
     runId: v.id("jobSearchRuns"),
     reservationId: v.string(),
     errorCategory: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = args.userId ?? (await requireUserId(ctx));
     const run = await ctx.db.get("jobSearchRuns", args.runId);
     if (run?.userId !== userId || run.status !== "running") return null;
     const now = Date.now();
@@ -1294,32 +1303,29 @@ export const getCurrentUserDiscoveryState = query({
 });
 
 export const listCurrentUserJobs = query({
-  args: {},
-  returns: v.object({
-    jobs: v.array(
-      v.object({
-        id: v.id("jobs"),
-        title: v.string(),
-        companyName: v.string(),
-        sourceUrl: v.string(),
-        sourceName: v.union(v.string(), v.null()),
-        sourceTier: v.string(),
-        locationText: v.union(v.string(), v.null()),
-        workArrangement: v.string(),
-        salaryMin: v.union(v.number(), v.null()),
-        salaryMax: v.union(v.number(), v.null()),
-        salaryCurrency: v.union(v.string(), v.null()),
-        salaryPeriod: v.union(v.string(), v.null()),
-        discoveredAt: v.number(),
-        lastVerifiedAt: v.number(),
-        relevanceScore: v.number(),
-        matchReasons: v.array(v.string()),
-        resultSource: resultSourceValidator,
-      }),
+  args: {
+    view: v.optional(
+      v.union(v.literal("suggestions"), v.literal("inProgress")),
     ),
+  },
+  returns: v.object({
+    jobs: v.array(jobFeedItem),
   }),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
+    if (args.view === "inProgress") {
+      const applications = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100);
+      return {
+        jobs: applications.map((item) => ({
+          ...item.snapshot,
+          appliedAt: item.appliedAt,
+        })),
+      };
+    }
     const matches = await ctx.db
       .query("jobMatches")
       .withIndex("by_userId_and_outcome_and_relevanceScore", (q) =>
@@ -1330,6 +1336,13 @@ export const listCurrentUserJobs = query({
     const now = Date.now();
     const jobs = [];
     for (const match of matches) {
+      const application = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", match.jobId),
+        )
+        .unique();
+      if (application) continue;
       const job = await ctx.db.get("jobs", match.jobId);
       if (
         !job ||
@@ -1371,5 +1384,85 @@ export const listCurrentUserJobs = query({
       if (jobs.length === 25) break;
     }
     return { jobs };
+  },
+});
+
+// The server is authoritative for both visibility and the manual action gate.
+export const developmentToolsEnabled = query({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    await requireUserId(ctx);
+    return env.DEV_TOOLS_ENABLED === "true";
+  },
+});
+
+export const setApplicationStatus = mutation({
+  args: { jobId: v.id("jobs"), applied: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const existing = await ctx.db
+      .query("jobApplications")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", args.jobId),
+      )
+      .unique();
+    if (!args.applied) {
+      if (existing) await ctx.db.delete("jobApplications", existing._id);
+      return null;
+    }
+    if (existing) return null;
+    const match = await ctx.db
+      .query("jobMatches")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", args.jobId),
+      )
+      .unique();
+    const job = await ctx.db.get("jobs", args.jobId);
+    if (
+      !match ||
+      match.outcome !== "eligible" ||
+      !job ||
+      !isDisplayEligibleJob(job) ||
+      !job.bestSourceId ||
+      !job.lastVerifiedAt ||
+      job.lastVerifiedAt < Date.now() - JOB_SOURCE_VERIFICATION_TTL_MS
+    ) {
+      throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
+    }
+    const source = await ctx.db.get("jobSources", job.bestSourceId);
+    if (
+      !source ||
+      source.activityStatus !== "verified_active" ||
+      !source.finalUrl ||
+      !source.lastVerifiedAt
+    )
+      throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
+    await ctx.db.insert("jobApplications", {
+      userId,
+      jobId: args.jobId,
+      appliedAt: Date.now(),
+      snapshot: {
+        id: job._id,
+        title: job.title,
+        companyName: job.companyName,
+        sourceUrl: source.finalUrl,
+        sourceName: job.sourceName,
+        sourceTier: source.sourceTier,
+        locationText: job.locationText,
+        workArrangement: job.workArrangement,
+        salaryMin: job.salaryMin,
+        salaryMax: job.salaryMax,
+        salaryCurrency: job.salaryCurrency,
+        salaryPeriod: job.salaryPeriod,
+        discoveredAt: match.evaluatedAt,
+        lastVerifiedAt: source.lastVerifiedAt,
+        relevanceScore: match.relevanceScore,
+        matchReasons: match.matchReasons,
+        resultSource: match.resultSource,
+      },
+    });
+    return null;
   },
 });

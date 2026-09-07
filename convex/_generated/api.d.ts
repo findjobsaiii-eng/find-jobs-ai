@@ -11,6 +11,8 @@
 import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
+import type * as crons from "../crons.js";
+import type * as dailyDiscovery from "../dailyDiscovery.js";
 import type * as http from "../http.js";
 import type * as jobDiscovery from "../jobDiscovery.js";
 import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
@@ -33,6 +35,8 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;
+  crons: typeof crons;
+  dailyDiscovery: typeof dailyDiscovery;
   http: typeof http;
   jobDiscovery: typeof jobDiscovery;
   jobDiscoveryActions: typeof jobDiscoveryActions;

@@ -14,6 +14,7 @@ export default defineApp({
     JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT: v.string(),
     JOB_SEARCH_MAX_CONCURRENT_RUNS: v.string(),
     JOB_SEARCH_OUTPUT_TOKEN_LIMIT: v.string(),
+    DEV_TOOLS_ENABLED: v.optional(v.string()),
     SITE_URL: v.string(),
   },
 });

@@ -1,6 +1,6 @@
 # Find Jobs AI
 
-An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and a manual server-side job-discovery slice. Application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
+An AI-powered job-search assistant in its foundation phase. The repository currently contains the application shell, bilingual UI foundation, Google OAuth through Convex Auth, secure candidate-profile onboarding, and daily server-side job discovery and basic application tracking. Advanced application management, resume assistance, automatic applications, scraping, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -156,10 +156,11 @@ current preset.
 Curated job titles and skills can be updated idempotently with
 `npm run catalog:seed`.
 
-### Manual job discovery
+### Daily job discovery
 
-Completed profiles can start a manual job search from the authenticated
-dashboard. Convex derives the current user and saved search profile, creates at
+Completed profiles receive a daily discovery attempt without opening the app.
+An hourly Convex cron scans completed profiles in pages of five and atomically
+claims those due. Sequential workers use the saved search profile, create at
 most two deterministic queries, and calls the OpenAI Responses API with Web
 Search from a server action. The browser never receives the API key, selected
 model, prompts, or raw provider response.
@@ -196,7 +197,7 @@ to global limits.
 
 Identical search criteria reuse eligible results for 24 hours without consuming
 fresh quota. A sufficient set of current central jobs is also reused before an
-OpenAI call. The dashboard keeps this zero-provider reuse path available even
+OpenAI call. Daily discovery and development controls retain this zero-provider reuse path
 when a user has no fresh-search credit or fresh search is disabled. Provider
 candidates are stored for audit but displayed only after a
 DNS-pinned public-page check confirms the expected role and company, and after
@@ -204,3 +205,26 @@ deterministic relevance gates pass. The visible source is the highest-priority
 verified employer/ATS/job-board source for the canonical vacancy. Search
 criteria do not contain the candidate's name, email, summary, or other
 identifying text.
+
+### Homepage and development controls
+
+The homepage contains a compact Suggestions / In progress tab bar and jobs.
+The fixed profile button sits at the logical start (left in English, right in
+Hebrew) and opens profile editing, language switching, and sign-out.
+“Sent résumé” saves an owner-scoped application snapshot and moves the job to
+In progress. Undo removes the marker. Snapshots remain available after a job
+expires from suggestions; the action records tracking only and never sends a CV.
+Suggestions show up to 25 jobs; In progress currently shows the latest 100.
+
+On development deployments only, set the server variable `DEV_TOOLS_ENABLED=true`
+to expose the floating bottom testing panel. It also gates the manual search
+action server-side. Leave it unset or false on production; this is a deployment
+flag, not an administrator entitlement. It never bypasses plan/global quotas.
+
+The daily sweep runs hourly; each completed attempt becomes due again 24 hours
+later, so refreshes normally occur within 24–25 hours. Failures and quota skips
+are recorded in `dailyDiscoveryAttempts.lastOutcome` and tried on the next daily
+cycle. Cache reuse precedes fresh quota, and free accounts retain their existing
+one-fresh-search-per-seven-days policy. New completed profiles join the next
+hourly sweep. No browser session is required. The existing `JOB_SEARCH_ENABLED`
+kill switch and all configured cost limits still apply.

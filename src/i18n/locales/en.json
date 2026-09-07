@@ -79,7 +79,8 @@
     "preferencesTitle": "My search preferences",
     "edit": "Edit",
     "notSet": "Not set",
-    "trackingDescription": "Track applications here when this feature becomes available."
+    "trackingDescription": "Track applications here when this feature becomes available.",
+    "developmentTools": "Development tools"
   },
   "jobDiscovery": {
     "start": "Search for new jobs",
@@ -107,8 +108,8 @@
       "central": "These results were already verified in Worky’s job database."
     },
     "retry": "Try again",
-    "emptyTitle": "Search for your first real opportunities",
-    "emptyDescription": "Start a focused search based on your saved profile. Only validated public postings will appear here.",
+    "emptyTitle": "Your next opportunity will appear here",
+    "emptyDescription": "Matching jobs will appear here as we find them, based on your saved profile.",
     "location": "Location",
     "arrangement": "Work arrangement",
     "salaryLabel": "Salary",
@@ -147,7 +148,8 @@
       "globalLimit": "The shared search safety limit has been reached. Try again later.",
       "alreadyRunning": "A job search is already running for your account.",
       "configuration": "Job discovery is not configured on the server yet.",
-      "provider": "The job provider could not complete this search. No unvalidated results were saved."
+      "provider": "The job provider could not complete this search. No unvalidated results were saved.",
+      "devDisabled": "Development tools are disabled on this deployment."
     }
   },
   "onboarding": {
@@ -301,5 +303,17 @@
       "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",
       "save": "We couldn't save your profile. Check your connection and try again."
     }
+  },
+  "applications": {
+    "suggestions": "Suggestions",
+    "inProgress": "In progress",
+    "sentResume": "Sent résumé",
+    "undo": "Undo sent résumé",
+    "marked": "Moved to In progress.",
+    "unmarked": "Removed from In progress.",
+    "error": "Couldn’t update this job. Please try again.",
+    "emptyTitle": "No applications yet",
+    "emptyDescription": "Mark a job as “Sent résumé” to keep track of it here.",
+    "sentAt": "Résumé sent {{date}}"
   }
 }

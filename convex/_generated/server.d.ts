@@ -32,6 +32,7 @@ type Env = {
   readonly CONVEX_SITE_URL: string;
   readonly AUTH_GOOGLE_ID: string;
   readonly AUTH_GOOGLE_SECRET: string;
+  readonly DEV_TOOLS_ENABLED: string | undefined;
   readonly JOB_SEARCH_ENABLED: string;
   readonly JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT: string;
   readonly JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT: string;

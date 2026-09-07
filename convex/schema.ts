@@ -82,6 +82,27 @@ const relevanceComponents = v.object({
   semantic: v.number(),
 });
 
+export const jobFeedItem = v.object({
+  appliedAt: v.optional(v.number()),
+  id: v.id("jobs"),
+  title: v.string(),
+  companyName: v.string(),
+  sourceUrl: v.string(),
+  sourceName: v.union(v.string(), v.null()),
+  sourceTier: v.string(),
+  locationText: v.union(v.string(), v.null()),
+  workArrangement: v.string(),
+  salaryMin: v.union(v.number(), v.null()),
+  salaryMax: v.union(v.number(), v.null()),
+  salaryCurrency: v.union(v.string(), v.null()),
+  salaryPeriod: v.union(v.string(), v.null()),
+  discoveredAt: v.number(),
+  lastVerifiedAt: v.number(),
+  relevanceScore: v.number(),
+  matchReasons: v.array(v.string()),
+  resultSource,
+});
+
 const schema = defineSchema({
   ...authTables,
   catalogItems: defineTable({
@@ -157,6 +178,22 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_onboardingCompleted", ["onboardingCompleted"]),
+  jobApplications: defineTable({
+    userId: v.id("users"),
+    jobId: v.id("jobs"),
+    appliedAt: v.number(),
+    snapshot: jobFeedItem,
+  })
+    .index("by_userId_and_jobId", ["userId", "jobId"])
+    .index("by_userId_and_appliedAt", ["userId", "appliedAt"]),
+  dailyDiscoveryAttempts: defineTable({
+    userId: v.id("users"),
+    nextAttemptAt: v.number(),
+    lastAttemptAt: v.number(),
+    lastOutcome: v.string(),
   }).index("by_userId", ["userId"]),
   jobSearchQueries: defineTable({
     fingerprint: v.string(),

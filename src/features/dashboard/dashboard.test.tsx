@@ -6,7 +6,6 @@ import { ProfileGate } from "@/features/profile/profile-gate";
 import type { CurrentProfile } from "@/features/profile/profile-types";
 import type { FunctionArgs } from "convex/server";
 import type { api } from "../../../convex/_generated/api";
-import { getProfileCompletion } from "./dashboard-model";
 
 const hooks = vi.hoisted(() => ({
   data: null as CurrentProfile | null,
@@ -108,12 +107,11 @@ describe("dashboard and completed profile editing", () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
     expect(
-      screen.getByRole("heading", { name: "בוקר טוב, Matan" }),
+      screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.click(
-      screen.getAllByRole("button", { name: "עריכת פרופיל" })[0],
-    );
+    await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
+    await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
     expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
     expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
     expect(
@@ -124,7 +122,7 @@ describe("dashboard and completed profile editing", () => {
     hooks.data = { ...completedProfile(), profile: null };
     render(<ProfileGate />);
     expect(
-      screen.queryByRole("heading", { name: "בוקר טוב, Matan" }),
+      screen.queryByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "שמירת טיוטה" }),
@@ -134,9 +132,8 @@ describe("dashboard and completed profile editing", () => {
   it("saves prefilled edits once with completion intact and returns to updated dashboard", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
-    await user.click(
-      screen.getAllByRole("button", { name: "Edit profile" })[0],
-    );
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    await user.click(screen.getByRole("button", { name: "Edit profile" }));
     const name = await screen.findByRole("textbox", {
       name: "Preferred display name",
     });
@@ -178,7 +175,7 @@ describe("dashboard and completed profile editing", () => {
     view.rerender(<ProfileGate />);
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "Good morning, Updated Name" }),
+        screen.getByRole("heading", { name: "Recommended jobs for you" }),
       ).toBeInTheDocument(),
     );
     expect(
@@ -186,30 +183,31 @@ describe("dashboard and completed profile editing", () => {
     ).toBeInTheDocument();
   });
 
-  it("calculates completion from saved values, including zero years and missing fields", () => {
-    const data = completedProfile();
-    expect(getProfileCompletion(data)).toEqual({
-      percentage: 100,
-      nextField: null,
-    });
-    const missing = {
-      ...data,
-      profile: {
-        ...data.profile!,
-        professionalSummary: undefined,
-        locationRadiusKm: undefined,
-      },
-    };
-    expect(getProfileCompletion(missing)).toEqual({
-      percentage: 82,
-      nextField: "onboarding.fields.summary",
-    });
+  it("opens the profile panel by keyboard, switches language, and restores focus on Escape", async () => {
+    const user = userEvent.setup();
+    render(<ProfileGate />);
+    const trigger = screen.getByRole("button", { name: "User menu" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await user.click(
+      screen.getByRole("button", { name: "Switch language to Hebrew" }),
+    );
+    expect(document.documentElement).toHaveAttribute("dir", "rtl");
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "תפריט משתמש" })).toHaveFocus();
     expect(
-      getProfileCompletion({
-        ...data,
-        profile: null,
-        selections: { targetJobTitles: [], skills: [] },
-      }).percentage,
-    ).toBe(0);
+      screen.queryByRole("button", { name: "כלי פיתוח" }),
+    ).not.toBeInTheDocument();
+    screen.getByRole("tab", { name: "הצעות" }).focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tab", { name: "בתהליך" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("tab", { name: "בתהליך" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

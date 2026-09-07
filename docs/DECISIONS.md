@@ -155,25 +155,15 @@ when needed. Do not add compatibility or migration machinery solely to preserve
 disposable development records. Production data will require an explicit
 migration and rollback policy before this decision changes.
 
-### D-014: Dashboard editing reuses onboarding and search filters are temporary
+### D-014: A minimal job feed and shared profile editor
 
-Status: Accepted
+Status: Accepted (updated 2026-09-07)
 
-Evidence: `src/features/dashboard/`, `src/features/profile/profile-gate.tsx`,
-and the editing mode in `src/features/profile/onboarding-screen.tsx`.
-
-The existing authenticated profile boundary selects onboarding or the dashboard.
-Profile editing is a dedicated in-app screen, using the existing four form steps,
-draft conversion, validation, and `candidateProfiles.saveCurrent` mutation. Save
-uses `complete: true`; the server retains the original completion timestamp and
-derives Google identity. Cancel discards local changes. No router dependency,
-second profile model, or backend mutation is introduced.
-
-Dashboard filters are local to the current visit and start from the saved profile.
-Only an explicit save-preferences action writes the editable search preferences;
-query text remains temporary. Profile completion weights the eleven existing
-field groups equally and uses their validation, rather than estimating job-match
-quality. Unavailable tools remain visibly pending until implemented.
+The authenticated homepage is a Suggestions / In progress feed. The floating
+logical-start profile panel contains editing, language, and sign-out. Profile
+editing reuses the existing four-step onboarding form and owner-scoped save
+mutation. Temporary search filters, completion cards, placeholder tools, and
+mobile navigation have been removed.
 
 ### D-015: Job discovery uses bounded Responses API Web Search with strict output
 
@@ -182,7 +172,7 @@ Status: Accepted
 Evidence: `convex/jobDiscoveryActions.ts`, `convex/openAIJobProvider.ts`,
 `convex/jobDiscoveryModel.ts`, `convex/jobDiscovery.ts`, and `convex/schema.ts`.
 
-Manual job discovery runs only in an authenticated Convex server action using
+Job discovery runs in a Convex server action using
 the official OpenAI JavaScript SDK. The model is required server configuration
 under `OPENAI_JOB_SEARCH_MODEL`; `gpt-5.6-luna` is the initial cost-conscious
 recommendation because current official documentation lists Web Search support.
@@ -226,7 +216,7 @@ checked before fresh quota. Reuse creates a zero-provider usage entry. A fresh
 run reserves the per-user window and global daily run/query/concurrency counters
 inside one Convex mutation, using an identity-and-intent idempotency key. Only one
 active run per user is allowed and stale reservations recover after ten minutes.
-The server reports when reusable inventory is available so the dashboard can
+The server reports when reusable inventory is available so development controls can
 keep that zero-provider path usable even when fresh quota is exhausted or the
 fresh-search kill switch is off.
 
@@ -266,6 +256,32 @@ employment type 5%, language 5%, education 2%, and bounded normalized-token
 similarity 3%. The display threshold is 70. The score is explainable application
 logic, not an LLM-invented percentage.
 
+### D-018: Daily discovery shares the bounded search pipeline
+
+Status: Accepted
+
+An hourly cron targets an internal mutation which scans completed profiles in
+pages of five. Atomic per-user daily claims prevent duplicate dispatches.
+Internal Node workers process a page sequentially and schedule continuation;
+profile failures do not abort the rest of the page. Completion schedules the
+next attempt for 24 hours later (normally picked up within 24–25 hours).
+Free/pro/admin quotas, reuse, kill switch, global limits, and provider accounting
+are unchanged. A quota or provider failure is recorded and retried next cycle.
+Only internal helpers may accept scheduler-selected user IDs. The public manual
+action derives identity and requires the server `DEV_TOOLS_ENABLED` flag, which
+operators must enable only on development deployments.
+
+### D-019: Application tracking stores an owner-scoped snapshot
+
+Status: Accepted
+
+“Sent résumé” creates one application per user/job and excludes it from that
+user's suggestions. The server verifies an eligible owned match and snapshots
+the posting; clients cannot supply posting contents or user identity. In progress
+keeps the snapshot after source expiry. Undo removes only the caller's marker.
+This records an application and never submits a résumé. Interview stages and
+tracking pagination beyond the latest 100 applications remain future work.
+
 ## Pending decisions
 
 ### P-003: Node.js version enforcement
@@ -289,11 +305,9 @@ and refresh tokens in `localStorage`. This supports refresh and browser-restart
 persistence but places greater weight on XSS prevention. The product owner must
 decide whether that tradeoff is acceptable before production launch.
 
-### P-008: Job freshness, scheduling, and semantic retrieval
+### P-008: Job freshness and semantic retrieval
 
 Status: Pending
 
-This slice intentionally uses manual searches, 24-hour exact-query reuse,
-seven-day source visibility, and deterministic URL/text/quality logic. Scheduled
-searches, periodic revalidation, query/job embeddings, and exact geospatial job
+Periodic source revalidation, query/job embeddings, and exact geospatial job
 coordinates need separate cost and quality decisions before implementation.
