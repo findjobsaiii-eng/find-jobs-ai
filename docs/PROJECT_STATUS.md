@@ -112,6 +112,12 @@ button is deliberately used and aggregate usage is observed.
 
 ## Dashboard verification
 
+Suggested-job cards display the deterministic relevance percentage used for
+ordering. Hovering or focusing the score shows the exact points earned across
+role, skills, domain, experience, seniority, location, and preferences, plus
+the strongest matched profile evidence. The explanation is localized in
+English and Hebrew and remains separate from the optional AI deep-review score.
+
 Component coverage checks profile routing/edit/save, keyboard opening and Escape
 focus restoration, language switching, RTL direction, and the In progress tab.
 Backend tests cover owner isolation, idempotent application marking, undo,

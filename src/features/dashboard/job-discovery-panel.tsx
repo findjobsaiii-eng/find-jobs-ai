@@ -18,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
+import { JobMatchScore } from "./job-match-score";
 
 export function JobDiscoveryPanel() {
   const { i18n, t } = useTranslation();
@@ -198,6 +199,13 @@ export function JobDiscoveryPanel() {
                             {job.companyName}
                           </p>
                         </div>
+                        {view === "suggestions" ? (
+                          <JobMatchScore
+                            score={job.relevanceScore}
+                            components={job.scoreComponents}
+                            highlights={job.matchHighlights}
+                          />
+                        ) : null}
                       </div>
 
                       <dl className="text-muted-foreground mt-4 flex flex-wrap gap-2 text-sm">

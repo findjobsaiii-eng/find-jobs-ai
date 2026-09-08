@@ -1197,6 +1197,7 @@ async function feedItem(
     discoveredAt: job.firstDiscoveredAt,
     lastVerifiedAt: source.lastVerifiedAt,
     relevanceScore: quality.relevanceScore,
+    scoreComponents: quality.scoreComponents,
     matchReasons: quality.matchReasons,
     matchHighlights: quality.matchDetails,
     resultSource: "central" as const,

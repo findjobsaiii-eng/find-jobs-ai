@@ -128,6 +128,29 @@
       "domain": "Matches your experience in {{domain}}",
       "location": "Within your selected location range"
     },
+    "score": {
+      "badge": "{{percentage}}% match",
+      "triggerLabel": "{{percentage}}% match — show calculation",
+      "heading": "{{percentage}}% profile match",
+      "description": "A deterministic score based on your effective profile and this job.",
+      "components": {
+        "role": "Role match",
+        "skills": "Skills and platforms",
+        "domain": "Professional domain",
+        "experience": "Experience requirements",
+        "seniority": "Seniority fit",
+        "location": "Location",
+        "preferences": "Work preferences"
+      },
+      "evidence": {
+        "targetRole": "Target role matched: {{role}}",
+        "pastRole": "A previous professional role matched",
+        "skills": "Matched skills: {{skills}}",
+        "domain": "Matched domain: {{domain}}"
+      },
+      "eligibilityNote": "Closed jobs and jobs that conflict with required location or work preferences are removed before ranking.",
+      "breakdownUnavailable": "The detailed breakdown is unavailable for this saved result."
+    },
     "noLongerActive": "This job is no longer active",
     "openPosting": "View job",
     "errors": {

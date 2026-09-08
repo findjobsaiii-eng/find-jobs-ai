@@ -13,6 +13,7 @@ import {
 } from "./jobDiscoveryModel";
 import type { OpenAIJob } from "./jobDiscoveryModel";
 import type { SourceVerification } from "./jobSourceVerification";
+import { MINIMUM_RELEVANCE_SCORE } from "./jobQuality";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -454,6 +455,12 @@ describe("shared job discovery", () => {
       en: "Tel Aviv",
       he: "תל אביב-יפו",
     });
+    expect(feed.jobs[0].relevanceScore).toBeGreaterThanOrEqual(
+      MINIMUM_RELEVANCE_SCORE,
+    );
+    expect(feed.jobs[0].scoreComponents?.role).toBeGreaterThan(0);
+    expect(feed.jobs[0].scoreComponents?.requiredSkills).toBeGreaterThan(0);
+    expect(feed.jobs[0].scoreComponents?.location).toBe(5);
   });
 
   it("creates one deterministic query per target role, up to five", () => {

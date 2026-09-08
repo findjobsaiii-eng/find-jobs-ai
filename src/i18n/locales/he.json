@@ -128,6 +128,29 @@
       "domain": "מתאים לניסיון שלך בתחום {{domain}}",
       "location": "נמצא בטווח המיקום שהגדרת"
     },
+    "score": {
+      "badge": "{{percentage}}% התאמה",
+      "triggerLabel": "{{percentage}}% התאמה — הצגת החישוב",
+      "heading": "{{percentage}}% התאמה לפרופיל",
+      "description": "ציון קבוע שמחושב לפי הפרופיל האפקטיבי שלך ופרטי המשרה.",
+      "components": {
+        "role": "התאמה לתפקיד",
+        "skills": "כישורים ופלטפורמות",
+        "domain": "תחום מקצועי",
+        "experience": "דרישות ניסיון",
+        "seniority": "התאמת רמת ניסיון",
+        "location": "מיקום",
+        "preferences": "העדפות עבודה"
+      },
+      "evidence": {
+        "targetRole": "תפקיד יעד תואם: {{role}}",
+        "pastRole": "נמצאה התאמה לתפקיד מקצועי קודם",
+        "skills": "כישורים תואמים: {{skills}}",
+        "domain": "תחום תואם: {{domain}}"
+      },
+      "eligibilityNote": "משרות סגורות ומשרות שסותרות דרישות חובה כמו מיקום או מתכונת עבודה מוסרות לפני הדירוג.",
+      "breakdownUnavailable": "פירוט הניקוד אינו זמין עבור התוצאה השמורה הזו."
+    },
     "noLongerActive": "המשרה כבר לא פעילה",
     "openPosting": "לצפייה במשרה",
     "errors": {

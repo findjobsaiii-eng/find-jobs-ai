@@ -52,7 +52,28 @@ function job(overrides: Record<string, unknown> = {}) {
     salaryPeriod: null,
     discoveredAt: Date.UTC(2026, 8, 6),
     lastVerifiedAt: Date.UTC(2026, 8, 7),
-    relevanceScore: 0,
+    relevanceScore: 82,
+    scoreComponents: {
+      role: 30,
+      requiredSkills: 14,
+      preferredSkills: 4,
+      experience: 10,
+      location: 5,
+      workArrangement: 0,
+      employmentType: 0,
+      language: 0,
+      education: 0,
+      semantic: 0,
+      domain: 10,
+      seniority: 6,
+      preferences: 3,
+    },
+    matchHighlights: {
+      targetRole: "Product Manager",
+      skills: ["Product strategy", "Analytics"],
+      domain: "Product",
+      location: true,
+    },
     matchReasons: [],
     resultSource: "central",
     ...overrides,
@@ -103,6 +124,24 @@ describe("job result cards", () => {
       "https://jobs.acme.example/roles/123",
     );
     expect(screen.queryByText(/rawProviderJson/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the deterministic score and its exact point breakdown", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    const score = screen.getByRole("button", {
+      name: "82% match — show calculation",
+    });
+    expect(score).toBeVisible();
+    await user.hover(score);
+
+    expect(await screen.findByText("Role match")).toBeVisible();
+    expect(screen.getByText("+30/35")).toBeVisible();
+    expect(screen.getByText("+18/25")).toBeVisible();
+    expect(
+      screen.getByText("Matched skills: Product strategy · Analytics"),
+    ).toBeVisible();
   });
 
   it("localizes an unresolved remote location instead of showing provider copy", () => {

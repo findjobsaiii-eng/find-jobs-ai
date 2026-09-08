@@ -193,6 +193,7 @@ export const jobFeedItem = v.object({
   discoveredAt: v.number(),
   lastVerifiedAt: v.number(),
   relevanceScore: v.number(),
+  scoreComponents: v.optional(relevanceComponents),
   matchReasons: v.array(v.string()),
   matchHighlights: v.optional(
     v.object({
