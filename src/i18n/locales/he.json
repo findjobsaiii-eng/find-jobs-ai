@@ -43,6 +43,7 @@
     "completion": "השלמת פרופיל",
     "nextField": "הצעד הבא: הוספה או עדכון של {{field}}.",
     "navigation": "ניווט ראשי",
+    "jobNavigation": "תצוגות משרות",
     "mobileNavigation": "ניווט בנייד",
     "userMenu": "תפריט משתמש",
     "nav": {
@@ -410,15 +411,17 @@
   },
   "applications": {
     "suggestions": "הצעות",
-    "inProgress": "בתהליך",
-    "sentResume": "שלחתי קורות חיים",
-    "undo": "ביטול סימון שליחה",
-    "marked": "המשרה הועברה לבתהליך.",
-    "unmarked": "המשרה הוסרה מבתהליך.",
+    "inProgress": "שמורות",
+    "savedTitle": "משרות שמורות",
+    "savedDescription": "כל המשרות ששמרת להמשך, במקום אחד.",
+    "sentResume": "שמירת משרה",
+    "undo": "הסרה מהשמורות",
+    "marked": "המשרה נשמרה.",
+    "unmarked": "המשרה הוסרה מהשמורות.",
     "error": "לא הצלחנו לעדכן את המשרה. נסו שוב.",
-    "emptyTitle": "עדיין אין מועמדויות",
-    "emptyDescription": "סמנו משרה כ״שלחתי קורות חיים״ כדי לעקוב אחריה כאן.",
-    "sentAt": "קורות חיים נשלחו {{date}}"
+    "emptyTitle": "עדיין אין משרות שמורות",
+    "emptyDescription": "שמרו משרה מההצעות והיא תופיע כאן.",
+    "sentAt": "נשמרה {{date}}"
   },
   "common": {
     "save": "שמירה",
@@ -446,7 +449,16 @@
     "locationValue": "{{location}} · עד {{radius}} ק״מ",
     "notAvailable": "לא צוין",
     "skills": "כישורים מרכזיים",
-    "preferences": "העדפות עבודה"
+    "preferences": "העדפות עבודה",
+    "sectionNavigation": "חלקי הפרופיל",
+    "summaryDescription": "מבט קצר על המידע שמשמש להתאמת משרות.",
+    "sections": {
+      "overview": "סקירה",
+      "professional": "תפקידים וניסיון",
+      "preferences": "העדפות",
+      "languages": "שפות",
+      "resumes": "קורות חיים"
+    }
   },
   "resumeLibrary": {
     "title": "קורות החיים שלי",

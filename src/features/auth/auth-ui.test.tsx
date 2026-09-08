@@ -100,6 +100,7 @@ describe("authentication UI", () => {
   });
 
   it("exposes the correct access boundary for each auth state", async () => {
+    const user = userEvent.setup();
     const onDismiss = vi.fn();
     const { rerender } = render(
       <AuthGate
@@ -134,6 +135,7 @@ describe("authentication UI", () => {
         onDismissCallbackError={onDismiss}
       />,
     );
+    await user.click(screen.getByRole("button", { name: "User menu" }));
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();

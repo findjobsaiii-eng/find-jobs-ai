@@ -112,6 +112,11 @@ button is deliberately used and aggregate usage is observed.
 
 ## Dashboard verification
 
+The authenticated header now keeps Suggestions and Saved centered between the
+brand and an avatar account menu. Profile, language, and sign-out actions are
+grouped in that menu. The profile page uses a focused five-section navigation
+with URL-backed selection and section-level editing instead of one long page.
+
 Suggested-job cards display the deterministic relevance percentage used for
 ordering. Hovering or focusing the score shows the exact points earned across
 role, skills, domain, experience, seniority, location, and preferences, plus

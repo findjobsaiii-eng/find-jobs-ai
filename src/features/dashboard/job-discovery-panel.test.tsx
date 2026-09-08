@@ -174,7 +174,7 @@ describe("job result cards", () => {
     expect(screen.getByText("תל אביב")).toBeVisible();
     expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.click(screen.getByRole("button", { name: "ביטול סימון שליחה" }));
+    await user.click(screen.getByRole("button", { name: "הסרה מהשמורות" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
       applied: false,

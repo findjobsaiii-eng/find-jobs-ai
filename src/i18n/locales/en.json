@@ -43,6 +43,7 @@
     "completion": "Profile completion",
     "nextField": "Next: add or review {{field}}.",
     "navigation": "Main navigation",
+    "jobNavigation": "Job views",
     "mobileNavigation": "Mobile navigation",
     "userMenu": "User menu",
     "nav": {
@@ -410,15 +411,17 @@
   },
   "applications": {
     "suggestions": "Suggestions",
-    "inProgress": "In progress",
-    "sentResume": "Sent résumé",
-    "undo": "Undo sent résumé",
-    "marked": "Moved to In progress.",
-    "unmarked": "Removed from In progress.",
+    "inProgress": "Saved",
+    "savedTitle": "Saved jobs",
+    "savedDescription": "Jobs you kept for later, in one place.",
+    "sentResume": "Save job",
+    "undo": "Remove from saved",
+    "marked": "Job saved.",
+    "unmarked": "Removed from saved jobs.",
     "error": "Couldn’t update this job. Please try again.",
-    "emptyTitle": "No applications yet",
-    "emptyDescription": "Mark a job as “Sent résumé” to keep track of it here.",
-    "sentAt": "Résumé sent {{date}}"
+    "emptyTitle": "No saved jobs yet",
+    "emptyDescription": "Save a job from Suggestions and it will appear here.",
+    "sentAt": "Saved {{date}}"
   },
   "common": {
     "save": "Save",
@@ -446,7 +449,16 @@
     "locationValue": "{{location}} · within {{radius}} km",
     "notAvailable": "Not provided",
     "skills": "Core skills",
-    "preferences": "Work preferences"
+    "preferences": "Work preferences",
+    "sectionNavigation": "Profile sections",
+    "summaryDescription": "A quick view of the information used for matching.",
+    "sections": {
+      "overview": "Overview",
+      "professional": "Roles and experience",
+      "preferences": "Preferences",
+      "languages": "Languages",
+      "resumes": "Resumes"
+    }
   },
   "resumeLibrary": {
     "title": "My resumes",

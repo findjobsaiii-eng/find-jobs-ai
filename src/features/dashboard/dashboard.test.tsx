@@ -92,6 +92,11 @@ function completedProfile(): CurrentProfile {
   } as unknown as CurrentProfile;
 }
 
+async function openProfile(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "User menu" }));
+  await user.click(screen.getByRole("link", { name: "Profile" }));
+}
+
 describe("dashboard and completed profile editing", () => {
   beforeAll(async () => {
     await initializeI18n();
@@ -111,6 +116,7 @@ describe("dashboard and completed profile editing", () => {
       screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
+    await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
     await user.click(screen.getByRole("link", { name: "פרופיל" }));
     await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
     expect(window.location.pathname).toBe("/profile");
@@ -138,23 +144,23 @@ describe("dashboard and completed profile editing", () => {
     window.history.replaceState(null, "", "/?tab=in-progress");
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
-    const activeTab = () => screen.getByRole("tab", { name: "In progress" });
-    expect(activeTab()).toHaveAttribute("aria-selected", "true");
-    await user.click(screen.getByRole("tab", { name: "Suggestions" }));
+    const savedLink = () => screen.getByRole("link", { name: "Saved" });
+    expect(savedLink()).toHaveAttribute("aria-current", "page");
+    await user.click(screen.getByRole("link", { name: "Suggestions" }));
     expect(window.location.search).toBe("");
     act(() => window.history.back());
     await waitFor(() =>
-      expect(activeTab()).toHaveAttribute("aria-selected", "true"),
+      expect(savedLink()).toHaveAttribute("aria-current", "page"),
     );
     act(() => window.history.forward());
     await waitFor(() =>
-      expect(activeTab()).toHaveAttribute("aria-selected", "false"),
+      expect(savedLink()).not.toHaveAttribute("aria-current"),
     );
-    await user.click(activeTab());
+    await user.click(savedLink());
     view.unmount();
     render(<ProfileGate />);
-    expect(activeTab()).toHaveAttribute("aria-selected", "true");
-    await user.click(screen.getByRole("link", { name: "Profile" }));
+    expect(savedLink()).toHaveAttribute("aria-current", "page");
+    await openProfile(user);
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
     expect(window.location.pathname).toBe("/profile");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -175,16 +181,16 @@ describe("dashboard and completed profile editing", () => {
     fallback.unmount();
     window.history.replaceState(null, "", "/?tab=invalid");
     render(<ProfileGate />);
-    expect(screen.getByRole("tab", { name: "Suggestions" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    expect(screen.getByRole("link", { name: "Suggestions" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 
   it("saves prefilled edits once with completion intact on the profile page", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
-    await user.click(screen.getByRole("link", { name: "Profile" }));
+    await openProfile(user);
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
     expect(window.location.pathname).toBe("/profile");
     const name = await screen.findByRole("textbox", {
@@ -247,17 +253,15 @@ describe("dashboard and completed profile editing", () => {
   it("supports keyboard navigation and language switching in the shared shell", async () => {
     const user = userEvent.setup();
     render(<ProfileGate />);
-    const trigger = screen.getByRole("link", { name: "Profile" });
+    const trigger = screen.getByRole("button", { name: "User menu" });
     trigger.focus();
     await user.keyboard("{Enter}");
-    expect(window.location.pathname).toBe("/profile");
-    await user.click(
-      screen.getByRole("button", { name: "Switch language to Hebrew" }),
-    );
+    expect(await screen.findByRole("link", { name: "Profile" })).toBeVisible();
+    await user.click(await screen.findByRole("button", { name: "עברית" }));
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(
       screen.queryByRole("button", { name: "כלי פיתוח" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "משרות" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "הצעות" })).toBeInTheDocument();
   });
 });

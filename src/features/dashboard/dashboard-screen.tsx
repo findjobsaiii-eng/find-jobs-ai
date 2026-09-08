@@ -55,6 +55,8 @@ export function DashboardWorkspace({ data }: { data: CurrentProfile }) {
 
 function DashboardScreen({ onEdit }: { onEdit: () => void }) {
   const { t } = useTranslation();
+  const location = useLocation();
+  const isSaved = location.search.includes("tab=in-progress");
   const developmentTools = useQuery(
     api.jobDiscovery.developmentToolsEnabled,
     {},
@@ -62,8 +64,12 @@ function DashboardScreen({ onEdit }: { onEdit: () => void }) {
   return (
     <>
       <PageHeader
-        title={t("dashboard.jobsTitle")}
-        description={t("dashboard.supportingText")}
+        title={t(isSaved ? "applications.savedTitle" : "dashboard.jobsTitle")}
+        description={t(
+          isSaved
+            ? "applications.savedDescription"
+            : "dashboard.supportingText",
+        )}
       />
       <JobDiscoveryPanel />
       {developmentTools === true ? <DevelopmentTools onEdit={onEdit} /> : null}

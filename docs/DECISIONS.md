@@ -484,3 +484,25 @@ inventing negative deductions. Hard eligibility rules run before ranking, so
 closed jobs and jobs that conflict with mandatory location or work preferences
 never receive a visible score. Historical application snapshots keep the score
 optional so existing saved records remain readable.
+
+### D-027: Job views live in the header and profile sections use URL hashes
+
+Status: Accepted
+
+Evidence: `src/features/dashboard/authenticated-shell.tsx`,
+`src/features/dashboard/job-discovery-panel.tsx`, and
+`src/features/profile/profile-overview.tsx`.
+
+The authenticated header presents the two primary job views, Suggestions and
+Saved, as direct links to `/` and `/?tab=in-progress`. The previous In progress
+data remains intact and is presented as saved jobs in the interface. Profile,
+language, and sign-out actions live in one accessible account popover anchored
+to the candidate avatar; the display name is hidden below the desktop
+breakpoint.
+
+The profile route presents one section at a time. Overview, professional
+details, preferences, languages, and resumes use `/profile` hashes so a refresh
+or direct link preserves context. Editable sections open directly with their
+own Save and Cancel controls. The section navigation becomes a horizontally
+scrollable control on narrow screens, and unsaved edits require confirmation
+before changing sections.
