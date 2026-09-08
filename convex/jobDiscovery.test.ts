@@ -262,6 +262,7 @@ describe("shared job discovery", () => {
     vi.stubEnv("OPENAI_JOB_SEARCH_MODEL", "");
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
+    await setPlan(t, userId, "free");
     const result = await asUser(t, userId).action(
       api.jobDiscoveryActions.discoverJobsForCurrentUser,
       {},
@@ -299,6 +300,17 @@ describe("shared job discovery", () => {
     await t.run(async (ctx) => {
       expect(await ctx.db.query("jobSearchRuns").collect()).toHaveLength(1);
     });
+  });
+
+  it("treats a user without an entitlement as Pro during the pilot", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    expect(
+      await t.query(internal.jobDiscovery.getUserPlan, {
+        userId,
+        now: Date.now(),
+      }),
+    ).toBe("pro");
   });
 
   it("releases a failed daily claim for another paid user", async () => {
@@ -392,6 +404,7 @@ describe("shared job discovery", () => {
   it("shows matching central jobs to free users and excludes unresolved locations", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
+    await setPlan(t, userId, "free");
     await addCompletedProfile(t, userId);
     await t.run(async (ctx) => {
       const now = Date.now();

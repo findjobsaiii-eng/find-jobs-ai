@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { globalDayKey } from "./jobSearchPolicy";
+import { globalDayKey, resolveJobSearchPlan } from "./jobSearchPolicy";
 
 const discoveryBucketValidator = v.union(
   v.null(),
@@ -49,10 +49,7 @@ async function activePaidPlan(
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .order("desc")
     .take(10);
-  return entitlements.find(
-    (item) =>
-      item.active && (item.expiresAt === undefined || item.expiresAt > now),
-  )?.plan;
+  return resolveJobSearchPlan(entitlements, now);
 }
 
 // Scan bounded pages; workers run sequentially so a sweep cannot flood the provider.
@@ -83,7 +80,7 @@ export const dispatch = internalMutation({
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
       if (attempt?.dayKey === dayKey) continue;
-      const plan = (await activePaidPlan(ctx, profile.userId, now)) ?? "free";
+      const plan = await activePaidPlan(ctx, profile.userId, now);
       if (plan === "free") continue;
       const values = {
         userId: profile.userId,

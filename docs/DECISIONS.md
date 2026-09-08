@@ -203,8 +203,10 @@ Status: Accepted
 Evidence: `convex/jobSearchPolicy.ts`, `convex/jobSearchRuntimeConfig.ts`,
 `convex/jobDiscovery.ts`, and the usage tables in `convex/schema.ts`.
 
-All users default to `free`; active, unexpired server-side entitlements select
-`pro` or `admin`. Free users have no provider-search path. Their discovery action
+During the beta/pilot, users without an explicit entitlement resolve to `pro`.
+An active, unexpired server-side entitlement overrides that pilot default, so
+development tools can still force `free` and test both experiences. Free users
+have no provider-search path. Their discovery action
 returns central-database results before loading provider configuration or a
 search profile. Paid automatic searches remain behind the global kill switch and
 daily run/query/concurrency limits.

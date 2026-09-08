@@ -213,7 +213,10 @@ hiding already eligible jobs. Do not create browser-prefixed copies of these
 values.
 
 Automatic searches reserve global capacity atomically before the provider
-request. Internal plans are `free`, `pro`, and `admin`; users default to `free`.
+request. Internal plans are `free`, `pro`, and `admin`. During the beta/pilot,
+accounts without an explicit entitlement resolve to `pro`, so all new users
+receive paid capabilities without checkout. An explicit development `free`
+override still wins and supports testing both experiences.
 An automatic query is claimed once per Israel calendar day across all users, so
 two users seeking the same role, skills, and geographic scope share the same provider work.
 Failed claims are released for retry. The automatic path remains protected by

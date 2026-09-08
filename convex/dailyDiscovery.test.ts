@@ -27,10 +27,10 @@ it("claims only paid completed profiles once per Israel day and continues beyond
         createdAt: 1,
         updatedAt: 1,
       });
-      if (index < 6) {
+      if (index < 7) {
         await ctx.db.insert("userEntitlements", {
           userId,
-          plan: "pro",
+          plan: index < 6 ? "pro" : "free",
           active: true,
           source: "manual",
           createdAt: 1,
@@ -83,7 +83,7 @@ it("spreads users over ten Israel-time hourly buckets", () => {
   expect(israelDiscoveryBucket(Date.parse("2026-09-08T15:00:00Z"))).toBeNull();
 });
 
-it("queues the first paid search immediately and only once per Israel day", async () => {
+it("queues a new pilot user immediately without a purchased entitlement", async () => {
   const t = convexTest(schema, modules);
   const userId = await t.run(async (ctx) => {
     const id = await ctx.db.insert("users", {});
@@ -92,14 +92,6 @@ it("queues the first paid search immediately and only once per Israel day", asyn
       email: "new@example.com",
       onboardingCompleted: true,
       onboardingStep: 4,
-      createdAt: 1,
-      updatedAt: 1,
-    });
-    await ctx.db.insert("userEntitlements", {
-      userId: id,
-      plan: "pro",
-      active: true,
-      source: "manual",
       createdAt: 1,
       updatedAt: 1,
     });

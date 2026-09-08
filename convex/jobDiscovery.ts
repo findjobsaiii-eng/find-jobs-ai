@@ -24,6 +24,7 @@ import { locationNamesForGeography } from "./jobGeography";
 import {
   globalDayKey,
   JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS,
+  resolveJobSearchPlan,
   type JobSearchPlan,
 } from "./jobSearchPolicy";
 
@@ -244,12 +245,7 @@ async function currentPlan(
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .order("desc")
     .take(10);
-  return (
-    entitlements.find(
-      (item) =>
-        item.active && (item.expiresAt === undefined || item.expiresAt > now),
-    )?.plan ?? "free"
-  );
+  return resolveJobSearchPlan(entitlements, now);
 }
 
 async function loadSearchProfile(
@@ -1108,7 +1104,7 @@ export const getCurrentUserDiscoveryState = query({
       .order("desc")
       .take(20);
     return {
-      plan: entitlement.find((e) => e.active)?.plan ?? "free",
+      plan: resolveJobSearchPlan(entitlement, Date.now()),
       runActive: recent.some((r) => r.status === "running"),
     };
   },
