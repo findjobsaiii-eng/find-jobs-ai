@@ -1,5 +1,12 @@
-import { Link, useLocation } from "react-router";
-import { BriefcaseBusiness, MapPin, Pencil, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { useLocation } from "react-router";
+import {
+  BriefcaseBusiness,
+  Check,
+  MapPin,
+  Pencil,
+  Sparkles,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,16 +15,33 @@ import {
   Surface,
 } from "@/components/ui/product-layout";
 import type { CurrentProfile } from "./profile-types";
+import { ProfileEditor } from "./profile-editor";
 import { ResumeLibrary } from "./resume-library";
 
 export function ProfileOverview({ data }: { data: CurrentProfile }) {
   const { t, i18n } = useTranslation();
   const location = useLocation();
+  const [editing, setEditing] = useState(() =>
+    Boolean((location.state as { editProfile?: boolean } | null)?.editProfile),
+  );
+  const [saved, setSaved] = useState(false);
   const profile = data.profile;
   const label = (item: (typeof data.selections.targetJobTitles)[number]) =>
     (i18n.resolvedLanguage === "he" ? item.labelHe : item.labelEn) ??
     item.labelEn ??
     item.labelHe;
+  if (editing) {
+    return (
+      <ProfileEditor
+        data={data}
+        onCancel={() => setEditing(false)}
+        onSaved={() => {
+          setSaved(true);
+          setEditing(false);
+        }}
+      />
+    );
+  }
   return (
     <div>
       <PageHeader
@@ -26,14 +50,25 @@ export function ProfileOverview({ data }: { data: CurrentProfile }) {
         actions={
           <Button
             variant="outline"
-            render={<Link to={`/profile/edit${location.search}`} />}
-            nativeButton={false}
+            onClick={() => {
+              setSaved(false);
+              setEditing(true);
+            }}
           >
             <Pencil aria-hidden="true" />
             {t("profileOverview.edit")}
           </Button>
         }
       />
+      {saved ? (
+        <p
+          role="status"
+          className="text-primary mb-5 flex items-center gap-2 text-sm"
+        >
+          <Check aria-hidden="true" className="size-4" />
+          {t("dashboard.profileSaved")}
+        </p>
+      ) : null}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,.7fr)]">
         <Surface>
           <SectionHeader title={t("profileOverview.professionalSummary")} />

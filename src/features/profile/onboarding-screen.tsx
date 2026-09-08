@@ -65,7 +65,7 @@ const FIELD_STEP: Record<ProfileField, number> = {
   languages: 4,
 };
 
-function getServerError(error: unknown) {
+export function getServerError(error: unknown) {
   if (
     !(error instanceof ConvexError) ||
     typeof error.data !== "object" ||
@@ -99,7 +99,7 @@ type StepProps = {
   errors: ProfileErrors;
 };
 
-function StepOne({
+export function StepOne({
   draft,
   setDraft,
   errors,
@@ -170,7 +170,7 @@ function StepOne({
   );
 }
 
-function StepTwo({ draft, setDraft, errors }: StepProps) {
+export function StepTwo({ draft, setDraft, errors }: StepProps) {
   const { t } = useTranslation();
   return (
     <div className="space-y-6">
@@ -355,7 +355,12 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
   );
 }
 
-function StepFour({ draft, setDraft, errors }: StepProps) {
+export function StepFour({
+  draft,
+  setDraft,
+  errors,
+  showReady = true,
+}: StepProps & { showReady?: boolean }) {
   const { t } = useTranslation();
   const availableLanguages = SUPPORTED_LANGUAGES.filter(
     (code) =>
@@ -470,12 +475,14 @@ function StepFour({ draft, setDraft, errors }: StepProps) {
           </p>
         ) : null}
       </div>
-      <div className="border-border bg-muted/40 rounded-2xl border p-4">
-        <p className="font-medium">{t("onboarding.readyTitle")}</p>
-        <p className="text-muted-foreground mt-1 text-sm leading-6">
-          {t("onboarding.readyDescription")}
-        </p>
-      </div>
+      {showReady ? (
+        <div className="border-border bg-muted/40 rounded-2xl border p-4">
+          <p className="font-medium">{t("onboarding.readyTitle")}</p>
+          <p className="text-muted-foreground mt-1 text-sm leading-6">
+            {t("onboarding.readyDescription")}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

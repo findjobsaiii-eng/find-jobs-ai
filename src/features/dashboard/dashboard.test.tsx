@@ -113,6 +113,8 @@ describe("dashboard and completed profile editing", () => {
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     await user.click(screen.getByRole("link", { name: "פרופיל" }));
     await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
+    expect(window.location.pathname).toBe("/profile");
+    expect(screen.queryByText(/שלב 1 מתוך 4/)).not.toBeInTheDocument();
     expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
     expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
     expect(
@@ -154,9 +156,9 @@ describe("dashboard and completed profile editing", () => {
     expect(activeTab()).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("link", { name: "Profile" }));
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
-    expect(window.location.pathname).toBe("/profile/edit");
+    expect(window.location.pathname).toBe("/profile");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/profile");
     expect(window.location.search).toBe("?tab=in-progress");
   });
 
@@ -179,11 +181,12 @@ describe("dashboard and completed profile editing", () => {
     );
   });
 
-  it("saves prefilled edits once with completion intact and returns to updated dashboard", async () => {
+  it("saves prefilled edits once with completion intact on the profile page", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
     await user.click(screen.getByRole("link", { name: "Profile" }));
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
+    expect(window.location.pathname).toBe("/profile");
     const name = await screen.findByRole("textbox", {
       name: "Preferred display name",
     });
@@ -229,6 +232,16 @@ describe("dashboard and completed profile editing", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Updated Name")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/profile");
+  });
+
+  it("redirects the legacy edit URL to the profile page", async () => {
+    window.history.replaceState(null, "", "/profile/edit");
+    render(<ProfileGate />);
+    await waitFor(() => expect(window.location.pathname).toBe("/profile"));
+    expect(
+      screen.getByRole("heading", { name: "Professional profile" }),
+    ).toBeInTheDocument();
   });
 
   it("supports keyboard navigation and language switching in the shared shell", async () => {
