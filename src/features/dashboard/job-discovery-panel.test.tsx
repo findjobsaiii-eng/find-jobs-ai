@@ -1,6 +1,8 @@
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatDistanceToNow } from "date-fns";
+import { enUS } from "date-fns/locale/en-US";
 import { MemoryRouter } from "react-router";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
@@ -74,7 +76,18 @@ describe("job result cards", () => {
     expect(screen.getByText("Acme")).toBeVisible();
     expect(screen.getByText("Tel Aviv-Yafo")).toBeVisible();
     expect(screen.getByText("Hybrid")).toBeVisible();
-    expect(screen.getByText(/Posted Sep 5, 2026/)).toBeVisible();
+    expect(
+      screen.getByText(
+        `Posted ${formatDistanceToNow(new Date("2026-09-05T09:00:00.000Z"), {
+          addSuffix: true,
+          locale: enUS,
+        })}`,
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/^Posted /)).toHaveAttribute(
+      "datetime",
+      "2026-09-05T09:00:00.000Z",
+    );
     expect(screen.getByText(/Lead a focused commerce team/)).toBeVisible();
     expect(screen.getByText("Product strategy")).toBeVisible();
     expect(

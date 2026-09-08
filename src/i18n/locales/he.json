@@ -108,10 +108,10 @@
     },
     "discovered": "נמצאה",
     "posted": "פורסמה",
-    "postedAt": "פורסמה ב־{{date}}",
-    "discoveredAt": "נמצאה ב־{{date}}",
+    "postedAt": "פורסמה {{date}}",
+    "discoveredAt": "נמצאה {{date}}",
     "verified": "אומת לאחרונה",
-    "verifiedAt": "אומת לאחרונה ב־{{date}}",
+    "verifiedAt": "אומת לאחרונה {{date}}",
     "source": "מקור: {{source}}",
     "sourceTiers": {
       "employer": "אתר המעסיק",
@@ -362,6 +362,6 @@
     "error": "לא הצלחנו לעדכן את המשרה. נסו שוב.",
     "emptyTitle": "עדיין אין מועמדויות",
     "emptyDescription": "סמנו משרה כ״שלחתי קורות חיים״ כדי לעקוב אחריה כאן.",
-    "sentAt": "קורות חיים נשלחו ב־{{date}}"
+    "sentAt": "קורות חיים נשלחו {{date}}"
   }
 }

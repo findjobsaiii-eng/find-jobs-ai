@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
+import { LocalizedDate } from "@/components/ui/localized-date";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -18,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 
 export function JobDiscoveryPanel() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const view =
     searchParams.get("tab") === "in-progress" ? "inProgress" : "suggestions";
@@ -47,19 +48,6 @@ export function JobDiscoveryPanel() {
   };
 
   const jobs = result?.jobs ?? [];
-  const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }),
-    [i18n.language],
-  );
-  const dateTimeFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(i18n.language, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
-    [i18n.language],
-  );
-
   return (
     <section aria-labelledby="jobs-title" className="min-w-0">
       <h1 id="jobs-title" className="sr-only">
@@ -241,12 +229,16 @@ export function JobDiscoveryPanel() {
                             )}
                           </dt>
                           <dd>
-                            {t(
-                              hasPostedDate
-                                ? "jobDiscovery.postedAt"
-                                : "jobDiscovery.discoveredAt",
-                              { date: dateFormatter.format(visibleDate) },
-                            )}
+                            <LocalizedDate value={visibleDate}>
+                              {(date) =>
+                                t(
+                                  hasPostedDate
+                                    ? "jobDiscovery.postedAt"
+                                    : "jobDiscovery.discoveredAt",
+                                  { date },
+                                )
+                              }
+                            </LocalizedDate>
                           </dd>
                         </div>
                       </dl>
@@ -297,9 +289,9 @@ export function JobDiscoveryPanel() {
 
                       {job.appliedAt ? (
                         <p className="text-primary mt-4 text-sm">
-                          {t("applications.sentAt", {
-                            date: dateTimeFormatter.format(job.appliedAt),
-                          })}
+                          <LocalizedDate value={job.appliedAt}>
+                            {(date) => t("applications.sentAt", { date })}
+                          </LocalizedDate>
                         </p>
                       ) : null}
 
