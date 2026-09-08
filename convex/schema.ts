@@ -53,6 +53,19 @@ const resultSource = v.union(
   v.literal("central"),
 );
 
+const deepReviewStatus = v.union(
+  v.literal("pending"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
+
+const deepReviewVerdict = v.union(
+  v.literal("strong"),
+  v.literal("good"),
+  v.literal("stretch"),
+  v.literal("low"),
+);
+
 const jobLifecycleStatus = v.union(
   v.literal("discovered"),
   v.literal("pending_verification"),
@@ -114,6 +127,50 @@ const relevanceComponents = v.object({
   preferences: v.optional(v.number()),
 });
 
+export const deepReviewView = v.object({
+  status: deepReviewStatus,
+  language: v.union(v.literal("en"), v.literal("he")),
+  stale: v.boolean(),
+  matchPercentage: v.optional(v.number()),
+  verdict: v.optional(deepReviewVerdict),
+  summary: v.optional(v.string()),
+  strengths: v.optional(
+    v.array(v.object({ title: v.string(), detail: v.string() })),
+  ),
+  gaps: v.optional(
+    v.array(
+      v.object({
+        requirement: v.string(),
+        currentEvidence: v.string(),
+        howToClose: v.string(),
+        importance: v.union(
+          v.literal("must_have"),
+          v.literal("important"),
+          v.literal("minor"),
+        ),
+      }),
+    ),
+  ),
+  resumeId: v.optional(v.id("resumeDocuments")),
+  resumeName: v.optional(v.string()),
+  resumeRationale: v.optional(v.string()),
+  resumeChanges: v.optional(
+    v.array(
+      v.object({
+        section: v.string(),
+        change: v.string(),
+        reason: v.string(),
+      }),
+    ),
+  ),
+  companyWebsiteUrl: v.optional(v.union(v.string(), v.null())),
+  directApplicationUrl: v.optional(v.union(v.string(), v.null())),
+  applicationNote: v.optional(v.string()),
+  interviewFocus: v.optional(v.array(v.string())),
+  updatedAt: v.number(),
+  errorCode: v.optional(v.string()),
+});
+
 export const jobFeedItem = v.object({
   appliedAt: v.optional(v.number()),
   id: v.id("jobs"),
@@ -146,6 +203,7 @@ export const jobFeedItem = v.object({
       location: v.boolean(),
     }),
   ),
+  deepReview: v.optional(deepReviewView),
   resultSource,
 });
 
@@ -556,6 +614,58 @@ const schema = defineSchema({
       "relevanceScore",
     ])
     .index("by_searchRunId", ["searchRunId"]),
+  jobDeepReviews: defineTable({
+    userId: v.id("users"),
+    jobId: v.id("jobs"),
+    resumeId: v.optional(v.id("resumeDocuments")),
+    status: deepReviewStatus,
+    requestId: v.optional(v.string()),
+    language: v.union(v.literal("en"), v.literal("he")),
+    profileRevision: v.number(),
+    jobContentHash: v.string(),
+    model: v.optional(v.string()),
+    matchPercentage: v.optional(v.number()),
+    verdict: v.optional(deepReviewVerdict),
+    summary: v.optional(v.string()),
+    strengths: v.optional(
+      v.array(v.object({ title: v.string(), detail: v.string() })),
+    ),
+    gaps: v.optional(
+      v.array(
+        v.object({
+          requirement: v.string(),
+          currentEvidence: v.string(),
+          howToClose: v.string(),
+          importance: v.union(
+            v.literal("must_have"),
+            v.literal("important"),
+            v.literal("minor"),
+          ),
+        }),
+      ),
+    ),
+    resumeName: v.optional(v.string()),
+    resumeRationale: v.optional(v.string()),
+    resumeChanges: v.optional(
+      v.array(
+        v.object({
+          section: v.string(),
+          change: v.string(),
+          reason: v.string(),
+        }),
+      ),
+    ),
+    companyWebsiteUrl: v.optional(v.union(v.string(), v.null())),
+    directApplicationUrl: v.optional(v.union(v.string(), v.null())),
+    applicationNote: v.optional(v.string()),
+    interviewFocus: v.optional(v.array(v.string())),
+    requestedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+    errorCode: v.optional(v.string()),
+  })
+    .index("by_userId_and_jobId", ["userId", "jobId"])
+    .index("by_userId_and_updatedAt", ["userId", "updatedAt"]),
   userEntitlements: defineTable({
     userId: v.id("users"),
     plan: searchPlan,

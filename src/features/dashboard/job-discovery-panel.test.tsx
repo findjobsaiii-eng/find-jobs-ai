@@ -11,11 +11,13 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
   setApplication: vi.fn(),
+  runReview: vi.fn(),
 }));
 
 vi.mock("convex/react", () => ({
-  useQuery: () => ({ jobs: hooks.jobs }),
+  useQuery: () => ({ jobs: hooks.jobs, plan: "pro" }),
   useMutation: () => hooks.setApplication,
+  useAction: () => hooks.runReview,
 }));
 
 function renderPanel(path = "/") {
@@ -65,6 +67,7 @@ describe("job result cards", () => {
   beforeEach(async () => {
     hooks.jobs = [job()];
     hooks.setApplication.mockReset().mockResolvedValue(null);
+    hooks.runReview.mockReset().mockResolvedValue(null);
     await i18n.changeLanguage("en");
   });
 
@@ -136,6 +139,64 @@ describe("job result cards", () => {
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
       applied: false,
+    });
+  });
+
+  it("requests and opens a saved deep AI review", async () => {
+    hooks.jobs = [
+      job({
+        deepReview: {
+          status: "completed",
+          language: "en",
+          stale: false,
+          matchPercentage: 86,
+          verdict: "good",
+          summary: "Your product experience maps well to this role.",
+          strengths: [
+            { title: "Product strategy", detail: "Strong relevant evidence." },
+          ],
+          gaps: [
+            {
+              requirement: "Python",
+              currentEvidence: "Python is not shown in the selected resume.",
+              howToClose: "Do not claim it without real experience.",
+              importance: "minor",
+            },
+          ],
+          resumeName: "Product CV",
+          resumeRationale: "This version best shows product ownership.",
+          resumeChanges: [],
+          directApplicationUrl: "https://careers.acme.example/roles/123",
+          companyWebsiteUrl: "https://acme.example",
+          applicationNote: "Apply directly through Acme.",
+          interviewFocus: ["Prepare one product tradeoff example."],
+          updatedAt: Date.now(),
+        },
+      }),
+    ];
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Deep review · 86%" }));
+    expect(screen.getByText("AI deep review")).toBeInTheDocument();
+    expect(screen.getByText("Python")).toBeInTheDocument();
+    expect(
+      screen.getByText("Best existing version: Product CV"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Apply directly" }),
+    ).toHaveAttribute("href", "https://careers.acme.example/roles/123");
+  });
+
+  it("starts a Hebrew deep review with the selected job", async () => {
+    await i18n.changeLanguage("he");
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "סקירה מעמיקה" }));
+    expect(hooks.runReview).toHaveBeenCalledExactlyOnceWith({
+      jobId: "jobs:one",
+      language: "he",
     });
   });
 });

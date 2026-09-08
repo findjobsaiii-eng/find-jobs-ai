@@ -183,6 +183,7 @@ The Convex deployment requires these additional server-only variables:
 OPENAI_API_KEY
 OPENAI_JOB_SEARCH_MODEL
 OPENAI_CV_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
+OPENAI_JOB_REVIEW_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
 JOB_SEARCH_ENABLED
 JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
 JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
@@ -194,6 +195,17 @@ The model must support the Responses API, Web Search, and Structured Outputs.
 The initial recommended development value is `gpt-5.6-luna`; keep the model in
 deployment configuration so it can be changed without shipping frontend code.
 Do not create a browser-prefixed copy of either variable.
+
+### Deep job reviews
+
+Pro and admin users can request a saved, private AI review for any job currently
+available to them. The action first reverifies the posting and updates its shared
+activity state, then compares the job with the effective profile and up to six
+ready resume versions. It stores a match percentage, evidence-based strengths
+and gaps, the best existing resume plus truthful tailoring suggestions,
+interview preparation topics, and evidence-backed employer/application links.
+Free users can read a previously saved review but cannot generate or refresh one.
+Only URLs returned by Web Search or the verified current source are persisted.
 
 All limit variables are required and fail closed if missing or invalid. Setting
 `JOB_SEARCH_ENABLED` to `false` immediately blocks fresh provider calls without

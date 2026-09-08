@@ -63,12 +63,13 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. Closed jobs remain in history with an unavailable label. This does not send a résumé or implement interview stages.
 - An hourly internal Convex cron claims one of ten deterministic paid-user cohorts from 08:00 through 17:00 Israel time in bounded pages. A newly completed paid profile is queued immediately for its first attempt that day. Free profiles are never queued for provider work.
 - Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`. Free mode refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs. Development controls use the real discovery pipeline and do not seed synthetic jobs or CVs.
+- Pro/admin users can request a private saved deep review from a job card. The action reverifies the shared job source, compares the role with the effective profile and up to six ready resumes, recommends an existing resume and truthful edits, identifies evidence-based strengths and gaps, and saves Web Search-backed employer/application links. Stale reviews are detected after profile or job changes; free users cannot generate or refresh them.
 
 ## Incomplete or unknown areas
 
 - Live Google OAuth was reported successful after the replacement client was configured; this task did not repeat that external smoke test.
 - Resume generation, automatic applications, Gmail access, embeddings, and multi-stage application workflow do not exist. CV ingestion, profile creation, and multi-resume management are implemented.
-- There is no semantic query reuse, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
+- There is no semantic query reuse, billing, or checkout. A paid daily attempt may reuse a query already claimed by another user.
 - Embedding-based duplicate detection and semantic relevance are deferred. Deterministic relevance now ranks eligible jobs by effective target/past roles, core skills, experience, location, work arrangement, and employment type.
 - GeoNames coordinates are locality centroids, so radius checks are city-level approximations rather than exact workplace distances. Jobs with unresolved or ambiguous locations are hidden.
 - Existing deployments need a one-time `jobMatching:dispatchAllUsers` backfill after the materialized match index is deployed. Thereafter, profile and job mutations maintain it incrementally in bounded pages; reconciliation is eventually consistent while those scheduled pages run.

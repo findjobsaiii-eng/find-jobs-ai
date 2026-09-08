@@ -1216,15 +1216,58 @@ function feedSourcePriority(tier: string) {
   return { employer: 4, ats: 3, job_board: 2, aggregator: 1 }[tier] ?? 0;
 }
 
+function deepReviewView(
+  review: Doc<"jobDeepReviews"> | undefined,
+  job: Doc<"jobs">,
+  profileRevision: number,
+) {
+  if (!review) return undefined;
+  return {
+    status: review.status,
+    language: review.language,
+    stale:
+      review.profileRevision !== profileRevision ||
+      review.jobContentHash !== job.contentHash,
+    matchPercentage: review.matchPercentage,
+    verdict: review.verdict,
+    summary: review.summary,
+    strengths: review.strengths,
+    gaps: review.gaps,
+    resumeId: review.resumeId,
+    resumeName: review.resumeName,
+    resumeRationale: review.resumeRationale,
+    resumeChanges: review.resumeChanges,
+    companyWebsiteUrl: review.companyWebsiteUrl,
+    directApplicationUrl: review.directApplicationUrl,
+    applicationNote: review.applicationNote,
+    interviewFocus: review.interviewFocus,
+    updatedAt: review.updatedAt,
+    errorCode: review.errorCode,
+  };
+}
+
 export const listCurrentUserJobs = query({
   args: {
     view: v.optional(
       v.union(v.literal("suggestions"), v.literal("inProgress")),
     ),
   },
-  returns: v.object({ jobs: v.array(jobFeedItem) }),
+  returns: v.object({ jobs: v.array(jobFeedItem), plan: planValidator }),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
+    const now = Date.now();
+    const [plan, reviews, profileRecord] = await Promise.all([
+      currentPlan(ctx, userId, now),
+      ctx.db
+        .query("jobDeepReviews")
+        .withIndex("by_userId_and_updatedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
+      getProfile(ctx, userId),
+    ]);
+    const reviewsByJob = new Map(
+      reviews.map((review) => [review.jobId, review]),
+    );
     if (args.view === "inProgress") {
       const applications = await ctx.db
         .query("jobApplications")
@@ -1234,23 +1277,30 @@ export const listCurrentUserJobs = query({
       const jobs = await Promise.all(
         applications.map(async (application) => {
           const current = await ctx.db.get("jobs", application.jobId);
+          const review = current
+            ? deepReviewView(
+                reviewsByJob.get(application.jobId),
+                current,
+                profileRecord?.updatedAt ?? 0,
+              )
+            : application.snapshot.deepReview;
           return {
             ...application.snapshot,
             appliedAt: application.appliedAt,
             unavailable: !current || !isDisplayEligibleJob(current),
+            deepReview: review,
           };
         }),
       );
-      return { jobs };
+      return { jobs, plan };
     }
     let profile: SearchProfile;
     try {
       profile = await loadSearchProfile(ctx, userId);
     } catch {
-      return { jobs: [] };
+      return { jobs: [], plan };
     }
-    const profileRecord = await getProfile(ctx, userId);
-    if (!profileRecord) return { jobs: [] };
+    if (!profileRecord) return { jobs: [], plan };
     const matches = await ctx.db
       .query("jobMatches")
       .withIndex(
@@ -1269,7 +1319,14 @@ export const listCurrentUserJobs = query({
       if (!job) continue;
       const item = await feedItem(ctx, job, profile);
       if (!item) continue;
-      jobs.push(item);
+      jobs.push({
+        ...item,
+        deepReview: deepReviewView(
+          reviewsByJob.get(job._id),
+          job,
+          profileRecord.updatedAt,
+        ),
+      });
     }
     jobs.sort(
       (a, b) =>
@@ -1277,7 +1334,7 @@ export const listCurrentUserJobs = query({
         jobFreshness(b) - jobFreshness(a) ||
         feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
     );
-    return { jobs };
+    return { jobs, plan };
   },
 });
 

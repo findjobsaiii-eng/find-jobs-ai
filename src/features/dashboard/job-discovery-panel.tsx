@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
+import { JobDeepReview } from "./job-deep-review";
 
 export function JobDiscoveryPanel() {
   const { i18n, t } = useTranslation();
@@ -48,6 +49,7 @@ export function JobDiscoveryPanel() {
   };
 
   const jobs = result?.jobs ?? [];
+  const plan = result?.plan ?? "free";
   return (
     <section aria-label={t("dashboard.jobsTitle")} className="min-w-0">
       <Tabs.Root
@@ -298,6 +300,13 @@ export function JobDiscoveryPanel() {
                           </LocalizedDate>
                         </p>
                       ) : null}
+
+                      <JobDeepReview
+                        jobId={job.id}
+                        unavailable={Boolean(job.unavailable)}
+                        plan={plan}
+                        review={job.deepReview}
+                      />
 
                       <div className="border-border mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
                         <span className="text-muted-foreground text-xs">

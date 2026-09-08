@@ -257,9 +257,9 @@ Location names resolve against a generated GeoNames Israel dataset only when one
 locality is unambiguous. The job stores that locality's centroid and stable
 GeoNames ID; Haversine distance then applies the user's radius without AI.
 Unresolved, ambiguous, and foreign locations fail closed. This is city-level
-precision, not a workplace-address promise. Internal scoring, semantic matching,
-and embeddings are deliberately deferred until real result data can validate
-their value.
+precision, not a workplace-address promise. Semantic matching and embeddings
+remain deferred until real result data can validate their value. Deterministic
+internal scoring was added later and is governed by D-022.
 
 ### D-018: Daily discovery shares the bounded search pipeline
 
@@ -443,3 +443,25 @@ development account to paid queues an immediate attempt when no attempt exists
 for that Israel calendar day. The same daily-attempt record prevents the
 immediate path and cohort path from duplicating work. Free users remain excluded
 from every provider-search scheduler.
+
+### D-025: Deep job reviews are explicit, private, and evidence-backed
+
+Status: Accepted
+
+Evidence: `convex/jobReviewActions.ts`, `convex/jobReviews.ts`,
+`convex/schema.ts`, and `src/features/dashboard/job-deep-review.tsx`.
+
+Deep review is an explicit Pro/admin action, never part of background matching.
+Before calling the model, the action reverifies the current best source and
+updates the shared job lifecycle. It sends the effective candidate profile and
+a bounded set of owned, ready resume text to the server-side model. The result
+is stored once per user/job and includes a match percentage, factual strengths,
+requirement gaps, a recommended existing resume, truthful tailoring changes,
+application guidance, and interview topics. A request ID prevents stale or
+concurrent calls from overwriting a newer review.
+
+Employer and direct-application URLs are persisted only when they are the
+verified current source or appear in the model's Web Search evidence. Reviews
+are private to their owner, survive reloads, and are marked stale when the
+profile revision or job content changes. Free users may retain read access to a
+previously generated review but cannot generate or refresh one.

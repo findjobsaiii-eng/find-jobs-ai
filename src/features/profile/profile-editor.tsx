@@ -9,13 +9,8 @@ import {
   SectionHeader,
   Surface,
 } from "@/components/ui/product-layout";
-import {
-  getServerError,
-  StepFour,
-  StepOne,
-  StepThree,
-  StepTwo,
-} from "./onboarding-screen";
+import { StepFour, StepOne, StepThree, StepTwo } from "./onboarding-screen";
+import { getProfileServerError } from "./profile-server-error";
 import {
   createProfileDraft,
   PROFILE_LIMITS,
@@ -37,15 +32,14 @@ export function ProfileEditor({
   const { t } = useTranslation();
   const saveProfile = useMutation(api.candidateProfiles.saveCurrent);
   const [draft, setDraft] = useState(() => createProfileDraft(data));
-  const baselineRef = useRef(
+  const [baseline] = useState(() =>
     JSON.stringify(profileDraftToValues(createProfileDraft(data))),
   );
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
-  const isDirty =
-    baselineRef.current !== JSON.stringify(profileDraftToValues(draft));
+  const isDirty = baseline !== JSON.stringify(profileDraftToValues(draft));
 
   useEffect(() => {
     if (!isDirty) return;
@@ -84,7 +78,7 @@ export function ProfileEditor({
       });
       onSaved();
     } catch (error) {
-      const parsed = getServerError(error);
+      const parsed = getProfileServerError(error);
       setServerError(t(parsed.key));
       if (parsed.field) {
         setErrors((current) => ({

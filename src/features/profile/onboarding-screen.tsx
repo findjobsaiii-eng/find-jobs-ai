@@ -7,7 +7,6 @@ import {
   type SetStateAction,
 } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { ConvexError } from "convex/values";
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -42,56 +41,17 @@ import {
   type LanguageCode,
   type ProfileDraft,
   type ProfileErrors,
-  type ProfileField,
   validateProfileStep,
   WORK_ARRANGEMENTS,
   type WorkArrangement,
   SUPPORTED_LANGUAGES,
 } from "./profile-types";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
+import {
+  getProfileFieldStep,
+  getProfileServerError,
+} from "./profile-server-error";
 import { CatalogMultiSelect } from "./reference-multi-select";
-
-const FIELD_STEP: Record<ProfileField, number> = {
-  preferredDisplayName: 1,
-  targetJobTitles: 1,
-  professionalSummary: 2,
-  yearsOfExperience: 2,
-  skills: 2,
-  preferredLocations: 3,
-  locationRadiusKm: 3,
-  workArrangements: 3,
-  employmentTypes: 3,
-  minimumMonthlySalaryIls: 3,
-  languages: 4,
-};
-
-export function getServerError(error: unknown) {
-  if (
-    !(error instanceof ConvexError) ||
-    typeof error.data !== "object" ||
-    !error.data
-  ) {
-    return { key: "onboarding.errors.save", field: null } as const;
-  }
-  const data = error.data as { code?: unknown; field?: unknown };
-  if (data.code === "UNAUTHENTICATED") {
-    return { key: "onboarding.errors.authentication", field: null } as const;
-  }
-  if (data.code === "MISSING_GOOGLE_EMAIL") {
-    return { key: "onboarding.errors.googleEmail", field: null } as const;
-  }
-  if (
-    data.code === "VALIDATION_ERROR" &&
-    typeof data.field === "string" &&
-    data.field in FIELD_STEP
-  ) {
-    return {
-      key: "onboarding.errors.reviewFields",
-      field: data.field as ProfileField,
-    } as const;
-  }
-  return { key: "onboarding.errors.save", field: null } as const;
-}
 
 type StepProps = {
   draft: ProfileDraft;
@@ -547,14 +507,14 @@ export function OnboardingScreen({
       setSaved(true);
       return true;
     } catch (error) {
-      const parsed = getServerError(error);
+      const parsed = getProfileServerError(error);
       setServerError(t(parsed.key));
       if (parsed.field) {
         setErrors((current) => ({
           ...current,
           [parsed.field]: parsed.key,
         }));
-        setStep(FIELD_STEP[parsed.field]);
+        setStep(getProfileFieldStep(parsed.field));
       }
       return false;
     } finally {

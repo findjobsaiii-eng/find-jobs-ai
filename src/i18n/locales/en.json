@@ -155,6 +155,42 @@
       "reject": "rejected"
     }
   },
+  "jobReview": {
+    "action": "Deep review",
+    "open": "Deep review · {{score}}%",
+    "heading": "AI deep review",
+    "loading": "Reviewing…",
+    "loadingTitle": "Looking closely at this opportunity",
+    "loadingDescription": "Comparing the requirements, your resumes, and the employer’s official sources.",
+    "proOnly": "Available with Pro",
+    "stale": "Update recommended",
+    "strengths": "Where you stand out",
+    "gaps": "Requirement gaps",
+    "interviewFocus": "What to prepare for",
+    "refresh": "Update review",
+    "error": "The review could not be completed. Please try again.",
+    "inactive": "This job has closed since it was last checked.",
+    "verdict": {
+      "strong": "Strong match",
+      "good": "Good match",
+      "stretch": "Stretch role",
+      "low": "Low match"
+    },
+    "importance": {
+      "must_have": "Must have",
+      "important": "Important",
+      "minor": "Minor"
+    },
+    "resume": {
+      "heading": "Resume to send",
+      "use": "Best existing version: {{name}}"
+    },
+    "apply": {
+      "heading": "Best place to apply",
+      "direct": "Apply directly",
+      "company": "Company website"
+    }
+  },
   "resume": {
     "uploadTitle": "Upload your CV",
     "uploadDescription": "We’ll turn your experience into a focused career profile and use it to find relevant jobs.",
