@@ -171,24 +171,42 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
     normalizedKey(a).localeCompare(normalizedKey(b)),
   );
   // Personal skills, salary and radius belong to filtering, not shared searches.
+  const resolvedLocation = resolveJobGeography({
+    city: profile.location.city ?? null,
+    locationText: profile.location.formattedAddress,
+    country: profile.location.country,
+  });
   const location =
+    resolvedLocation?.labelEn ??
     profile.location.city ??
     profile.location.administrativeArea ??
     profile.location.formattedAddress;
-  const generatedQueries = titles
-    .slice(0, Math.min(maxQueries, 5))
-    .map((title) =>
-      normalizeWhitespace(
-        `${title} ${location} ${profile.location.countryCode.toUpperCase()} jobs careers`,
-      ),
+  const queryPlans = titles.slice(0, Math.min(maxQueries, 5)).map((title) => {
+    const generatedQuery = normalizeWhitespace(
+      `${title} ${location} ${profile.location.countryCode.toUpperCase()} jobs careers`,
     );
+    // Sharing identity must not depend on the display language returned by
+    // Google Places. Place IDs are stable across localized selections.
+    const normalizedCriteria = JSON.stringify({
+      role: normalizeTitleIdentity(title),
+      placeId: profile.location.placeId,
+      countryCode: profile.location.countryCode.toUpperCase(),
+    });
+    return {
+      generatedQuery,
+      normalizedCriteria,
+      fingerprint: hashText(normalizedCriteria),
+    };
+  });
+  const generatedQueries = queryPlans.map((query) => query.generatedQuery);
   const normalizedCriteria = JSON.stringify(
-    generatedQueries.map(normalizedKey),
+    queryPlans.map((query) => query.normalizedCriteria),
   );
   return {
     normalizedCriteria,
     fingerprint: hashText(normalizedCriteria),
     generatedQueries,
+    queryPlans,
   };
 }
 

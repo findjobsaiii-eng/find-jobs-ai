@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   internalMutation,
@@ -227,25 +228,6 @@ export const recordProcessingDiagnostics = internalMutation({
         updatedAt: Date.now(),
       });
     return null;
-  },
-});
-
-export const createDevelopmentDocument = internalMutation({
-  args: { userId: v.id("users"), storageId: v.id("_storage") },
-  returns: v.id("resumeDocuments"),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    return await ctx.db.insert("resumeDocuments", {
-      userId: args.userId,
-      storageId: args.storageId,
-      fileName: "worky-cv-demo.docx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      size: 1,
-      status: "processing",
-      createdAt: now - 6_000,
-      updatedAt: now,
-    });
   },
 });
 
@@ -536,6 +518,14 @@ export const completeProcessing = internalMutation({
       updatedAt: now,
       processedAt: now,
     });
+    if (existing?.onboardingCompleted || usable) {
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
+        userId: args.userId,
+        lifecycleStatus: "verified_active",
+        cursor: null,
+        expectedProfileRevision: now,
+      });
+    }
     return null;
   },
 });
@@ -595,6 +585,7 @@ export const finishReview = mutation({
     const overrides = new Set(profile.manualOverrideFields ?? []);
     if (changedRoles) overrides.add("targetJobTitles");
     if (changedLocation) overrides.add("location");
+    const now = Date.now();
     await ctx.db.patch("candidateProfiles", profile._id, {
       targetJobTitleIds: args.targetJobTitleIds,
       ...(args.location !== undefined
@@ -610,8 +601,14 @@ export const finishReview = mutation({
       cvReviewPending: false,
       onboardingCompleted: true,
       onboardingStep: 4,
-      completedAt: profile.completedAt ?? Date.now(),
-      updatedAt: Date.now(),
+      completedAt: profile.completedAt ?? now,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+      expectedProfileRevision: now,
     });
     return null;
   },

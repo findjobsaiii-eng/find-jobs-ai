@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { distanceKm, resolveJobGeography } from "./jobGeography";
+import {
+  distanceKm,
+  locationNamesForGeography,
+  resolveJobGeography,
+} from "./jobGeography";
 
 describe("job geography", () => {
   it.each(["Tel Aviv", "Tel Aviv-Yafo", "תל אביב - יפו", "תל אביב"])(
@@ -26,6 +30,37 @@ describe("job geography", () => {
         locationText: "Ramat Gan, Israel",
       }),
     ).toMatchObject({ placeId: "geonames:293788" });
+  });
+
+  it("falls back to location text when the structured city is unusable", () => {
+    expect(
+      resolveJobGeography({
+        city: "Central office",
+        country: "Israel",
+        locationText: "Ramat Gan, Israel",
+      }),
+    ).toMatchObject({ placeId: "geonames:293788" });
+  });
+
+  it("provides canonical English and Hebrew display names", () => {
+    const telAviv = resolveJobGeography({
+      city: "Tel Aviv",
+      country: "IL",
+      locationText: null,
+    });
+    const jerusalem = resolveJobGeography({
+      city: "Jerusalem",
+      country: "IL",
+      locationText: null,
+    });
+    expect(locationNamesForGeography(telAviv!)).toEqual({
+      en: "Tel Aviv",
+      he: "תל אביב-יפו",
+    });
+    expect(locationNamesForGeography(jerusalem!)).toEqual({
+      en: "Jerusalem",
+      he: "ירושלים",
+    });
   });
 
   it("does not invent coordinates for unknown, ambiguous, or foreign locations", () => {

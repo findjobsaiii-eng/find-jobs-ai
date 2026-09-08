@@ -3,6 +3,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import {
   env,
   mutation,
@@ -19,6 +20,7 @@ import {
 } from "./jobActivityPolicy";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { normalizedKey } from "./jobDiscoveryModel";
+import { locationNamesForGeography } from "./jobGeography";
 import {
   globalDayKey,
   JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS,
@@ -99,6 +101,8 @@ const jobInputValidator = v.object({
       latitude: v.number(),
       longitude: v.number(),
       precision: v.literal("locality_centroid"),
+      labelEn: v.string(),
+      labelHe: v.string(),
     }),
   ),
   normalizedSourceUrl: v.string(),
@@ -974,6 +978,10 @@ export const completeSearch = internalMutation({
       }
       if (alreadySeen) continue;
       seenJobs.add(jobId);
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileJobUsers, {
+        jobId,
+        cursor: null,
+      });
       await ctx.db.insert("jobDiscoveries", {
         jobId,
         searchRunId: run._id,
@@ -1161,6 +1169,7 @@ async function feedItem(
     sourceName: source.sourceName ?? source.domain ?? null,
     sourceTier: source.sourceTier,
     locationText: job.locationText,
+    locationNames: job.geo ? locationNamesForGeography(job.geo) : undefined,
     workArrangement: job.workArrangement,
     salaryMin: job.salaryMin,
     salaryMax: job.salaryMax,
@@ -1217,39 +1226,27 @@ export const listCurrentUserJobs = query({
     } catch {
       return { jobs: [] };
     }
-    const [verified, probable] = await Promise.all([
-      ctx.db
-        .query("jobs")
-        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
-          q.eq("lifecycleStatus", "verified_active"),
-        )
-        .order("desc")
-        .take(400),
-      ctx.db
-        .query("jobs")
-        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
-          q.eq("lifecycleStatus", "probably_active"),
-        )
-        .order("desc")
-        .take(100),
-    ]);
-    const candidates = [...verified, ...probable].sort(
-      (a, b) =>
-        (b.postedAt ? Date.parse(b.postedAt) || 0 : b.firstDiscoveredAt) -
-        (a.postedAt ? Date.parse(a.postedAt) || 0 : a.firstDiscoveredAt),
-    );
+    const profileRecord = await getProfile(ctx, userId);
+    if (!profileRecord) return { jobs: [] };
+    const matches = await ctx.db
+      .query("jobMatches")
+      .withIndex(
+        "by_userId_profileRevision_displayEligible_relevanceScore",
+        (q) =>
+          q
+            .eq("userId", userId)
+            .eq("profileRevision", profileRecord.updatedAt)
+            .eq("displayEligible", true),
+      )
+      .order("desc")
+      .take(50);
     const jobs = [];
-    for (const job of candidates) {
+    for (const match of matches) {
+      const job = await ctx.db.get("jobs", match.jobId);
+      if (!job) continue;
       const item = await feedItem(ctx, job, profile);
       if (!item) continue;
-      const applied = await ctx.db
-        .query("jobApplications")
-        .withIndex("by_userId_and_jobId", (q) =>
-          q.eq("userId", userId).eq("jobId", job._id),
-        )
-        .unique();
-      if (!applied) jobs.push(item);
-      if (jobs.length === 50) break;
+      jobs.push(item);
     }
     jobs.sort(
       (a, b) =>
@@ -1381,6 +1378,10 @@ export const setApplicationStatus = mutation({
       .unique();
     if (!args.applied) {
       if (existing) await ctx.db.delete("jobApplications", existing._id);
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
+        userId,
+        jobId: args.jobId,
+      });
       return null;
     }
     if (existing) return null;
@@ -1395,6 +1396,14 @@ export const setApplicationStatus = mutation({
       appliedAt: Date.now(),
       snapshot: item,
     });
+    const match = await ctx.db
+      .query("jobMatches")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", args.jobId),
+      )
+      .unique();
+    if (match)
+      await ctx.db.patch("jobMatches", match._id, { displayEligible: false });
     return null;
   },
 });

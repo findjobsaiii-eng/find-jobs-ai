@@ -42,6 +42,7 @@ function job(overrides: Record<string, unknown> = {}) {
     sourceName: "Acme Careers",
     sourceTier: "employer",
     locationText: "Tel Aviv-Yafo",
+    locationNames: { en: "Tel Aviv", he: "תל אביב" },
     workArrangement: "hybrid",
     salaryMin: null,
     salaryMax: null,
@@ -74,7 +75,8 @@ describe("job result cards", () => {
       screen.getByRole("heading", { name: "Senior Product Manager" }),
     ).toBeVisible();
     expect(screen.getByText("Acme")).toBeVisible();
-    expect(screen.getByText("Tel Aviv-Yafo")).toBeVisible();
+    expect(screen.getByText("Tel Aviv")).toBeVisible();
+    expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(screen.getByText("Hybrid")).toBeVisible();
     expect(
       screen.getByText(
@@ -100,6 +102,21 @@ describe("job result cards", () => {
     expect(screen.queryByText(/rawProviderJson/i)).not.toBeInTheDocument();
   });
 
+  it("localizes an unresolved remote location instead of showing provider copy", () => {
+    hooks.jobs = [
+      job({
+        locationNames: undefined,
+        locationText: "Remote, Israel",
+        workArrangement: "remote",
+      }),
+    ];
+
+    renderPanel();
+
+    expect(screen.getByText("Location flexible")).toBeVisible();
+    expect(screen.queryByText("Remote, Israel")).not.toBeInTheDocument();
+  });
+
   it("keeps a closed job in Hebrew application history with a clear status", async () => {
     await i18n.changeLanguage("he");
     hooks.jobs = [
@@ -112,6 +129,8 @@ describe("job result cards", () => {
     renderPanel("/?tab=in-progress");
 
     expect(screen.getByText("המשרה כבר לא פעילה")).toBeVisible();
+    expect(screen.getByText("תל אביב")).toBeVisible();
+    expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     await user.click(screen.getByRole("button", { name: "ביטול סימון שליחה" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({

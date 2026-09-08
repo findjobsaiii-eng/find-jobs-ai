@@ -127,6 +127,7 @@ export const jobFeedItem = v.object({
   sourceName: v.union(v.string(), v.null()),
   sourceTier: v.string(),
   locationText: v.union(v.string(), v.null()),
+  locationNames: v.optional(v.object({ en: v.string(), he: v.string() })),
   workArrangement: v.string(),
   salaryMin: v.union(v.number(), v.null()),
   salaryMax: v.union(v.number(), v.null()),
@@ -373,6 +374,8 @@ const schema = defineSchema({
         latitude: v.number(),
         longitude: v.number(),
         precision: v.literal("locality_centroid"),
+        labelEn: v.optional(v.string()),
+        labelHe: v.optional(v.string()),
       }),
     ),
     normalizedSourceUrl: v.string(),
@@ -510,7 +513,9 @@ const schema = defineSchema({
   jobMatches: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
-    searchRunId: v.id("jobSearchRuns"),
+    searchRunId: v.optional(v.id("jobSearchRuns")),
+    profileRevision: v.optional(v.number()),
+    displayEligible: v.optional(v.boolean()),
     outcome: v.union(v.literal("eligible"), v.literal("excluded")),
     exclusionReasons: v.array(v.string()),
     relevanceScore: v.number(),
@@ -525,6 +530,12 @@ const schema = defineSchema({
       "relevanceScore",
     ])
     .index("by_userId_and_jobId", ["userId", "jobId"])
+    .index("by_userId_profileRevision_displayEligible_relevanceScore", [
+      "userId",
+      "profileRevision",
+      "displayEligible",
+      "relevanceScore",
+    ])
     .index("by_searchRunId", ["searchRunId"]),
   userEntitlements: defineTable({
     userId: v.id("users"),

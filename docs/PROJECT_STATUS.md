@@ -53,14 +53,14 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - Automatic provider calls fail closed behind a kill switch, daily run/query ceilings, concurrency ceiling, and a configurable output-token cap. SDK retries remain disabled and usage is recorded.
 - Provider output is treated as untrusted. Every candidate needs a public HTTP(S) URL present in Web Search evidence, bounded structured fields, and a title and company. Source verification pins the resolved public IP, bounds redirects/time/body size, rejects private addresses, 404/410, closure markers, generic pages, and content that does not confirm the expected role and company.
 - Central vacancies can own several source records. Deterministic consolidation checks domain/provider ID, canonical URLs, normalized company/title/location, and content. URL tracking noise and common formatting differences collapse while seniority and distinct cities remain separate. Transactional indexed lookups protect concurrent ingestion. Every observation is retained in an ingestion event.
-- Only canonical `verified_active` or recently observed `probably_active` jobs with no hard-filter contradiction appear. Feeds are computed directly from the central catalog and expose one preferred source. Employer pages outrank ATS pages, job boards, and aggregators.
+- Only canonical `verified_active` or recently observed `probably_active` jobs with no hard-filter contradiction appear. Bounded background reconciliation materializes eligible per-profile matches across the entire active catalog; feed reads are indexed and are not limited to the newest 500 central jobs. Profile changes sweep both active lifecycle partitions, while job ingestion and activity changes fan one job out across completed profiles. Employer pages outrank ATS pages, job boards, and aggregators.
 - An hourly bounded worker rechecks due sources after a three-day cache interval. Conclusive 404/410, closure markers, redirects to generic careers pages, and passed deadlines close listings. Temporary failures preserve prior state and retry with bounded exponential backoff. Unknown, closed, and expired records remain stored but are hidden from suggestions.
-- Job locations resolve through an offline GeoNames Israel locality dataset. Jobs store a stable place ID and locality centroid, and radius filtering uses Haversine distance without AI. Unknown, ambiguous, and foreign locations are excluded.
+- Job locations resolve through an offline GeoNames Israel locality dataset. Jobs store a stable place ID, locality centroid, and canonical English/Hebrew names; radius filtering uses Haversine distance without AI. A failed structured-city lookup falls back to the full location text. Unknown, ambiguous, and foreign locations are excluded.
 
 - The homepage is a job feed with Suggestions / In progress tabs, clean cards for title, company, location, work model, date, summary, skills, source, and actions, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
 - Owner-scoped application snapshots persist “Sent résumé” status, support undo, and survive recommendation expiry. Closed jobs remain in history with an unavailable label. This does not send a résumé or implement interview stages.
 - An hourly internal Convex cron claims eligible paid profiles in bounded pages once per Israel calendar day. Free profiles are never queued for provider work.
-- Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`. Free mode refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs.
+- Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`. Free mode refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs. Development controls use the real discovery pipeline and do not seed synthetic jobs or CVs.
 
 ## Incomplete or unknown areas
 
@@ -69,6 +69,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - There is no semantic query reuse, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
 - Embedding-based duplicate detection and semantic relevance are deferred. Deterministic relevance now ranks eligible jobs by effective target/past roles, core skills, experience, location, work arrangement, and employment type.
 - GeoNames coordinates are locality centroids, so radius checks are city-level approximations rather than exact workplace distances. Jobs with unresolved or ambiguous locations are hidden.
+- Existing deployments need a one-time `jobMatching:dispatchAllUsers` backfill after the materialized match index is deployed. Thereafter, profile and job mutations maintain it incrementally in bounded pages; reconciliation is eventually consistent while those scheduled pages run.
 - Pro/admin entitlements have no billing source. The development-only switch creates test entitlements; all users otherwise resolve to `free`.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
 
@@ -96,8 +97,10 @@ automated applications remain separate milestones.
 Focused automated coverage verifies that free discovery creates no provider run
 or usage, shared paid queries run once per day, failed claims retry, repeated
 manual paid searches remain available, daily scheduling excludes free users,
-central persistence and deduplication work, and GeoNames radius matching fails
-closed. Automated tests never call the real OpenAI API.
+central persistence and deduplication work, GeoNames radius matching fails
+closed, localized place labels are deterministic, localized Google place text
+does not change shared-search identity, and catalog reconciliation continues
+beyond one bounded page. Automated tests never call the real OpenAI API.
 
 A live paid development search requires an authenticated completed profile and
 every server variable named in the README. Free-mode refresh is safe to repeat

@@ -408,12 +408,21 @@ describe("shared job discovery", () => {
         await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
       }
     });
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+    });
     const feed = await asUser(t, userId).query(
       api.jobDiscovery.listCurrentUserJobs,
       { view: "suggestions" },
     );
     expect(feed.jobs).toHaveLength(1);
     expect(feed.jobs[0].title).toBe("Frontend Engineer");
+    expect(feed.jobs[0].locationNames).toEqual({
+      en: "Tel Aviv",
+      he: "תל אביב-יפו",
+    });
   });
 
   it("creates one deterministic query per target role, up to five", () => {
@@ -424,6 +433,89 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries).toHaveLength(2);
     expect(plan.generatedQueries.join(" ")).toContain("Frontend Engineer");
     expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
+  });
+
+  it("keeps search sharing identity stable across localized place labels", () => {
+    const english = buildSearchPlan(searchProfile);
+    const hebrew = buildSearchPlan({
+      ...searchProfile,
+      location: {
+        ...searchProfile.location,
+        formattedAddress: "תל אביב-יפו, ישראל",
+        city: "תל אביב-יפו",
+        country: "ישראל",
+      },
+    });
+    expect(hebrew.queryPlans.map((query) => query.fingerprint)).toEqual(
+      english.queryPlans.map((query) => query.fingerprint),
+    );
+    expect(hebrew.generatedQueries).toEqual(english.generatedQueries);
+  });
+
+  it("reconciles active jobs beyond one bounded catalog page", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 33; index += 1) {
+        const job = normalizedJob();
+        const now = index + 1;
+        const jobId = await ctx.db.insert("jobs", {
+          ...job,
+          normalizedSourceUrl: `${job.normalizedSourceUrl}-${index}`,
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          jobFingerprint: `${job.jobFingerprint}-${index}`,
+          contentHash: `${job.contentHash}-${index}`,
+          firstDiscoveredAt: now,
+          lastDiscoveredAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "active",
+          lifecycleStatus: "verified_active",
+        });
+        const sourceId = await ctx.db.insert("jobSources", {
+          jobId,
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          normalizedUrl: `${job.normalizedSourceUrl}-${index}`,
+          finalUrl: `${job.sourceUrl}-${index}`,
+          domain: "careers.example.com",
+          sourceTier: "employer",
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "verified_active",
+        });
+        await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
+      }
+    });
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+    });
+    const continuation = await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobMatches").collect()).toHaveLength(32);
+      const scheduled = await ctx.db.system
+        .query("_scheduled_functions")
+        .collect();
+      return scheduled.find(
+        (item) =>
+          (item.args[0] as { lifecycleStatus?: string }).lifecycleStatus ===
+          "verified_active",
+      )?.args[0] as {
+        cursor: string;
+        expectedProfileRevision: number;
+      };
+    });
+    expect(continuation.cursor).toBeTruthy();
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: continuation.cursor,
+      expectedProfileRevision: continuation.expectedProfileRevision,
+    });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobMatches").collect()).toHaveLength(33);
+    });
   });
 });
 
@@ -748,32 +840,6 @@ describe("stored job activity", () => {
     });
     expect(diagnostics.sources[0]).toMatchObject({
       activityStatus: "verified_active",
-    });
-  });
-});
-
-describe("development quality fixture", () => {
-  it("is idempotent and creates canonical active and retained closed states", async () => {
-    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    await addCompletedProfile(t, userId);
-    const first = await asUser(t, userId).mutation(
-      api.jobQualityFixtures.seedForCurrentUser,
-      {},
-    );
-    const second = await t.mutation(
-      internal.jobQualityFixtures.seedForLatestCompletedUser,
-      {},
-    );
-    expect(second).toEqual(first);
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query("jobs").collect()).toHaveLength(2);
-      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
-      expect(await ctx.db.query("jobIngestionEvents").collect()).toHaveLength(
-        2,
-      );
-      expect(await ctx.db.query("jobApplications").collect()).toHaveLength(1);
     });
   });
 });

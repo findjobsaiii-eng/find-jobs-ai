@@ -7,7 +7,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction, env } from "./_generated/server";
-import { buildSearchPlan, hashText, normalizedKey } from "./jobDiscoveryModel";
+import { buildSearchPlan } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
 import { searchJobsWithOpenAI } from "./openAIJobProvider";
@@ -124,16 +124,16 @@ async function discoverForUser(
     "OPENAI_JOB_SEARCH_MODEL",
     env.OPENAI_JOB_SEARCH_MODEL,
   );
-  const queries = buildSearchPlan(profile).generatedQueries;
-  if (!queries.length)
+  const queryPlans = buildSearchPlan(profile).queryPlans;
+  if (!queryPlans.length)
     throw new ConvexError({ code: "INCOMPLETE_SEARCH_PROFILE" });
   let lastProviderError: string | null = null;
-  for (const searchQuery of queries) {
-    const normalizedCriteria = normalizedKey(searchQuery);
+  for (const queryPlan of queryPlans) {
+    const searchQuery = queryPlan.generatedQuery;
     const begun = await ctx.runMutation(internal.jobDiscovery.beginSearch, {
       userId,
-      fingerprint: hashText(normalizedCriteria),
-      normalizedCriteria,
+      fingerprint: queryPlan.fingerprint,
+      normalizedCriteria: queryPlan.normalizedCriteria,
       generatedQueries: [searchQuery],
       model,
       runtime,

@@ -90,13 +90,13 @@
     "sources": {
       "fresh": "Search complete. The shared jobs database is up to date.",
       "cache": "Today’s search was already completed.",
-      "central": "Jobs refreshed from the shared database.",
-      "qualityDemo": "Demo jobs loaded for this account."
+      "central": "Jobs refreshed from the shared database."
     },
     "retry": "Try again",
     "emptyTitle": "No jobs currently match your profile.",
     "emptyDescription": "Only jobs that pass your profile and location relevance threshold appear here.",
     "location": "Location",
+    "remoteLocation": "Location flexible",
     "arrangement": "Work arrangement",
     "salaryLabel": "Salary",
     "salary": "{{currency}} {{min}}–{{max}} {{period}}",
@@ -138,15 +138,10 @@
       "configuration": "Job discovery is not configured on the server yet.",
       "provider": "The search could not be completed. You can try again.",
       "devDisabled": "Development tools are disabled on this deployment.",
-      "plan": "Could not change the test subscription. Try again.",
-      "demo": "Could not load the demo jobs. Try again."
+      "plan": "Could not change the test subscription. Try again."
     },
     "subscribed": "Subscribed",
     "refresh": "Refresh jobs",
-    "loadDemo": "Load demo jobs",
-    "loadingDemo": "Loading demo jobs…",
-    "loadResumeDemo": "Preview CV onboarding",
-    "loadingResumeDemo": "Preparing CV preview…",
     "audit": {
       "toggle": "Match quality report",
       "loading": "Calculating matches…",

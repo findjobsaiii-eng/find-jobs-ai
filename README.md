@@ -231,6 +231,24 @@ are suitable for city-radius filtering but are not exact workplace addresses.
 The generated locality data comes from [GeoNames](https://www.geonames.org/)
 under CC BY 4.0.
 
+Resolved locations also expose canonical English and Hebrew locality names to
+the feed. The original provider location remains stored as evidence, while the
+UI can consistently select the canonical label for its current language. The
+English label is the first plain-Latin GeoNames alias; the Hebrew label is the
+longest unvocalized Hebrew alias. These deterministic labels should be reviewed
+if the GeoNames snapshot is regenerated.
+
+Suggestions read a materialized, per-profile match index rather than scanning a
+fixed window of the newest central jobs. A profile revision starts a cursor-based
+reconciliation over every `verified_active` and `probably_active` catalog row in
+bounded transactions. New or reverified jobs use the inverse path and reconcile
+that job across completed profiles in bounded pages. Excluded pairs are not
+stored. This makes feed reads small and indexed while allowing an older posting
+to surface for as long as it remains active. After first deploying the match
+index to an existing environment, run
+`npx convex run jobMatching:dispatchAllUsers '{}'` once to enqueue the initial
+backfill.
+
 ### Homepage and development controls
 
 The homepage contains a compact Suggestions / In progress tab bar and scannable
@@ -243,7 +261,8 @@ Hebrew) and opens profile editing, CV replacement, language switching, and sign-
 “Sent résumé” saves an owner-scoped application snapshot and moves the job to
 In progress. Undo removes the marker. Snapshots remain available after a job
 expires from suggestions; the action records tracking only and never sends a CV.
-Suggestions show up to 25 jobs; In progress currently shows the latest 100.
+Suggestions show up to 50 of the highest-ranked materialized matches; In
+progress currently shows the latest 100.
 
 On development deployments only, set the server variable `DEV_TOOLS_ENABLED=true`
 to expose the floating bottom testing panel. It also gates the manual search
@@ -252,7 +271,12 @@ on production. In free mode the button only refreshes the central database feed
 and cannot reach the provider. In subscribed mode **Search now** may be repeated
 for testing: manual runs bypass automatic daily and global run/query limits, but
 still enforce one active run at a time. The panel intentionally shows no quota
-or next-search countdown.
+or next-search countdown. Development controls invoke the real discovery and CV
+flows; they do not seed synthetic jobs, applications, profiles, or résumés.
+
+The development match audit remains a bounded recent-catalog diagnostic sample;
+it is not the source of feed completeness. The materialized reconciliation
+pipeline described above is the authoritative suggestion path.
 
 The daily sweep runs hourly, with at most one automatic attempt per eligible paid
 profile on an Israel calendar day. New completed paid profiles join the next

@@ -6,6 +6,8 @@ export type JobGeography = {
   latitude: number;
   longitude: number;
   precision: "locality_centroid";
+  labelEn: string;
+  labelHe: string;
 };
 
 function normalize(value: string) {
@@ -42,13 +44,43 @@ for (const locality of ISRAEL_LOCALITIES) {
 }
 
 function result(locality: Locality): JobGeography {
+  const names = localityNames(locality);
   return {
     placeId: `geonames:${locality[0]}`,
     countryCode: "IL",
     latitude: locality[1],
     longitude: locality[2],
     precision: "locality_centroid",
+    labelEn: names.en,
+    labelHe: names.he,
   };
+}
+
+function localityNames(locality: Locality) {
+  const localityAliases = locality[4];
+  const english =
+    localityAliases.find((alias) => /^[A-Za-z][A-Za-z .'-]*$/u.test(alias)) ??
+    localityAliases[0];
+  const hebrewAliases = localityAliases
+    .filter(
+      (alias) => /\p{Script=Hebrew}/u.test(alias) && !/\p{Mark}/u.test(alias),
+    )
+    .sort((left, right) => right.length - left.length);
+  return { en: english, he: hebrewAliases[0] ?? english };
+}
+
+const localitiesByPlaceId = new Map(
+  ISRAEL_LOCALITIES.map((locality) => [`geonames:${locality[0]}`, locality]),
+);
+
+export function locationNamesForGeography(geo: {
+  placeId: string;
+  labelEn?: string;
+  labelHe?: string;
+}) {
+  if (geo.labelEn && geo.labelHe) return { en: geo.labelEn, he: geo.labelHe };
+  const locality = localitiesByPlaceId.get(geo.placeId);
+  return locality ? localityNames(locality) : undefined;
 }
 
 function selectedLocality(alias: string) {
@@ -84,7 +116,10 @@ export function resolveJobGeography(job: {
 }): JobGeography | undefined {
   const country = normalize(job.country ?? "");
   if (country && !israelNames.has(country)) return undefined;
-  if (job.city) return exactLocality(job.city);
+  if (job.city) {
+    const city = exactLocality(job.city);
+    if (city) return city;
+  }
   return job.locationText ? localityInText(job.locationText) : undefined;
 }
 

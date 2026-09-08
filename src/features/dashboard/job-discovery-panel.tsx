@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 
 export function JobDiscoveryPanel() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const view =
     searchParams.get("tab") === "in-progress" ? "inProgress" : "suggestions";
@@ -121,6 +121,13 @@ export function JobDiscoveryPanel() {
           ) : (
             <ul className="space-y-3">
               {jobs.map((job) => {
+                const displayLocation = job.locationNames
+                  ? i18n.resolvedLanguage?.startsWith("he")
+                    ? job.locationNames.he
+                    : job.locationNames.en
+                  : job.workArrangement === "remote"
+                    ? t("jobDiscovery.remoteLocation")
+                    : job.locationText;
                 const postedTimestamp = job.postedAt
                   ? Date.parse(job.postedAt)
                   : Number.NaN;
@@ -195,13 +202,13 @@ export function JobDiscoveryPanel() {
                       </div>
 
                       <dl className="text-muted-foreground mt-4 flex flex-wrap gap-2 text-sm">
-                        {job.locationText ? (
+                        {displayLocation ? (
                           <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
                             <MapPin aria-hidden="true" className="size-3.5" />
                             <dt className="sr-only">
                               {t("jobDiscovery.location")}
                             </dt>
-                            <dd>{job.locationText}</dd>
+                            <dd>{displayLocation}</dd>
                           </div>
                         ) : null}
                         {job.workArrangement !== "unknown" ? (

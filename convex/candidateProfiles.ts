@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
@@ -651,6 +652,18 @@ export const saveCurrent = mutation({
       });
       const updated = await ctx.db.get("candidateProfiles", existing._id);
       if (!updated) throw new Error("Candidate profile update failed");
+      if (updated.onboardingCompleted) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.jobMatching.reconcileUserPage,
+          {
+            userId,
+            lifecycleStatus: "verified_active",
+            cursor: null,
+            expectedProfileRevision: updated.updatedAt,
+          },
+        );
+      }
       return updated;
     }
 
@@ -665,6 +678,14 @@ export const saveCurrent = mutation({
     });
     const created = await ctx.db.get("candidateProfiles", id);
     if (!created) throw new Error("Candidate profile creation failed");
+    if (created.onboardingCompleted) {
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
+        userId,
+        lifecycleStatus: "verified_active",
+        cursor: null,
+        expectedProfileRevision: created.updatedAt,
+      });
+    }
     return created;
   },
 });

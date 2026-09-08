@@ -339,6 +339,38 @@ employment duration and overlap, skill deduplication, and Israel location
 resolution deterministically. OpenAI structures factual CV text and proposes at
 most five career-consistent target roles.
 
+### D-022: Materialize complete active-catalog matches incrementally
+
+Status: Accepted
+
+Evidence: `convex/jobMatching.ts`, `convex/jobDiscovery.ts`,
+`convex/candidateProfiles.ts`, `convex/resumes.ts`, and
+`convex/jobActivity.ts`.
+
+Do not compute suggestions from a fixed newest-jobs window. Materialize only
+eligible user/job pairs in `jobMatches`, keyed by the candidate profile's
+`updatedAt` revision, and read the highest scores through a compound Convex
+index. A profile change scans both active lifecycle partitions using chained
+32-row cursor pages. A new, changed, reverified, or closed job takes the inverse
+path and is evaluated against completed profiles in chained 12-row pages.
+Application tracking removes the current match immediately; undo reevaluates
+only that user/job pair.
+
+This performs expensive matching outside the reactive feed query, never uses an
+unbounded collect, and includes older jobs for as long as their lifecycle is
+active. Negative pairs are deleted rather than materialized, limiting storage to
+actual suggestions plus stale prior-revision positives. Reconciliation is
+eventually consistent during its scheduled page chain. Existing environments
+must invoke the internal `jobMatching:dispatchAllUsers` dispatcher once after
+deployment; normal operation is mutation-driven and does not rescan every user
+and every job on an hourly cron.
+
+Shared provider-query identity uses the normalized role, Google Place ID, and
+country code, never localized address text. Human-readable provider queries use
+the canonical English GeoNames locality when resolvable. This lets Hebrew and
+English profiles reuse the same underlying search claim while keeping provider
+queries readable.
+
 ## URL-based workspace navigation
 
 Status: Accepted

@@ -3,6 +3,7 @@ import schema from "./schema";
 import { internalMutation, query, env } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import {
@@ -80,6 +81,10 @@ async function refreshJobLifecycle(
         : "inactive",
     activityReason: lifecycle.reason,
     closedAt: lifecycle.closedAt,
+  });
+  await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileJobUsers, {
+    jobId,
+    cursor: null,
   });
 }
 
