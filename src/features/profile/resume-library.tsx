@@ -2,12 +2,10 @@ import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
-  Check,
   ChevronDown,
   FileText,
   LoaderCircle,
   Pencil,
-  RefreshCw,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -28,15 +26,10 @@ export function ResumeLibrary() {
   const createFromUpload = useMutation(api.resumes.createFromUpload);
   const processResume = useAction(api.resumeActions.processResume);
   const updateMetadata = useMutation(api.resumes.updateMetadata);
-  const setActive = useMutation(api.resumes.setActive);
   const deleteResume = useMutation(api.resumes.deleteResume);
   const inputRef = useRef<HTMLInputElement>(null);
-  const replaceInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState<Id<"resumeDocuments"> | "upload" | null>(
-    null,
-  );
-  const [replaceId, setReplaceId] = useState<Id<"resumeDocuments"> | null>(
     null,
   );
   const [expandedId, setExpandedId] = useState<Id<"resumeDocuments"> | null>(
@@ -52,16 +45,13 @@ export function ResumeLibrary() {
   const [editNote, setEditNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const upload = async (
-    files: FileList | File[],
-    replacementForId?: Id<"resumeDocuments">,
-  ) => {
+  const upload = async (files: FileList | File[]) => {
     const selected = Array.from(files);
     if (selected.length !== 1) return setError("multiple");
     const file = selected[0];
     if (!validResume(file)) return setError("unsupported");
     if (file.size > MAX_BYTES) return setError("tooLarge");
-    setBusy(replacementForId ?? "upload");
+    setBusy("upload");
     setError(null);
     try {
       const uploadUrl = await generateUploadUrl({});
@@ -77,24 +67,17 @@ export function ResumeLibrary() {
         fileName: file.name,
         mimeType: file.type,
         size: file.size,
-        ...(replacementForId
-          ? { replacementForId }
-          : {
-              ...(label.trim() ? { displayName: label } : {}),
-              ...(note.trim() ? { note } : {}),
-              activateOnSuccess: false,
-            }),
+        ...(label.trim() ? { displayName: label } : {}),
+        ...(note.trim() ? { note } : {}),
       });
       await processResume({ resumeId });
       setLabel("");
       setNote("");
-      setReplaceId(null);
     } catch (cause) {
       setError(processingErrorKey(cause));
     } finally {
       setBusy(null);
       if (inputRef.current) inputRef.current.value = "";
-      if (replaceInputRef.current) replaceInputRef.current.value = "";
     }
   };
 
@@ -110,16 +93,6 @@ export function ResumeLibrary() {
       setEditingId(null);
     } catch {
       setError("save");
-    } finally {
-      setBusy(null);
-    }
-  };
-  const activate = async (resumeId: Id<"resumeDocuments">) => {
-    setBusy(resumeId);
-    try {
-      await setActive({ resumeId });
-    } catch {
-      setError("activate");
     } finally {
       setBusy(null);
     }
@@ -195,16 +168,6 @@ export function ResumeLibrary() {
           if (event.target.files) void upload(event.target.files);
         }}
       />
-      <input
-        ref={replaceInputRef}
-        type="file"
-        className="sr-only"
-        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        onChange={(event) => {
-          if (event.target.files && replaceId)
-            void upload(event.target.files, replaceId);
-        }}
-      />
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-medium">
           {t("resumeLibrary.label")}
@@ -266,15 +229,7 @@ export function ResumeLibrary() {
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-semibold">{resume.displayName}</h3>
-                    {resume.isActive ? (
-                      <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium">
-                        <Check aria-hidden="true" className="size-3" />
-                        {t("resumeLibrary.active")}
-                      </span>
-                    ) : null}
-                  </div>
+                  <h3 className="font-semibold">{resume.displayName}</h3>
                   <p className="text-muted-foreground mt-1 truncate text-sm">
                     {resume.fileName}
                   </p>
@@ -308,18 +263,6 @@ export function ResumeLibrary() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  {!resume.isActive &&
-                  resume.status !== "processing" &&
-                  resume.status !== "failed" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy !== null}
-                      onClick={() => void activate(resume.id)}
-                    >
-                      {t("resumeLibrary.useForMatching")}
-                    </Button>
-                  ) : null}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -350,17 +293,6 @@ export function ResumeLibrary() {
                     }}
                   >
                     <Pencil aria-hidden="true" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t("resumeLibrary.replace")}
-                    onClick={() => {
-                      setReplaceId(resume.id);
-                      replaceInputRef.current?.click();
-                    }}
-                  >
-                    <RefreshCw aria-hidden="true" />
                   </Button>
                   <Button
                     size="icon"
@@ -444,13 +376,7 @@ export function ResumeLibrary() {
                     })}
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
-                    {resume.isActive
-                      ? t(
-                          resumes.length > 1
-                            ? "resumeLibrary.deleteActiveDescription"
-                            : "resumeLibrary.deleteLastDescription",
-                        )
-                      : t("resumeLibrary.deleteDescription")}
+                    {t("resumeLibrary.deleteDescription")}
                   </p>
                   <div className="mt-3 flex gap-2">
                     <Button

@@ -40,11 +40,7 @@ export function DashboardWorkspace({ data }: { data: CurrentProfile }) {
         path="/"
         element={
           <AuthenticatedShell data={data}>
-            <DashboardScreen
-              onEdit={() =>
-                void navigate("/profile", { state: { editProfile: true } })
-              }
-            />
+            <DashboardScreen onEdit={() => void navigate("/profile")} />
           </AuthenticatedShell>
         }
       />

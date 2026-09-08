@@ -37,6 +37,9 @@
     "saveProfile": "שמירת פרופיל",
     "cancel": "ביטול",
     "discardChanges": "לצאת בלי לשמור את השינויים בפרופיל?",
+    "discardChangesDescription": "השינויים שביצעת בחלק הזה לא יישמרו.",
+    "keepEditing": "המשך עריכה",
+    "discardProfileChanges": "יציאה ללא שמירה",
     "profileSaved": "הפרופיל וההעדפות שלך מעודכנים.",
     "profileReady": "הפרופיל שלך מוכן",
     "completeProfile": "השלמת הפרופיל שלך",
@@ -453,7 +456,6 @@
     "sectionNavigation": "חלקי הפרופיל",
     "summaryDescription": "מבט קצר על המידע שמשמש להתאמת משרות.",
     "sections": {
-      "overview": "סקירה",
       "professional": "תפקידים וניסיון",
       "preferences": "העדפות",
       "languages": "שפות",
@@ -462,24 +464,20 @@
   },
   "resumeLibrary": {
     "title": "קורות החיים שלי",
-    "description": "אפשר לשמור כמה גרסאות ולבחור איזו מהן תשמש להתאמת משרות.",
+    "description": "כל קורות החיים שהעלית, במקום אחד.",
     "dropzoneLabel": "העלאת קורות חיים",
     "dropTitle": "גרור קורות חיים לכאן או לחץ לבחירת קובץ",
     "dropDescription": "PDF או DOCX, עד 10MB · קובץ אחד בכל פעם",
     "label": "שם קצר (אופציונלי)",
     "note": "הערה (אופציונלי)",
-    "active": "משמש להתאמת משרות",
     "metadata": "{{type}} · {{size}}KB · {{date}}",
     "loading": "טוענים קורות חיים",
     "empty": "עדיין לא העלית קורות חיים",
-    "useForMatching": "השתמש להתאמת משרות",
     "details": "פרטים",
     "edit": "עריכת שם והערה",
-    "replace": "החלפת קובץ",
     "delete": "מחיקה",
     "deleteTitle": "למחוק את קורות החיים „{{name}}״?",
     "deleteDescription": "הקובץ והנתונים שחולצו ממנו יימחקו.",
-    "deleteActiveDescription": "קורות חיים זמינים אחרים ייבחרו להתאמה. ההעדפות הידניות שלך יישמרו.",
     "confirmDelete": "מחיקה",
     "status": {
       "processing": "בניתוח",
@@ -491,14 +489,12 @@
       "unsupported": "יש לבחור קובץ PDF או DOCX.",
       "tooLarge": "הקובץ גדול מ־10MB.",
       "save": "לא הצלחנו לשמור את הפרטים.",
-      "activate": "לא הצלחנו להחליף את קורות החיים הפעילים.",
       "delete": "לא הצלחנו למחוק את קורות החיים.",
       "upload": "לא הצלחנו להעלות את הקובץ.",
       "invalid": "לא הצלחנו לפתוח את הקובץ.",
       "scannedPdf": "נראה שהקובץ הוא PDF סרוק ללא טקסט.",
       "empty": "לא מצאנו טקסט בקובץ.",
       "parsing": "קראנו את הקובץ, אבל לא הצלחנו לנתח את קורות החיים."
-    },
-    "deleteLastDescription": "לא יישארו קורות חיים פעילים. ההעדפות הידניות והיסטוריית המשרות שלך יישמרו."
+    }
   }
 }

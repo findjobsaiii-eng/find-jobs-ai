@@ -409,13 +409,15 @@ Status: Pending
 Query/job embeddings and exact workplace coordinates need separate cost and
 quality decisions before implementation.
 
-### D-023: One active resume drives matching within an owner-scoped resume library
+### D-023: Resume upload seeds the profile; the saved profile drives matching
 
 Status: Accepted
 
 Evidence: `convex/resumes.ts`, `convex/schema.ts`, `src/features/profile/resume-library.tsx`, and `src/features/dashboard/authenticated-shell.tsx`.
 
-A candidate may keep several independently parsed resumes, each with its own private storage object, extracted career data, display label, and optional organizational note. Exactly one ready resume is active for matching. Switching the active resume rebuilds CV-derived profile fields and schedules materialized match reconciliation while preserving explicit manual overrides. Additional uploads remain inactive unless the user selects them. A successful file replacement preserves the resume label and note, swaps the active profile only when replacing the active resume, and removes the superseded storage object. Deleting an active resume selects the newest usable fallback; with no fallback it clears only CV-derived profile state and preserves manual profile choices and job history. Legacy single-resume users infer their newest usable resume as active until an explicit active ID is written.
+A candidate may keep several independently parsed resumes, each with its own private storage object, extracted career data, display label, and optional organizational note. Resume upload is an onboarding input: extraction seeds the candidate profile, and the saved candidate profile—not a selected resume—is the source used for job discovery and matching. The resume library therefore does not expose an active badge, a “use for matching” action, or replacement behavior that implies the profile continuously follows a file. Deleting the resume that originally seeded a profile removes the file and its private extraction record without clearing or replacing the saved profile data.
+
+`candidateProfiles.activeResumeId` remains internal lineage for the onboarding source and older stored records. It must not be presented as a user-selectable matching source. Additional uploads are stored as documents and do not change the completed profile.
 
 The first resume remains mandatory for CV-first onboarding. Resume-library controls appear only after a candidate has a completed profile.
 

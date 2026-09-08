@@ -52,6 +52,7 @@ import {
   getProfileServerError,
 } from "./profile-server-error";
 import { CatalogMultiSelect } from "./reference-multi-select";
+import { DiscardProfileChangesDialog } from "./discard-profile-changes-dialog";
 
 type StepProps = {
   draft: ProfileDraft;
@@ -472,6 +473,7 @@ export function OnboardingScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [saved, setSaved] = useState(Boolean(initialData.profile));
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
   const signingOutRef = useRef(false);
@@ -717,8 +719,8 @@ export function OnboardingScreen({
                 variant="ghost"
                 disabled={isSubmitting}
                 onClick={() => {
-                  if (!isDirty || window.confirm(t("dashboard.discardChanges")))
-                    editing.onCancel();
+                  if (isDirty) setDiscardDialogOpen(true);
+                  else editing.onCancel();
                 }}
               >
                 {t("dashboard.cancel")}
@@ -746,6 +748,11 @@ export function OnboardingScreen({
           </div>
         </form>
       </section>
+      <DiscardProfileChangesDialog
+        open={discardDialogOpen}
+        onOpenChange={setDiscardDialogOpen}
+        onDiscard={() => editing?.onCancel()}
+      />
     </AuthShell>
   );
 }

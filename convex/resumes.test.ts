@@ -298,12 +298,21 @@ describe("CV-derived effective profiles", () => {
     await user.mutation(api.resumes.deleteResume, { resumeId: second });
     expect(await user.query(api.resumes.listMine)).toHaveLength(1);
     expect((await user.query(api.resumes.getCurrent))?.id).toBe(first.resumeId);
+    const profileBeforeSourceDeletion = (
+      await user.query(api.candidateProfiles.getCurrent)
+    ).profile;
     await user.mutation(api.resumes.deleteResume, { resumeId: first.resumeId });
     expect(await user.query(api.resumes.listMine)).toHaveLength(0);
-    expect(
-      (await user.query(api.candidateProfiles.getCurrent)).profile
-        ?.activeResumeId,
-    ).toBeUndefined();
+    const profileAfterSourceDeletion = (
+      await user.query(api.candidateProfiles.getCurrent)
+    ).profile;
+    expect(profileAfterSourceDeletion?.activeResumeId).toBeUndefined();
+    expect(profileAfterSourceDeletion).toMatchObject({
+      targetJobTitleIds: profileBeforeSourceDeletion?.targetJobTitleIds,
+      skillIds: profileBeforeSourceDeletion?.skillIds,
+      professionalSummary: profileBeforeSourceDeletion?.professionalSummary,
+      cvCareerProfile: profileBeforeSourceDeletion?.cvCareerProfile,
+    });
   });
 
   it("replaces a resume file without losing its label or leaving the old record", async () => {

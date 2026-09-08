@@ -817,60 +817,25 @@ export const deleteResume = mutation({
   returns: v.union(v.id("resumeDocuments"), v.null()),
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
-    const [resume, profile, allResumes] = await Promise.all([
+    const [resume, profile] = await Promise.all([
       ctx.db.get("resumeDocuments", args.resumeId),
       ctx.db
         .query("candidateProfiles")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .unique(),
-      ctx.db
-        .query("resumeDocuments")
-        .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
-        .order("desc")
-        .take(25),
     ]);
     if (resume?.userId !== userId)
       throw new ConvexError({ code: "RESUME_NOT_FOUND" });
-    const deletingActive = profile?.activeResumeId === resume._id;
-    const fallback = deletingActive
-      ? allResumes.find(
-          (candidate) =>
-            candidate._id !== resume._id &&
-            ["ready", "needs_confirmation", "replaced"].includes(
-              candidate.status,
-            ) &&
-            candidate.targetJobTitleIds?.length &&
-            candidate.skillIds?.length,
-        )
-      : undefined;
+    const deletingSourceResume = profile?.activeResumeId === resume._id;
     const now = Date.now();
-    if (profile && deletingActive) {
-      if (fallback) {
-        await ctx.db.patch(
-          "candidateProfiles",
-          profile._id,
-          activeResumePatch(fallback, profile, now),
-        );
-      } else {
-        await ctx.db.patch("candidateProfiles", profile._id, {
-          activeResumeId: undefined,
-          cvCareerProfile: undefined,
-          cvReviewPending: false,
-          updatedAt: now,
-        });
-      }
-    }
+    if (profile && deletingSourceResume)
+      await ctx.db.patch("candidateProfiles", profile._id, {
+        activeResumeId: undefined,
+        updatedAt: now,
+      });
     await ctx.storage.delete(resume.storageId);
     await ctx.db.delete("resumeDocuments", resume._id);
-    if (profile && deletingActive && fallback) {
-      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
-        userId,
-        lifecycleStatus: "verified_active",
-        cursor: null,
-        expectedProfileRevision: now,
-      });
-    }
-    return fallback?._id ?? null;
+    return null;
   },
 });
 

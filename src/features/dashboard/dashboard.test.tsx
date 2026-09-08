@@ -118,8 +118,16 @@ describe("dashboard and completed profile editing", () => {
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
     await user.click(screen.getByRole("link", { name: "פרופיל" }));
-    await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
     expect(window.location.pathname).toBe("/profile");
+    expect(
+      screen.queryByRole("link", { name: "סקירה" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "תפקידים וניסיון" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.queryByRole("button", { name: "שמירת פרופיל" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/שלב 1 מתוך 4/)).not.toBeInTheDocument();
     expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
     expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
@@ -161,11 +169,11 @@ describe("dashboard and completed profile editing", () => {
     render(<ProfileGate />);
     expect(savedLink()).toHaveAttribute("aria-current", "page");
     await openProfile(user);
-    await user.click(screen.getByRole("button", { name: "Edit profile" }));
-    expect(window.location.pathname).toBe("/profile");
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(window.location.pathname).toBe("/profile");
     expect(window.location.search).toBe("?tab=in-progress");
+    expect(
+      screen.getByRole("link", { name: "Roles and experience" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("opens direct profile links and falls back for unknown URLs", async () => {
@@ -187,17 +195,67 @@ describe("dashboard and completed profile editing", () => {
     );
   });
 
+  it("keeps topic navigation and editing in one stable profile state", async () => {
+    const user = userEvent.setup();
+    render(<ProfileGate />);
+    await openProfile(user);
+
+    await user.click(screen.getByRole("link", { name: "Preferences" }));
+    expect(window.location.hash).toBe("#preferences");
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("link", { name: "Roles and experience" }),
+    );
+    const name = screen.getByRole("textbox", {
+      name: "Preferred display name",
+    });
+    await user.clear(name);
+    await user.type(name, "Unsaved Name");
+    expect(
+      screen.getByRole("button", { name: "Save profile" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Preferences" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Discard your unsaved profile changes?",
+      }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(window.location.hash).toBe("#professional");
+    expect(screen.getByDisplayValue("Unsaved Name")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Discard your unsaved profile changes?",
+      }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByDisplayValue("Matan")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#professional");
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("saves prefilled edits once with completion intact on the profile page", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
     await openProfile(user);
-    await user.click(screen.getByRole("button", { name: "Edit profile" }));
     expect(window.location.pathname).toBe("/profile");
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
     const name = await screen.findByRole("textbox", {
       name: "Preferred display name",
     });
     await user.clear(name);
     await user.type(name, "Updated Name");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     let finish!: () => void;
     hooks.save.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -237,7 +295,10 @@ describe("dashboard and completed profile editing", () => {
         screen.getByRole("heading", { name: "Professional profile" }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText("Updated Name")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Updated Name")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
     expect(window.location.pathname).toBe("/profile");
   });
 

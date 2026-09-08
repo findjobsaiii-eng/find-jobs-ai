@@ -37,6 +37,9 @@
     "saveProfile": "Save profile",
     "cancel": "Cancel",
     "discardChanges": "Discard your unsaved profile changes?",
+    "discardChangesDescription": "The changes you made in this section will be lost.",
+    "keepEditing": "Keep editing",
+    "discardProfileChanges": "Discard changes",
     "profileSaved": "Your profile and preferences are up to date.",
     "profileReady": "Your profile is ready",
     "completeProfile": "Complete your profile",
@@ -453,7 +456,6 @@
     "sectionNavigation": "Profile sections",
     "summaryDescription": "A quick view of the information used for matching.",
     "sections": {
-      "overview": "Overview",
       "professional": "Roles and experience",
       "preferences": "Preferences",
       "languages": "Languages",
@@ -462,24 +464,20 @@
   },
   "resumeLibrary": {
     "title": "My resumes",
-    "description": "Keep several versions and choose which one is used for job matching.",
+    "description": "Your uploaded resumes, all in one place.",
     "dropzoneLabel": "Upload a resume",
     "dropTitle": "Drop a resume here or click to browse",
     "dropDescription": "PDF or DOCX, up to 10MB · one file at a time",
     "label": "Short label (optional)",
     "note": "Note (optional)",
-    "active": "Used for job matching",
     "metadata": "{{type}} · {{size}}KB · {{date}}",
     "loading": "Loading resumes",
     "empty": "You have not uploaded a resume yet",
-    "useForMatching": "Use for matching",
     "details": "Details",
     "edit": "Edit label and note",
-    "replace": "Replace file",
     "delete": "Delete",
     "deleteTitle": "Delete “{{name}}”?",
     "deleteDescription": "The file and its extracted data will be deleted.",
-    "deleteActiveDescription": "Another available resume will be selected for matching. Your manual preferences will remain.",
     "confirmDelete": "Delete",
     "status": {
       "processing": "Processing",
@@ -491,14 +489,12 @@
       "unsupported": "Choose a PDF or DOCX file.",
       "tooLarge": "The file is larger than 10MB.",
       "save": "We could not save the details.",
-      "activate": "We could not switch the active resume.",
       "delete": "We could not delete the resume.",
       "upload": "We could not upload the file.",
       "invalid": "We could not open the file.",
       "scannedPdf": "This appears to be a scanned PDF without text.",
       "empty": "We could not find text in the file.",
       "parsing": "We read the file but could not analyze the resume."
-    },
-    "deleteLastDescription": "No active resume will remain. Your manual preferences and job history will be preserved."
+    }
   }
 }
