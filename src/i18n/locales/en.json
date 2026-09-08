@@ -192,8 +192,10 @@
       "empty": "We couldn’t find text in this file.",
       "parsing": "We read the file but couldn’t analyze the CV. Please try again.",
       "tooLarge": "This file is too large. The maximum supported size is 10 MB.",
-      "review": "We couldn’t save your profile. Please try again."
-    }
+      "review": "We couldn’t save your profile. Please try again.",
+      "multiple": "Upload one file at a time."
+    },
+    "dropTitle": "Drop a resume here or click to browse"
   },
   "onboarding": {
     "loadingProfile": "Loading your profile…",
@@ -358,5 +360,65 @@
     "emptyTitle": "No applications yet",
     "emptyDescription": "Mark a job as “Sent résumé” to keep track of it here.",
     "sentAt": "Résumé sent {{date}}"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "profileOverview": {
+    "title": "Professional profile",
+    "description": "The information used to match jobs to you.",
+    "edit": "Edit profile",
+    "professionalSummary": "Your profile",
+    "targetRoles": "Target roles",
+    "currentRole": "Current role",
+    "experience": "Experience",
+    "years": "{{count}} years of experience",
+    "location": "Location and radius",
+    "locationValue": "{{location}} · within {{radius}} km",
+    "notAvailable": "Not provided",
+    "skills": "Core skills",
+    "preferences": "Work preferences"
+  },
+  "resumeLibrary": {
+    "title": "My resumes",
+    "description": "Keep several versions and choose which one is used for job matching.",
+    "dropzoneLabel": "Upload a resume",
+    "dropTitle": "Drop a resume here or click to browse",
+    "dropDescription": "PDF or DOCX, up to 10MB · one file at a time",
+    "label": "Short label (optional)",
+    "note": "Note (optional)",
+    "active": "Used for job matching",
+    "metadata": "{{type}} · {{size}}KB · {{date}}",
+    "loading": "Loading resumes",
+    "empty": "You have not uploaded a resume yet",
+    "useForMatching": "Use for matching",
+    "details": "Details",
+    "edit": "Edit label and note",
+    "replace": "Replace file",
+    "delete": "Delete",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteDescription": "The file and its extracted data will be deleted.",
+    "deleteActiveDescription": "Another available resume will be selected for matching. Your manual preferences will remain.",
+    "confirmDelete": "Delete",
+    "status": {
+      "processing": "Processing",
+      "failed": "Processing failed",
+      "ready": "Ready"
+    },
+    "errors": {
+      "multiple": "Upload one file at a time.",
+      "unsupported": "Choose a PDF or DOCX file.",
+      "tooLarge": "The file is larger than 10MB.",
+      "save": "We could not save the details.",
+      "activate": "We could not switch the active resume.",
+      "delete": "We could not delete the resume.",
+      "upload": "We could not upload the file.",
+      "invalid": "We could not open the file.",
+      "scannedPdf": "This appears to be a scanned PDF without text.",
+      "empty": "We could not find text in the file.",
+      "parsing": "We read the file but could not analyze the resume."
+    },
+    "deleteLastDescription": "No active resume will remain. Your manual preferences and job history will be preserved."
   }
 }

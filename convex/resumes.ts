@@ -53,10 +53,21 @@ export const createFromUpload = mutation({
     fileName: v.string(),
     mimeType: v.string(),
     size: v.number(),
+    displayName: v.optional(v.string()),
+    note: v.optional(v.string()),
+    activateOnSuccess: v.optional(v.boolean()),
+    replacementForId: v.optional(v.id("resumeDocuments")),
   },
   returns: v.id("resumeDocuments"),
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
+    const replacement = args.replacementForId
+      ? await ctx.db.get("resumeDocuments", args.replacementForId)
+      : null;
+    if (args.replacementForId && replacement?.userId !== userId) {
+      await ctx.storage.delete(args.storageId);
+      throw new ConvexError({ code: "RESUME_NOT_FOUND" });
+    }
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     const type = metadata?.contentType ?? args.mimeType;
     const extension = args.fileName.toLocaleLowerCase("en-US").split(".").pop();
@@ -75,13 +86,32 @@ export const createFromUpload = mutation({
     }
     const fileName = args.fileName.normalize("NFKC").trim().slice(0, 180);
     if (!fileName) throw new ConvexError({ code: "UNSUPPORTED_RESUME" });
+    const defaultName = fileName.replace(/\.(?:pdf|docx)$/iu, "");
+    const displayName = (
+      args.displayName ??
+      replacement?.displayName ??
+      defaultName
+    )
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/gu, " ")
+      .slice(0, 80);
+    const note = (args.note ?? replacement?.note ?? "")
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/gu, " ")
+      .slice(0, 300);
     const now = Date.now();
     const id = await ctx.db.insert("resumeDocuments", {
       userId,
       storageId: args.storageId,
       fileName,
+      ...(displayName ? { displayName } : {}),
+      ...(note ? { note } : {}),
       mimeType: type,
       size: metadata.size,
+      activateOnSuccess: args.activateOnSuccess,
+      replacementForId: args.replacementForId,
       status: "processing",
       createdAt: now,
       updatedAt: now,
@@ -93,6 +123,11 @@ export const createFromUpload = mutation({
 const summaryValidator = v.object({
   id: v.id("resumeDocuments"),
   fileName: v.string(),
+  displayName: v.string(),
+  note: v.union(v.string(), v.null()),
+  mimeType: v.string(),
+  size: v.number(),
+  isActive: v.boolean(),
   status: v.string(),
   currentTitle: v.union(v.string(), v.null()),
   professionalDomain: v.union(v.string(), v.null()),
@@ -132,6 +167,7 @@ const summaryValidator = v.object({
   needsLocation: v.boolean(),
   failureCode: v.union(v.string(), v.null()),
   createdAt: v.number(),
+  updatedAt: v.number(),
 });
 
 function catalogOption(item: Doc<"catalogItems">) {
@@ -143,59 +179,109 @@ function catalogOption(item: Doc<"catalogItems">) {
   };
 }
 
+async function summarizeResume(
+  ctx: QueryCtx,
+  resume: Doc<"resumeDocuments">,
+  profile: Doc<"candidateProfiles"> | null,
+  inferredActiveId?: Id<"resumeDocuments">,
+) {
+  const isActive = (profile?.activeResumeId ?? inferredActiveId) === resume._id;
+  const effectiveLocation =
+    isActive && profile?.manualOverrideFields?.includes("location")
+      ? (profile.primaryLocation ?? null)
+      : (resume.normalizedLocation ??
+        (isActive ? profile?.primaryLocation : null) ??
+        null);
+  const selections = await Promise.all(
+    [...(resume.targetJobTitleIds ?? []), ...(resume.skillIds ?? [])].map(
+      (id) => ctx.db.get("catalogItems", id),
+    ),
+  );
+  const items = selections.filter((item): item is Doc<"catalogItems"> =>
+    Boolean(item),
+  );
+  return {
+    id: resume._id,
+    fileName: resume.fileName,
+    displayName:
+      resume.displayName ?? resume.fileName.replace(/\.(?:pdf|docx)$/iu, ""),
+    note: resume.note ?? null,
+    mimeType: resume.mimeType,
+    size: resume.size,
+    isActive,
+    status: resume.status === "replaced" ? "ready" : resume.status,
+    currentTitle: resume.currentTitle ?? null,
+    professionalDomain: resume.professionalDomain ?? null,
+    seniority: resume.seniority ?? null,
+    summary: resume.summary ?? null,
+    totalExperienceYears:
+      resume.totalExperienceMonths === undefined
+        ? null
+        : Math.round((resume.totalExperienceMonths / 12) * 10) / 10,
+    targetRoles: items
+      .filter((item) => item.kind === "jobTitle")
+      .map(catalogOption),
+    skills: items.filter((item) => item.kind === "skill").map(catalogOption),
+    location: effectiveLocation,
+    needsLocation: !effectiveLocation,
+    failureCode: resume.failureCode ?? null,
+    createdAt: resume.createdAt,
+    updatedAt: resume.updatedAt,
+  };
+}
+
 export const getCurrent = query({
   args: {},
   returns: v.union(v.null(), summaryValidator),
   handler: async (ctx) => {
     const { userId } = await requireUser(ctx);
-    const resume = await ctx.db
-      .query("resumeDocuments")
-      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
-      .order("desc")
-      .first();
-    if (!resume) return null;
     const profile = await ctx.db
       .query("candidateProfiles")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .unique();
-    const effectiveLocation = profile?.manualOverrideFields?.includes(
-      "location",
-    )
-      ? (profile.primaryLocation ?? null)
-      : (resume.normalizedLocation ?? profile?.primaryLocation ?? null);
-    const selections = await Promise.all(
-      [...(resume.targetJobTitleIds ?? []), ...(resume.skillIds ?? [])].map(
-        (id) => ctx.db.get("catalogItems", id),
+    const active = profile?.activeResumeId
+      ? await ctx.db.get("resumeDocuments", profile.activeResumeId)
+      : null;
+    const resume =
+      active?.userId === userId
+        ? active
+        : await ctx.db
+            .query("resumeDocuments")
+            .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+            .order("desc")
+            .first();
+    return resume
+      ? await summarizeResume(ctx, resume, profile, resume._id)
+      : null;
+  },
+});
+
+export const listMine = query({
+  args: {},
+  returns: v.array(summaryValidator),
+  handler: async (ctx) => {
+    const { userId } = await requireUser(ctx);
+    const [profile, resumes] = await Promise.all([
+      ctx.db
+        .query("candidateProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique(),
+      ctx.db
+        .query("resumeDocuments")
+        .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(25),
+    ]);
+    const inferredActiveId =
+      profile?.activeResumeId ??
+      resumes.find((resume) =>
+        ["ready", "needs_confirmation", "replaced"].includes(resume.status),
+      )?._id;
+    return await Promise.all(
+      resumes.map((resume) =>
+        summarizeResume(ctx, resume, profile, inferredActiveId),
       ),
     );
-    const items = selections.filter((item): item is Doc<"catalogItems"> =>
-      Boolean(item),
-    );
-    const roles = items
-      .filter((item) => item.kind === "jobTitle")
-      .map(catalogOption);
-    const skills = items
-      .filter((item) => item.kind === "skill")
-      .map(catalogOption);
-    return {
-      id: resume._id,
-      fileName: resume.fileName,
-      status: resume.status,
-      currentTitle: resume.currentTitle ?? null,
-      professionalDomain: resume.professionalDomain ?? null,
-      seniority: resume.seniority ?? null,
-      summary: resume.summary ?? null,
-      totalExperienceYears:
-        resume.totalExperienceMonths === undefined
-          ? null
-          : Math.round((resume.totalExperienceMonths / 12) * 10) / 10,
-      targetRoles: roles,
-      skills,
-      location: effectiveLocation,
-      needsLocation: !effectiveLocation,
-      failureCode: resume.failureCode ?? null,
-      createdAt: resume.createdAt,
-    };
   },
 });
 
@@ -379,6 +465,14 @@ export const completeProcessing = internalMutation({
       .query("candidateProfiles")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
+    const replacement = resume.replacementForId
+      ? await ctx.db.get("resumeDocuments", resume.replacementForId)
+      : null;
+    const shouldActivate =
+      !existing ||
+      resume.activateOnSuccess === true ||
+      replacement?._id === existing.activeResumeId ||
+      Boolean(replacement && !existing.activeResumeId);
     const legacyOverrides =
       existing?.onboardingCompleted &&
       existing.profileSourceVersion === undefined
@@ -458,7 +552,7 @@ export const completeProcessing = internalMutation({
         updatedAt: now,
       },
     };
-    if (existing) {
+    if (existing && shouldActivate) {
       await ctx.db.patch("candidateProfiles", existing._id, {
         ...derived,
         activeResumeId: resume._id,
@@ -473,7 +567,7 @@ export const completeProcessing = internalMutation({
         completedAt: existing.completedAt ?? (usable ? now : undefined),
         updatedAt: now,
       });
-    } else {
+    } else if (!existing) {
       await ctx.db.insert("candidateProfiles", {
         userId: args.userId,
         email: user.email.toLocaleLowerCase("en-US"),
@@ -491,17 +585,6 @@ export const completeProcessing = internalMutation({
         completedAt: usable ? now : undefined,
       });
     }
-    const previous = await ctx.db
-      .query("resumeDocuments")
-      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", args.userId))
-      .order("desc")
-      .take(10);
-    for (const document of previous)
-      if (document._id !== resume._id && document.status !== "replaced")
-        await ctx.db.patch("resumeDocuments", document._id, {
-          status: "replaced",
-          updatedAt: now,
-        });
     await ctx.db.patch("resumeDocuments", resume._id, {
       status: usable ? "ready" : "needs_confirmation",
       extractedText: args.extractedText.slice(0, 100_000),
@@ -514,11 +597,22 @@ export const completeProcessing = internalMutation({
       skillIds,
       normalizedLocation: args.normalizedLocation ?? undefined,
       totalExperienceMonths: args.totalExperienceMonths,
+      coreSkills: args.skills.slice(0, 30),
+      normalizedPastRoles: args.normalizedPastRoles.slice(0, 30),
+      domains: args.domains.slice(0, 20),
+      experienceByDomain: args.experienceByDomain.slice(0, 20),
+      extractedLanguages: args.languages,
       confidence: args.confidence,
+      activateOnSuccess: undefined,
+      replacementForId: undefined,
       updatedAt: now,
       processedAt: now,
     });
-    if (existing?.onboardingCompleted || usable) {
+    if (replacement && replacement.userId === args.userId) {
+      await ctx.storage.delete(replacement.storageId);
+      await ctx.db.delete("resumeDocuments", replacement._id);
+    }
+    if (shouldActivate && (existing?.onboardingCompleted || usable)) {
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
         userId: args.userId,
         lifecycleStatus: "verified_active",
@@ -546,6 +640,231 @@ export const failProcessing = internalMutation({
         updatedAt: Date.now(),
       });
     return null;
+  },
+});
+
+function parsedCareerData(resume: Doc<"resumeDocuments">) {
+  let parsed: {
+    roles?: Array<{ normalizedTitle?: string; domain?: string | null }>;
+    experienceByDomain?: Array<{ domain: string; months: number }>;
+    languages?: Array<{ language?: string; proficiency?: string | null }>;
+  } = {};
+  try {
+    parsed = resume.structuredProfileJson
+      ? (JSON.parse(resume.structuredProfileJson) as typeof parsed)
+      : {};
+  } catch {
+    parsed = {};
+  }
+  return {
+    normalizedPastRoles:
+      resume.normalizedPastRoles ??
+      parsed.roles?.flatMap((role) =>
+        role.normalizedTitle ? [role.normalizedTitle] : [],
+      ) ??
+      [],
+    domains: resume.domains ?? [
+      ...new Set(
+        [
+          resume.professionalDomain,
+          ...(parsed.roles?.map((role) => role.domain) ?? []),
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    ],
+    experienceByDomain:
+      resume.experienceByDomain ?? parsed.experienceByDomain ?? [],
+  };
+}
+
+function activeResumePatch(
+  resume: Doc<"resumeDocuments">,
+  profile: Doc<"candidateProfiles">,
+  now: number,
+) {
+  const overrides = new Set(profile.manualOverrideFields ?? []);
+  const career = parsedCareerData(resume);
+  return {
+    ...(!overrides.has("targetJobTitles") && resume.targetJobTitleIds?.length
+      ? { targetJobTitleIds: resume.targetJobTitleIds }
+      : {}),
+    ...(!overrides.has("professionalSummary") && resume.summary
+      ? { professionalSummary: resume.summary }
+      : {}),
+    ...(!overrides.has("yearsOfExperience") &&
+    resume.totalExperienceMonths !== undefined
+      ? {
+          yearsOfExperience: Math.min(
+            60,
+            Math.floor(resume.totalExperienceMonths / 12),
+          ),
+        }
+      : {}),
+    ...(!overrides.has("skills") && resume.skillIds?.length
+      ? { skillIds: resume.skillIds }
+      : {}),
+    ...(!overrides.has("location") && resume.normalizedLocation
+      ? {
+          primaryLocation: resume.normalizedLocation,
+          preferredPlaceIds: [resume.normalizedLocation.placeId],
+          locationRadiusKm: resume.normalizedLocation.radiusKm,
+        }
+      : {}),
+    ...(!overrides.has("languages") && resume.extractedLanguages?.length
+      ? { languages: resume.extractedLanguages }
+      : {}),
+    ...(!overrides.has("seniority") && resume.seniority
+      ? { seniority: resume.seniority }
+      : {}),
+    activeResumeId: resume._id,
+    cvCareerProfile: {
+      resumeId: resume._id,
+      ...(resume.currentTitle ? { currentTitle: resume.currentTitle } : {}),
+      normalizedPastRoles: career.normalizedPastRoles.slice(0, 30),
+      seniority: resume.seniority ?? "unknown",
+      domains: career.domains.slice(0, 20),
+      coreSkills: resume.coreSkills ?? [],
+      totalExperienceMonths: resume.totalExperienceMonths ?? 0,
+      experienceByDomain: career.experienceByDomain.slice(0, 20),
+      updatedAt: now,
+    },
+    cvReviewPending: false,
+    profileSourceVersion: (profile.profileSourceVersion ?? 0) + 1,
+    updatedAt: now,
+  } satisfies Partial<Doc<"candidateProfiles">>;
+}
+
+export const updateMetadata = mutation({
+  args: {
+    resumeId: v.id("resumeDocuments"),
+    displayName: v.string(),
+    note: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx);
+    const resume = await ctx.db.get("resumeDocuments", args.resumeId);
+    if (resume?.userId !== userId)
+      throw new ConvexError({ code: "RESUME_NOT_FOUND" });
+    const displayName = args.displayName
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/gu, " ")
+      .slice(0, 80);
+    const note = (args.note ?? "")
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/gu, " ")
+      .slice(0, 300);
+    if (!displayName) throw new ConvexError({ code: "INVALID_RESUME_NAME" });
+    await ctx.db.patch("resumeDocuments", resume._id, {
+      displayName,
+      note: note || undefined,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const setActive = mutation({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx);
+    const [resume, profile] = await Promise.all([
+      ctx.db.get("resumeDocuments", args.resumeId),
+      ctx.db
+        .query("candidateProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique(),
+    ]);
+    if (
+      resume?.userId !== userId ||
+      !profile ||
+      !["ready", "needs_confirmation", "replaced"].includes(resume.status) ||
+      !resume.targetJobTitleIds?.length ||
+      !resume.skillIds?.length
+    )
+      throw new ConvexError({ code: "RESUME_NOT_READY" });
+    const now = Date.now();
+    await ctx.db.patch("candidateProfiles", profile._id, {
+      ...activeResumePatch(resume, profile, now),
+      onboardingCompleted: true,
+      onboardingStep: 4,
+    });
+    if (resume.status === "replaced")
+      await ctx.db.patch("resumeDocuments", resume._id, {
+        status: "ready",
+        updatedAt: now,
+      });
+    await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+      expectedProfileRevision: now,
+    });
+    return null;
+  },
+});
+
+export const deleteResume = mutation({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.union(v.id("resumeDocuments"), v.null()),
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx);
+    const [resume, profile, allResumes] = await Promise.all([
+      ctx.db.get("resumeDocuments", args.resumeId),
+      ctx.db
+        .query("candidateProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique(),
+      ctx.db
+        .query("resumeDocuments")
+        .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(25),
+    ]);
+    if (resume?.userId !== userId)
+      throw new ConvexError({ code: "RESUME_NOT_FOUND" });
+    const deletingActive = profile?.activeResumeId === resume._id;
+    const fallback = deletingActive
+      ? allResumes.find(
+          (candidate) =>
+            candidate._id !== resume._id &&
+            ["ready", "needs_confirmation", "replaced"].includes(
+              candidate.status,
+            ) &&
+            candidate.targetJobTitleIds?.length &&
+            candidate.skillIds?.length,
+        )
+      : undefined;
+    const now = Date.now();
+    if (profile && deletingActive) {
+      if (fallback) {
+        await ctx.db.patch(
+          "candidateProfiles",
+          profile._id,
+          activeResumePatch(fallback, profile, now),
+        );
+      } else {
+        await ctx.db.patch("candidateProfiles", profile._id, {
+          activeResumeId: undefined,
+          cvCareerProfile: undefined,
+          cvReviewPending: false,
+          updatedAt: now,
+        });
+      }
+    }
+    await ctx.storage.delete(resume.storageId);
+    await ctx.db.delete("resumeDocuments", resume._id);
+    if (profile && deletingActive && fallback) {
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
+        userId,
+        lifecycleStatus: "verified_active",
+        cursor: null,
+        expectedProfileRevision: now,
+      });
+    }
+    return fallback?._id ?? null;
   },
 });
 

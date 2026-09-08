@@ -39,6 +39,8 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - English and Hebrew UI copy, document language/direction synchronization, and persisted language detection.
 - A shared button primitive, semantic theme tokens, local font packages, responsive layout, focus styles, and reduced-motion handling.
 - Resume-first onboarding after sign-in: one PDF/DOCX upload, private Convex Storage, actual text extraction, structured career parsing, at least five seconds of analysis feedback, a compact role/strength/seniority/location review, and direct entry to personalized jobs. The full four-step form remains the profile editor.
+- Completed profiles use one shared authenticated shell across Jobs and Profile, with common page width, gutters, headers, surfaces, controls, empty states, and responsive RTL/LTR behavior.
+- The profile contains an owner-scoped resume library with multiple independently parsed PDF/DOCX versions, labels, notes, active-resume selection, safe replacement/deletion, and keyboard-accessible click or drag-and-drop upload. The first CV remains required to create the initial profile.
 - Versioned CV-derived career profiles include factual role history, responsibilities and explicit achievements, normalized skills by group, education, explicit languages, overlap-safe experience totals, domains, seniority, confidence, target-role candidates, and normalized Israeli location when supported.
 - Effective candidate profiles preserve field-level manual overrides across CV replacement. Existing pre-CV profiles are treated as manually chosen on first import. Raw CV text and structured detail stay server-side.
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
@@ -65,7 +67,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 ## Incomplete or unknown areas
 
 - Live Google OAuth was reported successful after the replacement client was configured; this task did not repeat that external smoke test.
-- Resume generation, automatic applications, Gmail access, embeddings, and multi-stage application workflow do not exist. CV ingestion and profile creation are implemented.
+- Resume generation, automatic applications, Gmail access, embeddings, and multi-stage application workflow do not exist. CV ingestion, profile creation, and multi-resume management are implemented.
 - There is no semantic query reuse, billing, checkout, or deep per-user AI review. A paid daily attempt may reuse a query already claimed by another user.
 - Embedding-based duplicate detection and semantic relevance are deferred. Deterministic relevance now ranks eligible jobs by effective target/past roles, core skills, experience, location, work arrangement, and employment type.
 - GeoNames coordinates are locality centroids, so radius checks are city-level approximations rather than exact workplace distances. Jobs with unresolved or ambiguous locations are hidden.

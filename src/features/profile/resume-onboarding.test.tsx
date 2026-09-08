@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConvexError } from "convex/values";
@@ -126,6 +126,41 @@ describe("resume-first onboarding", () => {
       mimeType: "application/pdf",
       size: file.size,
     });
+  });
+
+  it("accepts one dropped PDF and rejects multiple dropped files", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ storageId: "_storage:file" }),
+      }),
+    );
+    const view = render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    const dropzone = screen.getByRole("button", {
+      name: "Drop a resume here or click to browse",
+    });
+    const pdf = new File(["cv"], "career.pdf", { type: "application/pdf" });
+    fireEvent.drop(dropzone, { dataTransfer: { files: [pdf] } });
+    await waitFor(() => expect(hooks.process).toHaveBeenCalledOnce());
+    view.unmount();
+    render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    fireEvent.drop(
+      screen.getByRole("button", {
+        name: "Drop a resume here or click to browse",
+      }),
+      {
+        dataTransfer: {
+          files: [
+            pdf,
+            new File(["cv2"], "other.pdf", { type: "application/pdf" }),
+          ],
+        },
+      },
+    );
+    expect(
+      await screen.findByText("Upload one file at a time."),
+    ).toBeInTheDocument();
   });
 
   it("shows a specific message when a valid PDF has no text layer", async () => {

@@ -2,7 +2,11 @@ import { Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
-export function LanguageButton() {
+export function LanguageButton({
+  compactOnMobile = false,
+}: {
+  compactOnMobile?: boolean;
+}) {
   const { i18n, t } = useTranslation();
   const isHebrew = i18n.resolvedLanguage === "he";
 
@@ -17,7 +21,9 @@ export function LanguageButton() {
       aria-label={t("language.switchLabel")}
     >
       <Languages aria-hidden="true" data-icon="inline-start" />
-      {t("language.otherLanguage")}
+      <span className={compactOnMobile ? "hidden sm:inline" : undefined}>
+        {t("language.otherLanguage")}
+      </span>
     </Button>
   );
 }

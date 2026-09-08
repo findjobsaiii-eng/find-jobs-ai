@@ -49,10 +49,7 @@ export function JobDiscoveryPanel() {
 
   const jobs = result?.jobs ?? [];
   return (
-    <section aria-labelledby="jobs-title" className="min-w-0">
-      <h1 id="jobs-title" className="sr-only">
-        {t("dashboard.jobsTitle")}
-      </h1>
+    <section aria-label={t("dashboard.jobsTitle")} className="min-w-0">
       <Tabs.Root
         value={view}
         onValueChange={(value) => {

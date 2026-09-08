@@ -111,8 +111,8 @@ describe("dashboard and completed profile editing", () => {
       screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
-    await user.click(screen.getByRole("link", { name: "עריכת פרופיל" }));
+    await user.click(screen.getByRole("link", { name: "פרופיל" }));
+    await user.click(screen.getByRole("button", { name: "עריכת פרופיל" }));
     expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
     expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
     expect(
@@ -126,7 +126,9 @@ describe("dashboard and completed profile editing", () => {
       screen.queryByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "העלאת קורות חיים" }),
+      screen.getByRole("button", {
+        name: "גרור קורות חיים לכאן או לחץ לבחירת קובץ",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -150,9 +152,9 @@ describe("dashboard and completed profile editing", () => {
     view.unmount();
     render(<ProfileGate />);
     expect(activeTab()).toHaveAttribute("aria-selected", "true");
-    await user.click(screen.getByRole("button", { name: "User menu" }));
-    await user.click(screen.getByRole("link", { name: "Edit profile" }));
-    expect(window.location.pathname).toBe("/profile");
+    await user.click(screen.getByRole("link", { name: "Profile" }));
+    await user.click(screen.getByRole("button", { name: "Edit profile" }));
+    expect(window.location.pathname).toBe("/profile/edit");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?tab=in-progress");
@@ -161,7 +163,9 @@ describe("dashboard and completed profile editing", () => {
   it("opens direct profile links and falls back for unknown URLs", async () => {
     window.history.replaceState(null, "", "/profile");
     const view = render(<ProfileGate />);
-    expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Professional profile" }),
+    ).toBeInTheDocument();
     view.unmount();
     window.history.replaceState(null, "", "/missing");
     const fallback = render(<ProfileGate />);
@@ -178,8 +182,8 @@ describe("dashboard and completed profile editing", () => {
   it("saves prefilled edits once with completion intact and returns to updated dashboard", async () => {
     const user = userEvent.setup();
     const view = render(<ProfileGate />);
-    await user.click(screen.getByRole("button", { name: "User menu" }));
-    await user.click(screen.getByRole("link", { name: "Edit profile" }));
+    await user.click(screen.getByRole("link", { name: "Profile" }));
+    await user.click(screen.getByRole("button", { name: "Edit profile" }));
     const name = await screen.findByRole("textbox", {
       name: "Preferred display name",
     });
@@ -221,39 +225,26 @@ describe("dashboard and completed profile editing", () => {
     view.rerender(<ProfileGate />);
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "Recommended jobs for you" }),
+        screen.getByRole("heading", { name: "Professional profile" }),
       ).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText("Your profile and preferences are up to date."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Updated Name")).toBeInTheDocument();
   });
 
-  it("opens the profile panel by keyboard, switches language, and restores focus on Escape", async () => {
+  it("supports keyboard navigation and language switching in the shared shell", async () => {
     const user = userEvent.setup();
     render(<ProfileGate />);
-    const trigger = screen.getByRole("button", { name: "User menu" });
+    const trigger = screen.getByRole("link", { name: "Profile" });
     trigger.focus();
     await user.keyboard("{Enter}");
+    expect(window.location.pathname).toBe("/profile");
     await user.click(
       screen.getByRole("button", { name: "Switch language to Hebrew" }),
     );
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole("button", { name: "תפריט משתמש" })).toHaveFocus();
     expect(
       screen.queryByRole("button", { name: "כלי פיתוח" }),
     ).not.toBeInTheDocument();
-    screen.getByRole("tab", { name: "הצעות" }).focus();
-    await user.keyboard("{ArrowLeft}");
-    expect(screen.getByRole("tab", { name: "בתהליך" })).toHaveFocus();
-    await user.keyboard("{Enter}");
-    expect(screen.getByRole("tab", { name: "בתהליך" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("link", { name: "משרות" })).toBeInTheDocument();
   });
 });

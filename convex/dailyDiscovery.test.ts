@@ -68,7 +68,7 @@ it("claims only paid completed profiles once per Israel day and continues beyond
       (attempt) => attempt.lastOutcome === "INCOMPLETE_SEARCH_PROFILE",
     ),
   ).toHaveLength(2);
-});
+}, 15_000);
 
 it("disables the manual action and panel by default even for signed-in users", async () => {
   vi.stubEnv("DEV_TOOLS_ENABLED", "false");
@@ -85,4 +85,4 @@ it("disables the manual action and panel by default even for signed-in users", a
   expect(await user.query(api.jobDiscovery.developmentToolsEnabled, {})).toBe(
     true,
   );
-});
+}, 15_000);

@@ -134,7 +134,6 @@ describe("authentication UI", () => {
         onDismissCallbackError={onDismiss}
       />,
     );
-    await userEvent.click(screen.getByLabelText("User menu"));
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();

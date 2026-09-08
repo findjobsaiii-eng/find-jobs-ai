@@ -248,8 +248,12 @@ const schema = defineSchema({
     userId: v.id("users"),
     storageId: v.id("_storage"),
     fileName: v.string(),
+    displayName: v.optional(v.string()),
+    note: v.optional(v.string()),
     mimeType: v.string(),
     size: v.number(),
+    activateOnSuccess: v.optional(v.boolean()),
+    replacementForId: v.optional(v.id("resumeDocuments")),
     status: v.union(
       v.literal("processing"),
       v.literal("ready"),
@@ -276,6 +280,20 @@ const schema = defineSchema({
     skillIds: v.optional(v.array(v.id("catalogItems"))),
     normalizedLocation: v.optional(normalizedProfileLocation),
     totalExperienceMonths: v.optional(v.number()),
+    coreSkills: v.optional(v.array(v.string())),
+    normalizedPastRoles: v.optional(v.array(v.string())),
+    domains: v.optional(v.array(v.string())),
+    experienceByDomain: v.optional(
+      v.array(v.object({ domain: v.string(), months: v.number() })),
+    ),
+    extractedLanguages: v.optional(
+      v.array(
+        v.object({
+          languageCode: v.string(),
+          proficiency: languageProficiency,
+        }),
+      ),
+    ),
     confidence: v.optional(
       v.object({
         currentTitle: v.string(),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useAction, useMutation } from "convex/react";
 import { FileText, LoaderCircle, Sparkles, Upload } from "lucide-react";
 import { motion } from "motion/react";
@@ -11,6 +11,9 @@ import { CatalogMultiSelect } from "./reference-multi-select";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
 import type { CatalogOption, SelectedPlace } from "./profile-types";
 import { processingErrorKey } from "./resume-errors";
+import { cn } from "@/lib/utils";
+
+const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 
 type ResumeState = FunctionReturnType<typeof api.resumes.getCurrent>;
 
@@ -44,6 +47,7 @@ export function ResumeOnboarding({
   const [replacementStarted, setReplacementStarted] = useState(false);
   const visibleResume = replaceMode && !replacementStarted ? null : resume;
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roles, setRoles] = useState<CatalogOption[]>(
@@ -87,6 +91,14 @@ export function ResumeOnboarding({
 
   const upload = async (file: File) => {
     if (uploading) return;
+    if (!/\.(?:pdf|docx)$/iu.test(file.name)) {
+      setError("invalid");
+      return;
+    }
+    if (file.size > MAX_RESUME_BYTES) {
+      setError("tooLarge");
+      return;
+    }
     setReplacementStarted(true);
     setUploading(true);
     setError(null);
@@ -114,6 +126,16 @@ export function ResumeOnboarding({
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const dropResume = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (event.dataTransfer.files.length !== 1) {
+      setError("multiple");
+      return;
+    }
+    void upload(event.dataTransfer.files[0]);
   };
 
   const accept = async (editAfter = false) => {
@@ -321,16 +343,39 @@ export function ResumeOnboarding({
                 if (file) void upload(file);
               }}
             />
-            <Button
-              className="mt-7 min-h-12 w-full text-base"
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={t("resume.dropTitle")}
               onClick={() => inputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ")
+                  inputRef.current?.click();
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node))
+                  setDragging(false);
+              }}
+              onDrop={dropResume}
+              className={cn(
+                "border-border bg-muted/30 focus-visible:ring-ring/40 mt-7 rounded-2xl border border-dashed p-7 transition-[border-color,background-color,transform] outline-none focus-visible:ring-3",
+                dragging && "border-primary bg-primary/5 scale-[1.01]",
+              )}
             >
-              <Upload aria-hidden="true" />
-              {t("resume.uploadAction")}
-            </Button>
-            <p className="text-muted-foreground mt-3 text-xs">
-              {t("resume.fileHint")}
-            </p>
+              <Upload
+                aria-hidden="true"
+                className="text-primary mx-auto size-6"
+              />
+              <p className="mt-3 font-medium">{t("resume.dropTitle")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                {t("resume.fileHint")}
+              </p>
+            </div>
             {visibleError ? (
               <p role="alert" className="text-destructive mt-4 text-sm">
                 {t(`resume.errors.${visibleError}`)}

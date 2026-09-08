@@ -195,6 +195,159 @@ describe("CV-derived effective profiles", () => {
     );
   });
 
+  it("stores a second resume independently and switches the effective CV without losing manual location", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(first.resumeId, first.userId),
+    );
+    const user = asUser(t, first.userId);
+    await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: {
+        primaryLocation: telAviv,
+        preferredPlaceIds: [telAviv.placeId],
+        locationRadiusKm: 25,
+      },
+      onboardingStep: 4,
+      complete: false,
+    });
+    const second = await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(
+        new Blob(["second fixture"], { type: "application/pdf" }),
+      );
+      const now = Date.now();
+      return await ctx.db.insert("resumeDocuments", {
+        userId: first.userId,
+        storageId,
+        fileName: "product.pdf",
+        displayName: "Product",
+        note: "Product roles",
+        mimeType: "application/pdf",
+        size: 14,
+        status: "processing",
+        createdAt: now + 1,
+        updatedAt: now + 1,
+      });
+    });
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(second, first.userId, rishon),
+      currentTitle: "Product Manager",
+      targetRoles: ["Product Manager"],
+      skills: ["Product Strategy", "Analytics"],
+      normalizedPastRoles: ["Product Manager"],
+      domains: ["Product"],
+      experienceByDomain: [{ domain: "product", months: 48 }],
+    });
+    const library = await user.query(api.resumes.listMine);
+    expect(library).toHaveLength(2);
+    expect(library.find((item) => item.id === first.resumeId)?.isActive).toBe(
+      true,
+    );
+    expect(library.find((item) => item.id === second)?.displayName).toBe(
+      "Product",
+    );
+    await user.mutation(api.resumes.setActive, { resumeId: second });
+    const current = await user.query(api.resumes.getCurrent);
+    expect(current?.currentTitle).toBe("Product Manager");
+    expect(current?.location?.city).toBe("Tel Aviv");
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.manualOverrideFields,
+    ).toContain("location");
+  });
+
+  it("edits metadata and safely deletes inactive and active resumes", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(first.resumeId, first.userId),
+    );
+    const user = asUser(t, first.userId);
+    const second = await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(
+        new Blob(["second fixture"], { type: "application/pdf" }),
+      );
+      const now = Date.now();
+      return await ctx.db.insert("resumeDocuments", {
+        userId: first.userId,
+        storageId,
+        fileName: "second.pdf",
+        mimeType: "application/pdf",
+        size: 14,
+        status: "processing",
+        createdAt: now + 1,
+        updatedAt: now + 1,
+      });
+    });
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(second, first.userId),
+    );
+    await user.mutation(api.resumes.updateMetadata, {
+      resumeId: second,
+      displayName: "E-commerce",
+      note: "Management version",
+    });
+    expect(
+      (await user.query(api.resumes.listMine)).find(
+        (item) => item.id === second,
+      ),
+    ).toMatchObject({ displayName: "E-commerce", note: "Management version" });
+    await user.mutation(api.resumes.deleteResume, { resumeId: second });
+    expect(await user.query(api.resumes.listMine)).toHaveLength(1);
+    expect((await user.query(api.resumes.getCurrent))?.id).toBe(first.resumeId);
+    await user.mutation(api.resumes.deleteResume, { resumeId: first.resumeId });
+    expect(await user.query(api.resumes.listMine)).toHaveLength(0);
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.activeResumeId,
+    ).toBeUndefined();
+  });
+
+  it("replaces a resume file without losing its label or leaving the old record", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(first.resumeId, first.userId),
+    );
+    const user = asUser(t, first.userId);
+    await user.mutation(api.resumes.updateMetadata, {
+      resumeId: first.resumeId,
+      displayName: "Main CV",
+      note: "Primary version",
+    });
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(
+        new Blob(["replacement fixture"], { type: "application/pdf" }),
+      ),
+    );
+    const replacementId = await user.mutation(api.resumes.createFromUpload, {
+      storageId,
+      fileName: "replacement.pdf",
+      mimeType: "application/pdf",
+      size: 19,
+      replacementForId: first.resumeId,
+    });
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(replacementId, first.userId),
+    );
+    expect(
+      await t.run((ctx) => ctx.db.get("resumeDocuments", first.resumeId)),
+    ).toBeNull();
+    expect(await user.query(api.resumes.listMine)).toEqual([
+      expect.objectContaining({
+        id: replacementId,
+        displayName: "Main CV",
+        note: "Primary version",
+        isActive: true,
+      }),
+    ]);
+  });
+
   it("does not invent a location or complete a broken profile", async () => {
     const t = convexTest(schema, modules);
     const { userId, resumeId } = await seedUserAndResume(t);
