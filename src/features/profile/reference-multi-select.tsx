@@ -1,7 +1,7 @@
 import { useDeferredValue, useId, useRef, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import { useMutation, useQuery } from "convex/react";
-import { Check, LoaderCircle, Plus, X } from "lucide-react";
+import { Check, LoaderCircle, Lock, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,63 @@ function normalize(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase();
 }
 
+function SelectionCapacity({ count, max }: { count: number; max: number }) {
+  const { t } = useTranslation();
+  const atLimit = count >= max;
+  return (
+    <span
+      aria-label={t("onboarding.selectionCount", { count, max })}
+      className="flex items-center gap-2"
+    >
+      {max <= 6 ? (
+        <span aria-hidden="true" className="flex gap-1">
+          {Array.from({ length: max }, (_, index) => (
+            <span
+              key={index}
+              className={cn(
+                "h-1.5 w-4 rounded-full transition-colors",
+                index < count ? "bg-primary" : "bg-border",
+              )}
+            />
+          ))}
+        </span>
+      ) : null}
+      <span
+        className={cn(
+          "text-muted-foreground inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs tabular-nums transition-colors",
+          atLimit && "bg-primary/10 text-primary",
+        )}
+      >
+        {atLimit ? <Lock aria-hidden="true" className="size-3" /> : null}
+        {count}/{max}
+      </span>
+    </span>
+  );
+}
+
+function PickerItemIcon({
+  item,
+  atLimit,
+}: {
+  item: PickerOption;
+  atLimit: boolean;
+}) {
+  if (atLimit)
+    return (
+      <Lock
+        aria-hidden="true"
+        className="text-muted-foreground size-4 shrink-0"
+      />
+    );
+  if (item.create)
+    return <Plus aria-hidden="true" className="size-4 shrink-0" />;
+  return (
+    <Combobox.ItemIndicator className="grid size-4 shrink-0 place-items-center">
+      <Check aria-hidden="true" className="size-4" />
+    </Combobox.ItemIndicator>
+  );
+}
+
 function SharedPicker({
   label,
   hint,
@@ -55,6 +112,7 @@ function SharedPicker({
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const trimmedSearch = search.trim();
+  const atLimit = values.length >= maxItems;
   const exactMatch = [...values, ...(results ?? [])].some(
     (item) => normalize(item.label) === normalize(trimmedSearch),
   );
@@ -72,8 +130,10 @@ function SharedPicker({
         }
       : null;
   const uniqueItems = new Map<string, PickerOption>();
-  for (const item of values) uniqueItems.set(item.id, item);
-  for (const item of results ?? []) uniqueItems.set(item.id, item);
+  const selectedIds = new Set(values.map((item) => item.id));
+  for (const item of results ?? []) {
+    if (!selectedIds.has(item.id)) uniqueItems.set(item.id, item);
+  }
   if (createOption) uniqueItems.set(createOption.id, createOption);
   const items = [...uniqueItems.values()];
 
@@ -83,9 +143,7 @@ function SharedPicker({
         <label htmlFor={id} className="text-sm font-medium">
           {label}
         </label>
-        <span className="text-muted-foreground text-xs tabular-nums">
-          {values.length}/{maxItems}
-        </span>
+        <SelectionCapacity count={values.length} max={maxItems} />
       </div>
       <Combobox.Root
         items={items}
@@ -138,11 +196,16 @@ function SharedPicker({
                       </Combobox.ChipRemove>
                     </Combobox.Chip>
                   ))}
-                  <span className="flex min-w-28 flex-1 items-center">
+                  <span
+                    className={cn(
+                      "flex flex-1 items-center",
+                      values.length ? "min-w-8 basis-8" : "min-w-40 basis-40",
+                    )}
+                  >
                     <Combobox.Input
                       id={id}
                       placeholder={values.length ? "" : placeholder}
-                      disabled={isCreating || values.length >= maxItems}
+                      disabled={isCreating}
                       aria-invalid={Boolean(error)}
                       aria-describedby={
                         error
@@ -151,7 +214,10 @@ function SharedPicker({
                             ? hintId
                             : undefined
                       }
-                      className="placeholder:text-muted-foreground h-7 min-w-24 flex-1 border-0 bg-transparent px-1 text-sm outline-none disabled:cursor-not-allowed"
+                      className={cn(
+                        "placeholder:text-muted-foreground h-7 flex-1 border-0 bg-transparent px-1 text-sm outline-none disabled:cursor-not-allowed",
+                        values.length ? "min-w-6" : "min-w-24",
+                      )}
                     />
                     {results === undefined || isCreating ? (
                       <LoaderCircle
@@ -169,7 +235,12 @@ function SharedPicker({
         <Combobox.Portal>
           <Combobox.Positioner className="z-50 outline-none" sideOffset={6}>
             <Combobox.Popup className="bg-popover text-popover-foreground border-border max-h-[min(22rem,var(--available-height))] w-[var(--anchor-width)] max-w-[var(--available-width)] origin-[var(--transform-origin)] overflow-y-auto overscroll-contain rounded-xl border p-1.5 shadow-lg transition-[transform,opacity] duration-100 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
-              <Combobox.Empty className="text-muted-foreground px-3 py-4 text-center text-sm">
+              <Combobox.Empty
+                className={cn(
+                  "text-muted-foreground text-center text-sm",
+                  items.length === 0 && "px-3 py-4",
+                )}
+              >
                 {results === undefined
                   ? t("onboarding.searching")
                   : t("onboarding.noOptions")}
@@ -179,15 +250,10 @@ function SharedPicker({
                   <Combobox.Item
                     key={item.id}
                     value={item}
-                    className="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-10 cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none"
+                    disabled={atLimit}
+                    className="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-10 cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none data-disabled:cursor-not-allowed data-disabled:opacity-45"
                   >
-                    {item.create ? (
-                      <Plus aria-hidden="true" className="size-4 shrink-0" />
-                    ) : (
-                      <Combobox.ItemIndicator className="grid size-4 shrink-0 place-items-center">
-                        <Check aria-hidden="true" className="size-4" />
-                      </Combobox.ItemIndicator>
-                    )}
+                    <PickerItemIcon item={item} atLimit={atLimit} />
                     <span className="min-w-0 flex-1 truncate">
                       {item.create
                         ? t("onboarding.addMissing", { value: item.label })

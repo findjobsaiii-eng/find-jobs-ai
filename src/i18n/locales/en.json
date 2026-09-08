@@ -275,6 +275,7 @@
     "removeItem": "Remove {{item}}",
     "listLimitReached": "Maximum reached",
     "searching": "Searching…",
+    "selectionCount": "{{count}} of {{max}} selected",
     "noOptions": "No matching options",
     "custom": "Yours",
     "addMissing": "Add “{{value}}” for me",

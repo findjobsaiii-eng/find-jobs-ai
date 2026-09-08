@@ -275,6 +275,7 @@
     "removeItem": "הסרת {{item}}",
     "listLimitReached": "הגעת למספר המרבי",
     "searching": "מחפשים…",
+    "selectionCount": "{{count}} מתוך {{max}} נבחרו",
     "noOptions": "לא נמצאו אפשרויות מתאימות",
     "custom": "שלך",
     "addMissing": "הוספת ״{{value}}״ עבורי",
