@@ -1,8 +1,14 @@
 // @vitest-environment node
 
 import JSZip from "jszip";
-import { describe, expect, it } from "vitest";
-import { cleanExtractedResumeText, extractResumeText } from "./resumeActions";
+import { describe, expect, it, vi } from "vitest";
+import {
+  cleanExtractedResumeText,
+  extractResumeText,
+  insufficientTextFailureCode,
+  meaningfulCharacterCount,
+  resolveMammothExtractRawText,
+} from "./resumeActions";
 
 async function docxWithText(text: string) {
   const zip = new JSZip();
@@ -59,11 +65,50 @@ describe("CV text extraction", () => {
     expect(text).toContain("Shopify");
   });
 
+  it("supports Mammoth's CommonJS default export in the Convex bundle", async () => {
+    const extractRawText = vi.fn().mockResolvedValue({ value: "טקסט תקין" });
+    const resolved = resolveMammothExtractRawText({
+      default: { extractRawText },
+    });
+    await expect(resolved({ buffer: Buffer.from("fixture") })).resolves.toEqual(
+      { value: "טקסט תקין" },
+    );
+    expect(extractRawText).toHaveBeenCalledOnce();
+  });
+
   it("reads actual text from a PDF content stream", async () => {
     const bytes = pdfWithText("Product Manager with analytics experience");
     const text = await extractResumeText(new Blob([bytes]), "application/pdf");
     expect(text).toContain("Product Manager");
     expect(text).toContain("analytics");
+  });
+
+  it("detects PDF bytes even when the browser MIME is generic", async () => {
+    const bytes = pdfWithText("Operations Manager with ecommerce experience");
+    const text = await extractResumeText(
+      new Blob([bytes]),
+      "application/octet-stream",
+    );
+    expect(text).toContain("Operations Manager");
+  });
+
+  it("counts Hebrew letters as meaningful CV content", () => {
+    expect(
+      meaningfulCharacterCount("ניהול מסחר אלקטרוני Shopify"),
+    ).toBeGreaterThan(20);
+  });
+
+  it("distinguishes a scanned PDF from an empty DOCX", () => {
+    expect(insufficientTextFailureCode("pdf", " \n ")).toBe("SCANNED_PDF");
+    expect(insufficientTextFailureCode("docx", " \n ")).toBe(
+      "EMPTY_EXTRACTED_TEXT",
+    );
+    expect(
+      insufficientTextFailureCode(
+        "pdf",
+        "ניסיון מקצועי משמעותי בניהול מסחר אלקטרוני ופיתוח אתרים Shopify",
+      ),
+    ).toBeNull();
   });
 
   it("rejects malformed DOCX bytes and keeps empty extraction visibly empty", async () => {

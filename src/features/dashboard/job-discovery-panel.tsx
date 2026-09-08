@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarDays,
+  Check,
   CircleOff,
   ExternalLink,
   LoaderCircle,
@@ -140,6 +141,35 @@ export function JobDiscoveryPanel() {
                   ? postedTimestamp
                   : job.discoveredAt;
                 const skills = (job.requiredSkills ?? []).slice(0, 5);
+                const highlights = job.matchHighlights;
+                const explanations = [
+                  ...(highlights?.skills.length
+                    ? [
+                        t("jobDiscovery.match.skills", {
+                          skills: highlights.skills.slice(0, 2).join(" · "),
+                        }),
+                      ]
+                    : []),
+                  ...(highlights?.targetRole
+                    ? [
+                        t("jobDiscovery.match.targetRole", {
+                          role: highlights.targetRole,
+                        }),
+                      ]
+                    : highlights?.pastRole
+                      ? [t("jobDiscovery.match.pastRole")]
+                      : []),
+                  ...(highlights?.domain
+                    ? [
+                        t("jobDiscovery.match.domain", {
+                          domain: highlights.domain,
+                        }),
+                      ]
+                    : []),
+                  ...(highlights?.location
+                    ? [t("jobDiscovery.match.location")]
+                    : []),
+                ].slice(0, 3);
                 return (
                   <li key={job.id}>
                     <article
@@ -225,6 +255,26 @@ export function JobDiscoveryPanel() {
                         <p className="text-foreground/80 mt-4 line-clamp-3 text-sm leading-6">
                           {job.descriptionText}
                         </p>
+                      ) : null}
+
+                      {view === "suggestions" && explanations.length ? (
+                        <ul
+                          aria-label={t("jobDiscovery.match.heading")}
+                          className="text-primary mt-4 space-y-1.5 text-sm"
+                        >
+                          {explanations.map((explanation) => (
+                            <li
+                              key={explanation}
+                              className="flex items-start gap-2"
+                            >
+                              <Check
+                                aria-hidden="true"
+                                className="mt-1 size-3.5 shrink-0"
+                              />
+                              <span>{explanation}</span>
+                            </li>
+                          ))}
+                        </ul>
                       ) : null}
 
                       {skills.length ? (

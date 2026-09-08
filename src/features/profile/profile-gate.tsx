@@ -48,6 +48,7 @@ function ProfileRoute() {
     <ResumeOnboarding
       resume={resume}
       onEdit={() => void navigate("/profile")}
+      onComplete={() => void navigate("/")}
     />
   );
 }

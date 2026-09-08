@@ -10,6 +10,7 @@ import { AuthShell } from "@/features/auth/auth-shell";
 import { CatalogMultiSelect } from "./reference-multi-select";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
 import type { CatalogOption, SelectedPlace } from "./profile-types";
+import { processingErrorKey } from "./resume-errors";
 
 type ResumeState = FunctionReturnType<typeof api.resumes.getCurrent>;
 
@@ -26,10 +27,12 @@ function resumeLocation(state: ResumeState): SelectedPlace[] {
 export function ResumeOnboarding({
   resume,
   onEdit,
+  onComplete,
   replaceMode = false,
 }: {
   resume: ResumeState;
   onEdit: () => void;
+  onComplete?: () => void;
   replaceMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -50,6 +53,10 @@ export function ResumeOnboarding({
     resumeLocation(visibleResume),
   );
   const [analysisDelayDone, setAnalysisDelayDone] = useState(false);
+  const visibleError =
+    visibleResume?.status === "failed" && visibleResume.failureCode
+      ? processingErrorKey({ data: { code: visibleResume.failureCode } })
+      : error;
 
   useEffect(() => {
     const sync = window.setTimeout(() => {
@@ -87,7 +94,9 @@ export function ResumeOnboarding({
       const uploadUrl = await generateUploadUrl({});
       const response = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+        },
         body: file,
       });
       if (!response.ok) throw new Error("upload_failed");
@@ -99,8 +108,8 @@ export function ResumeOnboarding({
         size: file.size,
       });
       await processResume({ resumeId });
-    } catch {
-      setError("upload");
+    } catch (cause) {
+      setError(processingErrorKey(cause));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -136,6 +145,7 @@ export function ResumeOnboarding({
         ...(normalizedLocation ? { location: normalizedLocation } : {}),
       });
       if (editAfter) onEdit();
+      else onComplete?.();
     } catch {
       setError("review");
       setFinishing(false);
@@ -257,9 +267,9 @@ export function ResumeOnboarding({
                 radiusKm={25}
               />
             </div>
-            {error ? (
+            {visibleError ? (
               <p role="alert" className="text-destructive mt-4 text-sm">
-                {t(`resume.errors.${error}`)}
+                {t(`resume.errors.${visibleError}`)}
               </p>
             ) : null}
             <Button
@@ -321,9 +331,9 @@ export function ResumeOnboarding({
             <p className="text-muted-foreground mt-3 text-xs">
               {t("resume.fileHint")}
             </p>
-            {visibleResume?.status === "failed" || error ? (
+            {visibleError ? (
               <p role="alert" className="text-destructive mt-4 text-sm">
-                {t("resume.errors.upload")}
+                {t(`resume.errors.${visibleError}`)}
               </p>
             ) : null}
           </section>

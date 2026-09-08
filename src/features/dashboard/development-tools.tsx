@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
+  BarChart3,
   CheckCircle2,
   DatabaseZap,
   FileText,
@@ -45,6 +46,11 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
   >(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const matchAudit = useQuery(
+    api.jobDiscovery.getCurrentUserMatchAudit,
+    auditOpen ? {} : "skip",
+  );
   const paid = discoveryState?.plan !== "free";
   const busy = pending !== null || discoveryState?.runActive === true;
 
@@ -200,6 +206,67 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
             : "jobDiscovery.loadDemo",
         )}
       </Button>
+      <Button
+        variant="outline"
+        onClick={() => setAuditOpen((open) => !open)}
+        disabled={!discoveryState}
+        className="mt-2 min-h-11 w-full"
+        aria-expanded={auditOpen}
+      >
+        <BarChart3 aria-hidden="true" />
+        {t("jobDiscovery.audit.toggle")}
+      </Button>
+      {auditOpen ? (
+        <div className="border-border mt-3 max-h-80 overflow-auto rounded-xl border p-3">
+          {!matchAudit ? (
+            <p className="text-muted-foreground text-sm">
+              {t("jobDiscovery.audit.loading")}
+            </p>
+          ) : (
+            <>
+              <dl className="grid grid-cols-2 gap-2 text-xs">
+                {(
+                  [
+                    ["centralJobs", matchAudit.counts.centralJobs],
+                    [
+                      "activeAndCanonical",
+                      matchAudit.counts.activeAndCanonical,
+                    ],
+                    ["hardEligible", matchAudit.counts.hardEligible],
+                    ["aboveThreshold", matchAudit.counts.aboveThreshold],
+                    ["displayed", matchAudit.counts.displayed],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-muted-foreground">
+                      {t(`jobDiscovery.audit.${label}`)}
+                    </dt>
+                    <dd className="font-semibold">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <ol className="border-border mt-3 space-y-2 border-t pt-3 text-xs">
+                {matchAudit.candidates.map((candidate) => (
+                  <li key={candidate.jobId}>
+                    <p className="font-medium">
+                      {candidate.rank}. {candidate.title}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {candidate.companyName} · {candidate.relevanceScore} ·{" "}
+                      {t(`jobDiscovery.audit.${candidate.decision}`)}
+                    </p>
+                    {candidate.exclusionReasons.length ? (
+                      <p className="text-destructive/80">
+                        {candidate.exclusionReasons.join(" · ")}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+      ) : null}
       <Button
         variant="outline"
         onClick={() => void handleResumeDemo()}

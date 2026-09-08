@@ -16,6 +16,19 @@ const SUPPORTED_TYPES = new Set([
 ]);
 const MAX_BYTES = 10 * 1024 * 1024;
 
+const processingDiagnosticsValidator = v.object({
+  stage: v.string(),
+  detectedFileType: v.optional(v.string()),
+  byteSize: v.optional(v.number()),
+  pageCount: v.optional(v.number()),
+  extractedCharacterCount: v.optional(v.number()),
+  meaningfulCharacterCount: v.optional(v.number()),
+  extractionStatus: v.string(),
+  structuredParserStatus: v.string(),
+  technicalMessage: v.optional(v.string()),
+  updatedAt: v.number(),
+});
+
 async function requireUser(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
@@ -45,14 +58,19 @@ export const createFromUpload = mutation({
     const { userId } = await requireUser(ctx);
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     const type = metadata?.contentType ?? args.mimeType;
+    const extension = args.fileName.toLocaleLowerCase("en-US").split(".").pop();
+    if (!metadata) throw new ConvexError({ code: "FILE_NOT_FOUND" });
+    if (metadata.size > MAX_BYTES || args.size > MAX_BYTES) {
+      await ctx.storage.delete(args.storageId);
+      throw new ConvexError({ code: "FILE_TOO_LARGE" });
+    }
     if (
-      !metadata ||
-      !SUPPORTED_TYPES.has(type) ||
-      metadata.size > MAX_BYTES ||
-      args.size > MAX_BYTES
+      !SUPPORTED_TYPES.has(type) &&
+      extension !== "pdf" &&
+      extension !== "docx"
     ) {
       if (metadata) await ctx.storage.delete(args.storageId);
-      throw new ConvexError({ code: "UNSUPPORTED_RESUME" });
+      throw new ConvexError({ code: "UNSUPPORTED_MIME" });
     }
     const fileName = args.fileName.normalize("NFKC").trim().slice(0, 180);
     if (!fileName) throw new ConvexError({ code: "UNSUPPORTED_RESUME" });
@@ -102,6 +120,7 @@ const summaryValidator = v.object({
       placeId: v.string(),
       formattedAddress: v.string(),
       city: v.optional(v.string()),
+      administrativeArea: v.optional(v.string()),
       country: v.string(),
       countryCode: v.string(),
       latitude: v.number(),
@@ -134,6 +153,15 @@ export const getCurrent = query({
       .order("desc")
       .first();
     if (!resume) return null;
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const effectiveLocation = profile?.manualOverrideFields?.includes(
+      "location",
+    )
+      ? (profile.primaryLocation ?? null)
+      : (resume.normalizedLocation ?? profile?.primaryLocation ?? null);
     const selections = await Promise.all(
       [...(resume.targetJobTitleIds ?? []), ...(resume.skillIds ?? [])].map(
         (id) => ctx.db.get("catalogItems", id),
@@ -162,8 +190,8 @@ export const getCurrent = query({
           : Math.round((resume.totalExperienceMonths / 12) * 10) / 10,
       targetRoles: roles,
       skills,
-      location: resume.normalizedLocation ?? null,
-      needsLocation: !resume.normalizedLocation,
+      location: effectiveLocation,
+      needsLocation: !effectiveLocation,
       failureCode: resume.failureCode ?? null,
       createdAt: resume.createdAt,
     };
@@ -178,6 +206,27 @@ export const getOwnedForProcessing = internalQuery({
     return resume?.userId === args.userId && resume.status === "processing"
       ? resume
       : null;
+  },
+});
+
+export const recordProcessingDiagnostics = internalMutation({
+  args: {
+    resumeId: v.id("resumeDocuments"),
+    userId: v.id("users"),
+    diagnostics: processingDiagnosticsValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const resume = await ctx.db.get("resumeDocuments", args.resumeId);
+    if (resume?.userId === args.userId)
+      await ctx.db.patch("resumeDocuments", resume._id, {
+        processingDiagnostics: {
+          ...args.diagnostics,
+          technicalMessage: args.diagnostics.technicalMessage?.slice(0, 300),
+        },
+        updatedAt: Date.now(),
+      });
+    return null;
   },
 });
 
@@ -263,6 +312,7 @@ const locationValidator = v.union(
     placeId: v.string(),
     formattedAddress: v.string(),
     city: v.optional(v.string()),
+    administrativeArea: v.optional(v.string()),
     country: v.string(),
     countryCode: v.string(),
     latitude: v.number(),

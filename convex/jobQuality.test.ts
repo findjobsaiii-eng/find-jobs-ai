@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { evaluateJobQuality } from "./jobQuality";
+import {
+  evaluateJobQuality,
+  isDisplayEligibleJob,
+  MINIMUM_RELEVANCE_SCORE,
+} from "./jobQuality";
 
 const profile = {
-  targetJobTitles: ["E-commerce Manager"],
-  normalizedPastRoles: ["Website Manager"],
-  professionalDomains: ["E-commerce"],
+  targetJobTitles: ["E-commerce Manager", "Website Manager"],
+  currentRole: "E-commerce Site Manager",
+  normalizedPastRoles: ["E-commerce Site Manager", "Web Content Specialist"],
+  professionalDomains: ["E-commerce", "Retail website operations"],
   seniority: "mid",
-  skills: ["Shopify", "WooCommerce", "HTML", "CSS"],
+  skills: ["Shopify", "WooCommerce", "HTML", "CSS", "Catalog management"],
   yearsOfExperience: 5,
   location: {
     placeId: "geonames:293703",
@@ -24,12 +29,15 @@ const profile = {
   minimumMonthlySalaryIls: 0,
 };
 
-function job(requiredSkills: string[]) {
+function job(
+  overrides: Partial<Parameters<typeof evaluateJobQuality>[0]> = {},
+) {
   return {
     title: "E-commerce Manager",
-    descriptionText: "Manage an online store",
+    descriptionText: "Manage a retail online store and product catalog",
     requirementsText: null,
-    requiredSkills,
+    responsibilities: ["Own online-store operations"],
+    requiredSkills: ["Shopify", "Catalog management"],
     preferredSkills: [],
     requiredExperienceYearsMin: 3,
     requiredExperienceYearsMax: null,
@@ -39,10 +47,9 @@ function job(requiredSkills: string[]) {
     city: "Rishon LeZion",
     locationText: "Rishon LeZion",
     geo: {
-      placeId: "geonames:293703",
-      countryCode: "IL",
       latitude: 31.97102,
       longitude: 34.78939,
+      countryCode: "IL",
     },
     workArrangement: "hybrid" as const,
     employmentType: "full-time" as const,
@@ -50,30 +57,127 @@ function job(requiredSkills: string[]) {
     salaryCurrency: null,
     salaryPeriod: null,
     workAuthorizationRequirements: null,
+    ...overrides,
   };
 }
 
 describe("deterministic CV-backed relevance", () => {
-  it("ranks a role using effective target roles, skills, experience and location", () => {
-    const strong = evaluateJobQuality(job(["Shopify", "WooCommerce"]), profile);
-    const weaker = evaluateJobQuality(
-      job(["Magento", "Salesforce Commerce Cloud"]),
-      profile,
+  it("ranks a strong target-role match above the relevance threshold", () => {
+    const result = evaluateJobQuality(job(), profile);
+    expect(result.outcome).toBe("eligible");
+    expect(result.relevanceScore).toBeGreaterThanOrEqual(
+      MINIMUM_RELEVANCE_SCORE,
     );
-    expect(strong.outcome).toBe("eligible");
-    expect(strong.matchReasons).toEqual(
-      expect.arrayContaining(["target_role", "core_skills", "location"]),
+    expect(result.matchReasons).toEqual(
+      expect.arrayContaining(["target_role", "core_skills", "domain"]),
     );
-    expect(strong.relevanceScore).toBeGreaterThan(weaker.relevanceScore);
   });
 
-  it("can recognize a normalized past role without treating an unrelated role as relevant", () => {
+  it("ranks strong role and skills above generic title overlap", () => {
+    const strong = evaluateJobQuality(job(), profile);
+    const generic = evaluateJobQuality(
+      job({
+        title: "Digital Operations Manager",
+        descriptionText: "Coordinate general business operations",
+        responsibilities: ["Coordinate teams"],
+        requiredSkills: ["Communication", "Problem solving"],
+      }),
+      profile,
+    );
+    expect(strong.relevanceScore).toBeGreaterThan(generic.relevanceScore);
+    expect(generic.outcome).toBe("excluded");
+  });
+
+  it("does not let a generic manager token make a wrong domain relevant", () => {
+    const result = evaluateJobQuality(
+      job({
+        title: "PPC Manager",
+        descriptionText: "Own paid acquisition campaigns",
+        responsibilities: ["Manage ad spend"],
+        requiredSkills: ["Google Ads", "Paid media"],
+      }),
+      profile,
+    );
+    expect(result.outcome).toBe("excluded");
+    expect(result.exclusionReasons).toContain("professional_mismatch");
+  });
+
+  it("uses previous substantial roles without accepting unrelated roles", () => {
     expect(
-      evaluateJobQuality({ ...job([]), title: "Website Manager" }, profile)
-        .outcome,
+      evaluateJobQuality(
+        job({ title: "Website Manager", requiredSkills: [] }),
+        profile,
+      ).outcome,
     ).toBe("eligible");
     expect(
-      evaluateJobQuality({ ...job([]), title: "Accountant" }, profile).outcome,
+      evaluateJobQuality(
+        job({
+          title: "Accountant",
+          descriptionText: "Prepare financial reports",
+          responsibilities: ["Reconcile accounts"],
+          requiredSkills: ["Bookkeeping"],
+        }),
+        profile,
+      ).outcome,
     ).toBe("excluded");
+  });
+
+  it("reduces or excludes a material seniority mismatch", () => {
+    const matching = evaluateJobQuality(job(), profile);
+    const head = evaluateJobQuality(
+      job({ title: "Head of E-commerce" }),
+      profile,
+    );
+    expect(head.relevanceScore).toBeLessThan(matching.relevanceScore);
+    expect(head.exclusionReasons).toContain("seniority_conflict");
+  });
+
+  it("enforces the selected radius for onsite and hybrid jobs", () => {
+    const result = evaluateJobQuality(
+      job({
+        city: "Be'er Sheva",
+        locationText: "Be'er Sheva",
+        geo: {
+          latitude: 31.25297,
+          longitude: 34.79146,
+          countryCode: "IL",
+        },
+      }),
+      profile,
+    );
+    expect(result.outcome).toBe("excluded");
+    expect(result.exclusionReasons).toContain("location_conflict");
+  });
+
+  it("does not reject a remote role merely because it has no coordinates", () => {
+    const result = evaluateJobQuality(
+      job({
+        city: null,
+        locationText: "Remote, Israel",
+        geo: undefined,
+        workArrangement: "remote",
+      }),
+      profile,
+    );
+    expect(result.exclusionReasons).not.toContain("location_conflict");
+    expect(result.outcome).toBe("eligible");
+  });
+
+  it("keeps inactive and duplicate records out of the feed before ranking", () => {
+    const base = {
+      lifecycleStatus: "verified_active" as const,
+      canonicalJobId: undefined,
+      bestSourceId: "source-id",
+    };
+    expect(isDisplayEligibleJob(base as never)).toBe(true);
+    expect(
+      isDisplayEligibleJob({ ...base, lifecycleStatus: "closed" } as never),
+    ).toBe(false);
+    expect(
+      isDisplayEligibleJob({
+        ...base,
+        canonicalJobId: "canonical-id",
+      } as never),
+    ).toBe(false);
   });
 });

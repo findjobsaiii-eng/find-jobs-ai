@@ -109,6 +109,9 @@ const relevanceComponents = v.object({
   language: v.number(),
   education: v.number(),
   semantic: v.number(),
+  domain: v.optional(v.number()),
+  seniority: v.optional(v.number()),
+  preferences: v.optional(v.number()),
 });
 
 export const jobFeedItem = v.object({
@@ -133,6 +136,15 @@ export const jobFeedItem = v.object({
   lastVerifiedAt: v.number(),
   relevanceScore: v.number(),
   matchReasons: v.array(v.string()),
+  matchHighlights: v.optional(
+    v.object({
+      targetRole: v.optional(v.string()),
+      pastRole: v.optional(v.string()),
+      skills: v.array(v.string()),
+      domain: v.optional(v.string()),
+      location: v.boolean(),
+    }),
+  ),
   resultSource,
 });
 
@@ -272,6 +284,20 @@ const schema = defineSchema({
       }),
     ),
     failureCode: v.optional(v.string()),
+    processingDiagnostics: v.optional(
+      v.object({
+        stage: v.string(),
+        detectedFileType: v.optional(v.string()),
+        byteSize: v.optional(v.number()),
+        pageCount: v.optional(v.number()),
+        extractedCharacterCount: v.optional(v.number()),
+        meaningfulCharacterCount: v.optional(v.number()),
+        extractionStatus: v.string(),
+        structuredParserStatus: v.string(),
+        technicalMessage: v.optional(v.string()),
+        updatedAt: v.number(),
+      }),
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
     processedAt: v.optional(v.number()),

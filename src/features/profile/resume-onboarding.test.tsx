@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ConvexError } from "convex/values";
 import i18n, { initializeI18n } from "@/i18n";
 import { ResumeOnboarding } from "./resume-onboarding";
+import { processingErrorKey } from "./resume-errors";
 
 const hooks = vi.hoisted(() => ({
   generate: vi.fn(),
@@ -126,9 +128,37 @@ describe("resume-first onboarding", () => {
     });
   });
 
+  it("shows a specific message when a valid PDF has no text layer", async () => {
+    expect(processingErrorKey(new ConvexError({ code: "SCANNED_PDF" }))).toBe(
+      "scannedPdf",
+    );
+    render(
+      <ResumeOnboarding
+        resume={
+          {
+            ...readyResume,
+            status: "failed",
+            failureCode: "SCANNED_PDF",
+          } as never
+        }
+        onEdit={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText(/scanned PDF without selectable text/),
+    ).toBeInTheDocument();
+  });
+
   it("shows a compact summary and sends the effective profile straight to jobs", async () => {
     const user = userEvent.setup();
-    render(<ResumeOnboarding resume={readyResume as never} onEdit={vi.fn()} />);
+    const onComplete = vi.fn();
+    render(
+      <ResumeOnboarding
+        resume={readyResume as never}
+        onEdit={vi.fn()}
+        onComplete={onComplete}
+      />,
+    );
     expect(
       await screen.findByRole("heading", {
         name: "Your career profile is ready",
@@ -153,6 +183,7 @@ describe("resume-first onboarding", () => {
       city: "Rishon LeZion",
       radiusKm: 25,
     });
+    expect(onComplete).toHaveBeenCalledOnce();
   });
 
   it("asks only for the missing matching-critical location", async () => {

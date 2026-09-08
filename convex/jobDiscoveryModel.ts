@@ -89,8 +89,10 @@ export type SearchProfile = {
   languages: Array<{ languageCode: string; proficiency: string }>;
   minimumMonthlySalaryIls: number;
   normalizedPastRoles?: string[];
+  currentRole?: string;
   seniority?: string;
   professionalDomains?: string[];
+  experienceByDomain?: Array<{ domain: string; months: number }>;
 };
 
 export type NormalizedJob = OpenAIJob & {

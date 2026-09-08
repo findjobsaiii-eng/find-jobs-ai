@@ -63,8 +63,12 @@ const searchProfileValidator = v.object({
   ),
   minimumMonthlySalaryIls: v.number(),
   normalizedPastRoles: v.optional(v.array(v.string())),
+  currentRole: v.optional(v.string()),
   seniority: v.optional(v.string()),
   professionalDomains: v.optional(v.array(v.string())),
+  experienceByDomain: v.optional(
+    v.array(v.object({ domain: v.string(), months: v.number() })),
+  ),
 });
 const sourceVerificationValidator = v.object({
   activityStatus: v.union(
@@ -156,6 +160,55 @@ const verifiedJobInputValidator = v.object({
   job: jobInputValidator,
   verification: sourceVerificationValidator,
 });
+const auditScoreComponentsValidator = v.object({
+  role: v.number(),
+  requiredSkills: v.number(),
+  preferredSkills: v.number(),
+  experience: v.number(),
+  location: v.number(),
+  workArrangement: v.number(),
+  employmentType: v.number(),
+  language: v.number(),
+  education: v.number(),
+  semantic: v.number(),
+  domain: v.number(),
+  seniority: v.number(),
+  preferences: v.number(),
+});
+const matchAuditValidator = v.object({
+  profile: searchProfileValidator,
+  counts: v.object({
+    centralJobs: v.number(),
+    activeAndCanonical: v.number(),
+    hardEligible: v.number(),
+    aboveThreshold: v.number(),
+    displayed: v.number(),
+  }),
+  candidates: v.array(
+    v.object({
+      rank: v.number(),
+      jobId: v.id("jobs"),
+      title: v.string(),
+      companyName: v.string(),
+      relevanceScore: v.number(),
+      scoreComponents: auditScoreComponentsValidator,
+      exclusionReasons: v.array(v.string()),
+      matchReasons: v.array(v.string()),
+      sourceTier: v.union(
+        v.literal("employer"),
+        v.literal("ats"),
+        v.literal("job_board"),
+        v.literal("aggregator"),
+        v.null(),
+      ),
+      decision: v.union(
+        v.literal("strong"),
+        v.literal("acceptable"),
+        v.literal("reject"),
+      ),
+    }),
+  ),
+});
 
 async function requireUserId(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -246,8 +299,10 @@ async function loadSearchProfile(
     languages: profile.languages ?? [],
     minimumMonthlySalaryIls: profile.minimumMonthlySalaryIls ?? 0,
     normalizedPastRoles: profile.cvCareerProfile?.normalizedPastRoles ?? [],
+    currentRole: profile.cvCareerProfile?.currentTitle,
     seniority: profile.seniority,
     professionalDomains: profile.cvCareerProfile?.domains ?? [],
+    experienceByDomain: profile.cvCareerProfile?.experienceByDomain ?? [],
   };
 }
 
@@ -1115,8 +1170,18 @@ async function feedItem(
     lastVerifiedAt: source.lastVerifiedAt,
     relevanceScore: quality.relevanceScore,
     matchReasons: quality.matchReasons,
+    matchHighlights: quality.matchDetails,
     resultSource: "central" as const,
   };
+}
+
+function jobFreshness(job: { postedAt?: string | null; discoveredAt: number }) {
+  const parsed = job.postedAt ? Date.parse(job.postedAt) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : job.discoveredAt;
+}
+
+function feedSourcePriority(tier: string) {
+  return { employer: 4, ats: 3, job_board: 2, aggregator: 1 }[tier] ?? 0;
 }
 
 export const listCurrentUserJobs = query({
@@ -1189,10 +1254,109 @@ export const listCurrentUserJobs = query({
     jobs.sort(
       (a, b) =>
         b.relevanceScore - a.relevanceScore ||
-        (b.postedAt ? Date.parse(b.postedAt) || 0 : b.discoveredAt) -
-          (a.postedAt ? Date.parse(a.postedAt) || 0 : a.discoveredAt),
+        jobFreshness(b) - jobFreshness(a) ||
+        feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
     );
     return { jobs };
+  },
+});
+
+export const getCurrentUserMatchAudit = query({
+  args: {},
+  returns: matchAuditValidator,
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    if (env.DEV_TOOLS_ENABLED !== "true")
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    const profile = await loadSearchProfile(ctx, userId);
+    const [centralJobs, applications] = await Promise.all([
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt")
+        .order("desc")
+        .take(500),
+      ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
+    ]);
+    const appliedJobIds = new Set(applications.map((item) => item.jobId));
+    const evaluated = await Promise.all(
+      centralJobs.map(async (job) => {
+        const quality = evaluateJobQuality(job, profile);
+        const source = job.bestSourceId
+          ? await ctx.db.get("jobSources", job.bestSourceId)
+          : null;
+        const activeAndCanonical = Boolean(
+          isDisplayEligibleJob(job) &&
+          source?.activityStatus === "verified_active" &&
+          source.finalUrl &&
+          source.lastVerifiedAt,
+        );
+        const exclusionReasons = [
+          ...(!activeAndCanonical ? ["inactive_or_unverified"] : []),
+          ...quality.exclusionReasons,
+        ];
+        const accepted = activeAndCanonical && quality.outcome === "eligible";
+        return {
+          job,
+          source,
+          quality,
+          activeAndCanonical,
+          exclusionReasons,
+          accepted,
+          displayed: accepted && !appliedJobIds.has(job._id),
+        };
+      }),
+    );
+    evaluated.sort(
+      (a, b) =>
+        b.quality.relevanceScore - a.quality.relevanceScore ||
+        jobFreshness({
+          postedAt: b.job.postedAt,
+          discoveredAt: b.job.firstDiscoveredAt,
+        }) -
+          jobFreshness({
+            postedAt: a.job.postedAt,
+            discoveredAt: a.job.firstDiscoveredAt,
+          }) ||
+        feedSourcePriority(b.source?.sourceTier ?? "") -
+          feedSourcePriority(a.source?.sourceTier ?? ""),
+    );
+    return {
+      profile,
+      counts: {
+        centralJobs: centralJobs.length,
+        activeAndCanonical: evaluated.filter((item) => item.activeAndCanonical)
+          .length,
+        hardEligible: evaluated.filter(
+          (item) =>
+            item.activeAndCanonical && item.quality.hardEligibilityPassed,
+        ).length,
+        aboveThreshold: evaluated.filter((item) => item.accepted).length,
+        displayed: Math.min(
+          50,
+          evaluated.filter((item) => item.displayed).length,
+        ),
+      },
+      candidates: evaluated.slice(0, 20).map((item, index) => ({
+        rank: index + 1,
+        jobId: item.job._id,
+        title: item.job.title,
+        companyName: item.job.companyName,
+        relevanceScore: item.quality.relevanceScore,
+        scoreComponents: item.quality.scoreComponents,
+        exclusionReasons: item.exclusionReasons,
+        matchReasons: item.quality.matchReasons,
+        sourceTier: item.source?.sourceTier ?? null,
+        decision: item.accepted
+          ? item.quality.relevanceScore >= 78
+            ? ("strong" as const)
+            : ("acceptable" as const)
+          : ("reject" as const),
+      })),
+    };
   },
 });
 

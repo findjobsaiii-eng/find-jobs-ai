@@ -94,8 +94,8 @@
       "qualityDemo": "Demo jobs loaded for this account."
     },
     "retry": "Try again",
-    "emptyTitle": "Your next opportunity will appear here",
-    "emptyDescription": "Jobs from our shared database appear here when they match your profile.",
+    "emptyTitle": "No jobs currently match your profile.",
+    "emptyDescription": "Only jobs that pass your profile and location relevance threshold appear here.",
     "location": "Location",
     "arrangement": "Work arrangement",
     "salaryLabel": "Salary",
@@ -120,6 +120,14 @@
       "aggregator": "Aggregator"
     },
     "keySkills": "Key skills",
+    "match": {
+      "heading": "Why this job matches",
+      "skills": "Matches your experience with {{skills}}",
+      "targetRole": "Matches your target role: {{role}}",
+      "pastRole": "Matches your previous professional experience",
+      "domain": "Matches your experience in {{domain}}",
+      "location": "Within your selected location range"
+    },
     "noLongerActive": "This job is no longer active",
     "openPosting": "View job",
     "errors": {
@@ -138,7 +146,19 @@
     "loadDemo": "Load demo jobs",
     "loadingDemo": "Loading demo jobs…",
     "loadResumeDemo": "Preview CV onboarding",
-    "loadingResumeDemo": "Preparing CV preview…"
+    "loadingResumeDemo": "Preparing CV preview…",
+    "audit": {
+      "toggle": "Match quality report",
+      "loading": "Calculating matches…",
+      "centralJobs": "Central jobs",
+      "activeAndCanonical": "Active and canonical",
+      "hardEligible": "Passed hard filters",
+      "aboveThreshold": "Passed relevance threshold",
+      "displayed": "Displayed",
+      "strong": "strong",
+      "acceptable": "acceptable",
+      "reject": "rejected"
+    }
   },
   "resume": {
     "uploadTitle": "Upload your CV",
@@ -171,7 +191,12 @@
       "unknown": "Not stated"
     },
     "errors": {
-      "upload": "We couldn’t read this CV. Use a non-empty PDF or DOCX and try again.",
+      "upload": "The upload failed. Check your connection and try again.",
+      "invalid": "We couldn’t open this file. Save it again as a PDF or DOCX and retry.",
+      "scannedPdf": "This appears to be a scanned PDF without selectable text. Upload an original PDF or DOCX.",
+      "empty": "We couldn’t find text in this file.",
+      "parsing": "We read the file but couldn’t analyze the CV. Please try again.",
+      "tooLarge": "This file is too large. The maximum supported size is 10 MB.",
       "review": "We couldn’t save your profile. Please try again."
     }
   },

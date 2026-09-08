@@ -123,6 +123,10 @@ describe("CV-derived effective profiles", () => {
     );
     await user.mutation(api.resumes.finishReview, {
       targetJobTitleIds: resume!.targetRoles.map((role) => role.id),
+      location: {
+        ...rishon,
+        administrativeArea: "Central District",
+      },
     });
     const effective = await t.query(
       internal.jobDiscovery.getCurrentSearchProfile,
@@ -132,6 +136,10 @@ describe("CV-derived effective profiles", () => {
       expect.arrayContaining(["E-commerce Manager", "Website Manager"]),
     );
     expect(effective.location.city).toBe("Rishon LeZion");
+    expect(effective.location.administrativeArea).toBe("Central District");
+    expect(
+      (await user.query(api.resumes.getCurrent))?.location?.administrativeArea,
+    ).toBe("Central District");
     expect(
       (await user.query(api.candidateProfiles.getCurrent)).profile,
     ).toMatchObject({ onboardingCompleted: true, cvReviewPending: false });
@@ -182,6 +190,9 @@ describe("CV-derived effective profiles", () => {
       .profile;
     expect(profile?.primaryLocation?.city).toBe("Tel Aviv");
     expect(profile?.manualOverrideFields).toContain("location");
+    expect((await user.query(api.resumes.getCurrent))?.location?.city).toBe(
+      "Tel Aviv",
+    );
   });
 
   it("does not invent a location or complete a broken profile", async () => {
@@ -218,6 +229,22 @@ describe("CV-derived effective profiles", () => {
         size: 5,
       }),
     ).rejects.toThrow();
+
+    const genericMimeStorageId = await t.run((ctx) =>
+      ctx.storage.store(
+        new Blob(["%PDF-1.4 fixture"], {
+          type: "application/octet-stream",
+        }),
+      ),
+    );
+    await expect(
+      asUser(t, userId).mutation(api.resumes.createFromUpload, {
+        storageId: genericMimeStorageId,
+        fileName: "resume.pdf",
+        mimeType: "application/octet-stream",
+        size: 16,
+      }),
+    ).resolves.toBeTruthy();
   });
 
   it("fails safely when structured extraction has no usable roles or skills", async () => {

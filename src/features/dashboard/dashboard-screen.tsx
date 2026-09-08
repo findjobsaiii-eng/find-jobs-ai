@@ -87,6 +87,7 @@ function ResumeReplacement() {
       resume={resume}
       replaceMode
       onEdit={() => void navigate("/profile")}
+      onComplete={() => void navigate("/")}
     />
   );
 }
