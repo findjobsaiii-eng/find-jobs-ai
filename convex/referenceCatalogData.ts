@@ -12,7 +12,7 @@ const jobTitles: Omit<CatalogSeedItem, "kind">[] = [
     slug: "software-engineer",
     labelEn: "Software Engineer",
     labelHe: "מהנדס תוכנה",
-    aliases: ["Software Developer", "מפתח תוכנה"],
+    aliases: ["Software Developer", "מפתח תוכנה", "Programmer", "מתכנת"],
     priority: 100,
   },
   {
@@ -169,6 +169,36 @@ const jobTitles: Omit<CatalogSeedItem, "kind">[] = [
     priority: 76,
   },
   {
+    slug: "ecommerce-manager",
+    labelEn: "E-commerce Manager",
+    labelHe: "מנהל E-commerce",
+    aliases: [
+      "Ecommerce Manager",
+      "E-Commerce Manager",
+      "מנהל איקומרס",
+      "מנהל מסחר אלקטרוני",
+    ],
+    priority: 76,
+  },
+  {
+    slug: "website-manager",
+    labelEn: "Website Manager",
+    labelHe: "מנהל אתר",
+    aliases: ["Web Manager", "E-commerce Website Manager", "מנהל אתר איקומרס"],
+    priority: 76,
+  },
+  {
+    slug: "ecommerce-operations-manager",
+    labelEn: "E-commerce Operations Manager",
+    labelHe: "מנהל תפעול E-commerce",
+    aliases: [
+      "Ecommerce Operations Manager",
+      "Digital Commerce Operations Manager",
+      "מנהל תפעול איקומרס",
+    ],
+    priority: 76,
+  },
+  {
     slug: "digital-marketing-specialist",
     labelEn: "Digital Marketing Specialist",
     labelHe: "מומחה שיווק דיגיטלי",
@@ -240,13 +270,18 @@ const jobTitles: Omit<CatalogSeedItem, "kind">[] = [
     slug: "customer-service-representative",
     labelEn: "Customer Service Representative",
     labelHe: "נציג שירות לקוחות",
+    aliases: ["Customer Support Representative", "נציג תמיכה ושירות"],
     priority: 64,
   },
   {
     slug: "technical-support-specialist",
     labelEn: "Technical Support Specialist",
     labelHe: "מומחה תמיכה טכנית",
-    aliases: ["IT Support"],
+    aliases: [
+      "IT Support",
+      "Technical Support Representative",
+      "נציג תמיכה טכנית",
+    ],
     priority: 63,
   },
   {

@@ -71,6 +71,7 @@ export type OpenAIJob = z.infer<typeof openAIJobSchema>;
 
 export type SearchProfile = {
   targetJobTitles: string[];
+  targetRoleVariants?: Array<{ title: string; aliases: string[] }>;
   skills: string[];
   yearsOfExperience: number;
   location: {
@@ -170,26 +171,95 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
   const titles = uniqueNormalized(profile.targetJobTitles, 5).sort((a, b) =>
     normalizedKey(a).localeCompare(normalizedKey(b)),
   );
-  // Personal skills, salary and radius belong to filtering, not shared searches.
+  const roleVariants = new Map(
+    (profile.targetRoleVariants ?? []).map((role) => [
+      normalizeTitleIdentity(role.title),
+      role.aliases,
+    ]),
+  );
   const resolvedLocation = resolveJobGeography({
     city: profile.location.city ?? null,
     locationText: profile.location.formattedAddress,
     country: profile.location.country,
   });
-  const location =
-    resolvedLocation?.labelEn ??
-    profile.location.city ??
-    profile.location.administrativeArea ??
-    profile.location.formattedAddress;
+  const radius = profile.location.radiusKm;
+  const centralDistrict = ["Central District", "מרכז"];
+  const telAvivDistrict = ["Tel Aviv District", "מחוז תל אביב"];
+  const southernDistrict = ["Southern District", "דרום"];
+  const northernDistrict = ["Northern District", "צפון"];
+  const haifaDistrict = ["Haifa District", "מחוז חיפה"];
+  const jerusalemDistrict = ["Jerusalem District", "מחוז ירושלים"];
+  const districtAliases: Record<string, string[]> = {
+    central: centralDistrict,
+    center: centralDistrict,
+    מרכז: centralDistrict,
+    המרכז: centralDistrict,
+    telaviv: telAvivDistrict,
+    תלאביב: telAvivDistrict,
+    southern: southernDistrict,
+    south: southernDistrict,
+    דרום: southernDistrict,
+    הדרום: southernDistrict,
+    northern: northernDistrict,
+    north: northernDistrict,
+    צפון: northernDistrict,
+    הצפון: northernDistrict,
+    haifa: haifaDistrict,
+    חיפה: haifaDistrict,
+    jerusalem: jerusalemDistrict,
+    ירושלים: jerusalemDistrict,
+  };
+  const administrativeKey = normalizedKey(
+    profile.location.administrativeArea ?? "",
+  )
+    .replace(/\b(?:district|מחוז)\b/gu, "")
+    .replace(/[^\p{L}]+/gu, "")
+    .trim();
+  const locationScope =
+    radius <= 25
+      ? uniqueNormalized(
+          [
+            resolvedLocation?.labelEn ??
+              profile.location.city ??
+              profile.location.formattedAddress,
+            resolvedLocation?.labelHe ?? "",
+          ],
+          2,
+        )
+      : radius <= 75
+        ? (districtAliases[administrativeKey] ??
+          uniqueNormalized(
+            [
+              profile.location.administrativeArea ?? "Central District",
+              "Israel",
+            ],
+            2,
+          ))
+        : ["Israel", "ישראל"];
+  const skills = uniqueNormalized(profile.skills, 5).filter(
+    (skill) =>
+      !/^(?:management|operations|digital|technology|website|ניהול|תפעול)$/iu.test(
+        skill,
+      ),
+  );
+  const alternatives = (values: string[]) =>
+    `(${values.map((value) => `"${value.replace(/"/gu, "")}"`).join(" OR ")})`;
   const queryPlans = titles.slice(0, Math.min(maxQueries, 5)).map((title) => {
-    const generatedQuery = normalizeWhitespace(
-      `${title} ${location} ${profile.location.countryCode.toUpperCase()} jobs careers`,
+    const aliases = uniqueNormalized(
+      [title, ...(roleVariants.get(normalizeTitleIdentity(title)) ?? [])],
+      6,
     );
-    // Sharing identity must not depend on the display language returned by
-    // Google Places. Place IDs are stable across localized selections.
+    const generatedQuery = normalizeWhitespace(
+      `${alternatives(aliases)} ${skills.length ? alternatives(skills) : ""} ${alternatives(locationScope)} jobs`,
+    );
+    // Sharing identity follows the real provider query so users with the same
+    // role, skills, and geographic scope reuse one recent discovery run.
     const normalizedCriteria = JSON.stringify({
       role: normalizeTitleIdentity(title),
-      placeId: profile.location.placeId,
+      aliases: aliases.map(normalizeTitleIdentity).sort(),
+      skills: skills.map(normalizedKey).sort(),
+      locationScope: locationScope.map(normalizedKey).sort(),
+      radiusBand: radius <= 25 ? "city" : radius <= 75 ? "district" : "country",
       countryCode: profile.location.countryCode.toUpperCase(),
     });
     return {

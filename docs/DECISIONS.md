@@ -182,10 +182,8 @@ Outputs, an output-token limit, a tool-call limit, no response storage, and no
 automatic SDK retries.
 
 Application code creates one deterministic query for each unique target role,
-capped at five. Shared query identity contains the role and normalized location;
-personal skills, experience, salary, languages, and work preferences are applied
-later as database filters. Candidate name, email, profile summary, and other
-identifying text are excluded.
+capped at five. D-024 defines the current query composition and shared identity.
+Candidate name, email, profile summary, and other identifying text are excluded.
 
 An exact query fingerprint is claimed once per Israel calendar day across all
 users. Plan and global enforcement are defined in D-016.
@@ -211,7 +209,7 @@ returns central-database results before loading provider configuration or a
 search profile. Paid automatic searches remain behind the global kill switch and
 daily run/query/concurrency limits.
 
-Each unique normalized role-and-location query is atomically claimed once per
+Each exact normalized query criterion set is atomically claimed once per
 Israel calendar day across all users. A claim records its owning run so an older
 failure cannot clear a newer claim. Failures release their own claim for retry.
 Only one active run per user is allowed and stale reservations recover after ten
@@ -268,11 +266,11 @@ their value.
 Status: Accepted
 
 An hourly cron targets an internal mutation which scans completed profiles in
-pages of five. It queues only paid profiles and records one attempt per Israel
-calendar day. Free profiles are skipped before scheduling.
+pages of five. D-024 defines the Israel-time cohort schedule. It queues only
+paid profiles and records one attempt per Israel calendar day. Free profiles are
+skipped before scheduling.
 Internal Node workers process a page sequentially and schedule continuation;
-profile failures do not abort the rest of the page. Completion schedules the
-next eligible run through the hourly sweep. A plan with several unique target
+profile failures do not abort the rest of the page. A plan with several unique target
 roles generates one query per role, capped at five. Shared query claims prevent
 another user from repeating that provider query on the same day. The kill switch,
 global automatic limits, and provider accounting still apply.
@@ -365,11 +363,8 @@ must invoke the internal `jobMatching:dispatchAllUsers` dispatcher once after
 deployment; normal operation is mutation-driven and does not rescan every user
 and every job on an hourly cron.
 
-Shared provider-query identity uses the normalized role, Google Place ID, and
-country code, never localized address text. Human-readable provider queries use
-the canonical English GeoNames locality when resolvable. This lets Hebrew and
-English profiles reuse the same underlying search claim while keeping provider
-queries readable.
+Shared provider-query identity follows D-024. Canonical GeoNames locality labels
+keep Hebrew and English profiles on the same city-scoped search criteria.
 
 ## URL-based workspace navigation
 
@@ -421,3 +416,30 @@ Evidence: `convex/resumes.ts`, `convex/schema.ts`, `src/features/profile/resume-
 A candidate may keep several independently parsed resumes, each with its own private storage object, extracted career data, display label, and optional organizational note. Exactly one ready resume is active for matching. Switching the active resume rebuilds CV-derived profile fields and schedules materialized match reconciliation while preserving explicit manual overrides. Additional uploads remain inactive unless the user selects them. A successful file replacement preserves the resume label and note, swaps the active profile only when replacing the active resume, and removes the superseded storage object. Deleting an active resume selects the newest usable fallback; with no fallback it clears only CV-derived profile state and preserves manual profile choices and job history. Legacy single-resume users infer their newest usable resume as active until an explicit active ID is written.
 
 The first resume remains mandatory for CV-first onboarding. Resume-library controls appear only after a candidate has a completed profile.
+
+### D-024: Curated role aliases and radius-aware daily discovery
+
+Status: Accepted
+
+Evidence: `convex/referenceCatalogData.ts`, `convex/referenceData.ts`,
+`convex/jobDiscoveryModel.ts`, `convex/dailyDiscovery.ts`, and `convex/crons.ts`.
+
+Persist aliases on curated job-title catalog rows and include the canonical
+English label, canonical Hebrew label, and aliases in provider discovery.
+User-created private titles keep an empty alias list, since
+unreviewed personal terms must not alter shared catalog semantics. One query per
+target role combines at most six title variants, at most five non-generic skills
+from the effective profile, and one geographic alternative group. Radii through
+25 km use canonical GeoNames city labels, radii through 75 km use the Israeli
+district, and larger radii use Israel. Candidate identity and free text remain
+excluded. The normalized role, aliases, skills, scope, radius band, and country
+form the shared daily fingerprint.
+
+Split eligible paid users deterministically into ten stable cohorts. The hourly
+cron processes cohort 0 at 08:00 Israel time through cohort 9 at 17:00, using
+Israel time-zone conversion so daylight-saving changes do not shift the product
+schedule. Completing a paid profile, activating a parsed resume, or switching a
+development account to paid queues an immediate attempt when no attempt exists
+for that Israel calendar day. The same daily-attempt record prevents the
+immediate path and cohort path from duplicating work. Free users remain excluded
+from every provider-search scheduler.

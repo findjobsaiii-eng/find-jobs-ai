@@ -613,6 +613,9 @@ export const completeProcessing = internalMutation({
       await ctx.db.delete("resumeDocuments", replacement._id);
     }
     if (shouldActivate && (existing?.onboardingCompleted || usable)) {
+      await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+        userId: args.userId,
+      });
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
         userId: args.userId,
         lifecycleStatus: "verified_active",
@@ -802,6 +805,9 @@ export const setActive = mutation({
       cursor: null,
       expectedProfileRevision: now,
     });
+    await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+      userId,
+    });
     return null;
   },
 });
@@ -928,6 +934,9 @@ export const finishReview = mutation({
       lifecycleStatus: "verified_active",
       cursor: null,
       expectedProfileRevision: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+      userId,
     });
     return null;
   },

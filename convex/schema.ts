@@ -157,6 +157,7 @@ const schema = defineSchema({
     labelHe: v.optional(v.string()),
     normalizedKey: v.string(),
     normalizedLabels: v.array(v.string()),
+    aliases: v.optional(v.array(v.string())),
     searchText: v.string(),
     visibility: v.union(v.literal("public"), v.literal("private")),
     ownerUserId: v.optional(v.id("users")),

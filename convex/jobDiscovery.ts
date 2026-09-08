@@ -55,6 +55,9 @@ const locationValidator = v.object({
 });
 const searchProfileValidator = v.object({
   targetJobTitles: v.array(v.string()),
+  targetRoleVariants: v.optional(
+    v.array(v.object({ title: v.string(), aliases: v.array(v.string()) })),
+  ),
   skills: v.array(v.string()),
   yearsOfExperience: v.number(),
   location: locationValidator,
@@ -291,6 +294,21 @@ async function loadSearchProfile(
   if (!targetJobTitles.length) profileIncomplete();
   return {
     targetJobTitles,
+    targetRoleVariants: titles.flatMap((item) => {
+      const title = label(item);
+      if (!title) return [];
+      return [
+        {
+          title,
+          aliases:
+            item?.visibility === "public"
+              ? [item.labelHe, ...(item.aliases ?? [])].filter(
+                  (value): value is string => Boolean(value),
+                )
+              : [],
+        },
+      ];
+    }),
     skills: selectedSkills,
     yearsOfExperience: profile.yearsOfExperience ?? 0,
     location: profile.primaryLocation,
@@ -1130,6 +1148,11 @@ export const setDevelopmentPlan = mutation({
         source: "manual",
         createdAt: now,
         updatedAt: now,
+      });
+    }
+    if (args.plan === "pro") {
+      await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+        userId,
       });
     }
     return null;

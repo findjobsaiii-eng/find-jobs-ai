@@ -3,6 +3,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import { discoveryBucket, israelDiscoveryBucket } from "./dailyDiscovery";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -38,7 +39,7 @@ it("claims only paid completed profiles once per Israel day and continues beyond
       }
     }
   });
-  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  await t.mutation(internal.dailyDiscovery.dispatch, { bucket: null });
   const cursor = await t.run(async (ctx) => {
     expect(await ctx.db.query("dailyDiscoveryAttempts").collect()).toHaveLength(
       5,
@@ -49,8 +50,8 @@ it("claims only paid completed profiles once per Israel day and continues beyond
     const args = scheduled[0].args[0] as { cursor: string };
     return args.cursor;
   });
-  await t.mutation(internal.dailyDiscovery.dispatch, { cursor });
-  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  await t.mutation(internal.dailyDiscovery.dispatch, { cursor, bucket: null });
+  await t.mutation(internal.dailyDiscovery.dispatch, { bucket: null });
   const attempts = await t.run(async (ctx) =>
     ctx.db.query("dailyDiscoveryAttempts").collect(),
   );
@@ -69,6 +70,52 @@ it("claims only paid completed profiles once per Israel day and continues beyond
     ),
   ).toHaveLength(2);
 }, 15_000);
+
+it("spreads users over ten Israel-time hourly buckets", () => {
+  const buckets = new Set(
+    Array.from({ length: 1_000 }, (_, index) =>
+      discoveryBucket(`users:${index}`),
+    ),
+  );
+  expect([...buckets].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  expect(israelDiscoveryBucket(Date.parse("2026-09-08T05:00:00Z"))).toBe(0);
+  expect(israelDiscoveryBucket(Date.parse("2026-09-08T14:00:00Z"))).toBe(9);
+  expect(israelDiscoveryBucket(Date.parse("2026-09-08T15:00:00Z"))).toBeNull();
+});
+
+it("queues the first paid search immediately and only once per Israel day", async () => {
+  const t = convexTest(schema, modules);
+  const userId = await t.run(async (ctx) => {
+    const id = await ctx.db.insert("users", {});
+    await ctx.db.insert("candidateProfiles", {
+      userId: id,
+      email: "new@example.com",
+      onboardingCompleted: true,
+      onboardingStep: 4,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await ctx.db.insert("userEntitlements", {
+      userId: id,
+      plan: "pro",
+      active: true,
+      source: "manual",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    return id;
+  });
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  await t.run(async (ctx) => {
+    expect(await ctx.db.query("dailyDiscoveryAttempts").collect()).toHaveLength(
+      1,
+    );
+    expect(
+      await ctx.db.system.query("_scheduled_functions").collect(),
+    ).toHaveLength(1);
+  });
+});
 
 it("disables the manual action and panel by default even for signed-in users", async () => {
   vi.stubEnv("DEV_TOOLS_ENABLED", "false");

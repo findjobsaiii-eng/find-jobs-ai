@@ -101,6 +101,8 @@ async function addCompletedProfile(
     const titleId = await ctx.db.insert("catalogItems", {
       kind: "jobTitle",
       labelEn: "Frontend Engineer",
+      labelHe: "מפתח Frontend",
+      aliases: ["Front-end Developer", "מפתח פרונטאנד"],
       normalizedKey: "frontend engineer",
       normalizedLabels: ["frontend engineer"],
       searchText: "frontend engineer",
@@ -238,6 +240,22 @@ async function ingestCandidates(
 }
 
 describe("shared job discovery", () => {
+  it("loads persisted aliases for curated target roles", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    const profile = await t.query(
+      internal.jobDiscovery.getCurrentSearchProfile,
+      { userId },
+    );
+    expect(profile.targetRoleVariants).toEqual([
+      {
+        title: "Frontend Engineer",
+        aliases: ["מפתח Frontend", "Front-end Developer", "מפתח פרונטאנד"],
+      },
+    ]);
+  });
+
   it("returns central-only for free users without provider configuration", async () => {
     vi.stubEnv("DEV_TOOLS_ENABLED", "true");
     vi.stubEnv("OPENAI_API_KEY", "");
@@ -433,6 +451,58 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries).toHaveLength(2);
     expect(plan.generatedQueries.join(" ")).toContain("Frontend Engineer");
     expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
+  });
+
+  it("searches role aliases and strong skills in one city-scoped query", () => {
+    const plan = buildSearchPlan({
+      ...searchProfile,
+      targetJobTitles: ["Software Engineer"],
+      targetRoleVariants: [
+        {
+          title: "Software Engineer",
+          aliases: ["מהנדס תוכנה", "Software Developer", "מפתח תוכנה"],
+        },
+      ],
+      skills: ["React", "Node.js", "management"],
+    });
+    expect(plan.generatedQueries).toHaveLength(1);
+    expect(plan.generatedQueries[0]).toContain(
+      '"Software Engineer" OR "מהנדס תוכנה"',
+    );
+    expect(plan.generatedQueries[0]).toContain('"React" OR "Node.js"');
+    expect(plan.generatedQueries[0]).toContain('"Tel Aviv" OR "תל אביב-יפו"');
+    expect(plan.generatedQueries[0]).not.toContain("careers");
+    expect(plan.generatedQueries[0]).not.toContain('"management"');
+  });
+
+  it("expands location from city to district and then Israel by radius", () => {
+    const district = buildSearchPlan({
+      ...searchProfile,
+      location: { ...searchProfile.location, radiusKm: 60 },
+    });
+    const country = buildSearchPlan({
+      ...searchProfile,
+      location: { ...searchProfile.location, radiusKm: 100 },
+    });
+    const south = buildSearchPlan({
+      ...searchProfile,
+      location: {
+        ...searchProfile.location,
+        formattedAddress: "Netivot, Israel",
+        city: "Netivot",
+        administrativeArea: "South District",
+        latitude: 31.423,
+        longitude: 34.589,
+        radiusKm: 60,
+      },
+    });
+    expect(district.generatedQueries[0]).toContain(
+      '"Tel Aviv District" OR "מחוז תל אביב"',
+    );
+    expect(country.generatedQueries[0]).toContain('"Israel" OR "ישראל"');
+    expect(south.generatedQueries[0]).toContain(
+      '"Southern District" OR "דרום"',
+    );
   });
 
   it("keeps search sharing identity stable across localized place labels", () => {

@@ -2,10 +2,10 @@ import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
 
 const crons = cronJobs();
-// The hourly sweep only claims profiles whose daily attempt is due.
-crons.interval(
+// Run hourly; dispatch maps the current Israel hour to one of ten user cohorts.
+crons.cron(
   "daily profile job discovery",
-  { hours: 1 },
+  "7 * * * *",
   internal.dailyDiscovery.dispatch,
   {},
 );

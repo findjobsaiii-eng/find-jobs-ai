@@ -217,6 +217,7 @@ export const seedCatalog = internalMutation({
         labelHe: item.labelHe,
         normalizedKey: normalizedKey(item.labelEn),
         normalizedLabels,
+        aliases: item.aliases ?? [],
         searchText: labels.join(" "),
         visibility: "public" as const,
         source: "curated" as const,

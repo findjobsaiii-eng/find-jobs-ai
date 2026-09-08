@@ -12,6 +12,20 @@ import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
 import { searchJobsWithOpenAI } from "./openAIJobProvider";
 
+const discoveryBucketValidator = v.union(
+  v.null(),
+  v.literal(0),
+  v.literal(1),
+  v.literal(2),
+  v.literal(3),
+  v.literal(4),
+  v.literal(5),
+  v.literal(6),
+  v.literal(7),
+  v.literal(8),
+  v.literal(9),
+);
+
 const usageValidator = v.object({
   inputTokens: v.number(),
   outputTokens: v.number(),
@@ -210,6 +224,7 @@ export const runDailyBatch = internalAction({
   args: {
     userIds: v.array(v.id("users")),
     cursor: v.union(v.string(), v.null()),
+    bucket: v.optional(discoveryBucketValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -229,6 +244,7 @@ export const runDailyBatch = internalAction({
     if (args.cursor !== null) {
       await ctx.scheduler.runAfter(0, internal.dailyDiscovery.dispatch, {
         cursor: args.cursor,
+        bucket: args.bucket,
       });
     }
     return null;

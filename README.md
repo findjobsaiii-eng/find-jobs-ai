@@ -154,18 +154,28 @@ storage must reconfirm and save their location before starting another search.
 Previously stored 50 km and 200 km radii remain valid and can be changed to a
 current preset.
 Curated job titles and skills can be updated idempotently with
-`npm run catalog:seed`.
+`npm run catalog:seed`. Curated job-title rows also store editable bilingual
+aliases used by discovery. Private titles added by users deliberately have no
+shared aliases.
 
 ### Daily job discovery
 
 Paid users with completed profiles receive a daily discovery attempt without
-opening the app. An hourly Convex cron scans completed profiles in pages of five
-and atomically claims those due for the current Israel calendar day. Sequential
-workers create one deterministic query for each unique target role, up to five,
-and call the OpenAI Responses API with Web Search from a server action. Free
-users never enter this provider path; their feed is assembled only from jobs
-already stored in the central database. The browser never receives the API key,
-selected model, prompts, or raw provider response.
+opening the app. Ten deterministic user cohorts run hourly from 08:00 through
+17:00 Israel time. A newly completed paid profile is queued immediately if it
+has not already received that day's attempt. Sequential workers create one
+deterministic query for each unique target role, up to five, and call the OpenAI
+Responses API with Web Search from a server action. Free users never enter this
+provider path; their feed is assembled only from jobs already stored in the
+central database. The browser never receives the API key, selected model,
+prompts, or raw provider response.
+
+Each role query combines the curated title and its aliases, up to five
+non-generic profile skills, and a radius-aware geographic scope. Radii through
+25 km use the canonical city, radii through 75 km use the district, and larger
+radii use Israel. The exact role, aliases, skills, and geographic scope form the
+daily shared-query identity, so identical searches are performed once even when
+several users need them.
 
 The Convex deployment requires these additional server-only variables:
 
@@ -193,7 +203,7 @@ values.
 Automatic searches reserve global capacity atomically before the provider
 request. Internal plans are `free`, `pro`, and `admin`; users default to `free`.
 An automatic query is claimed once per Israel calendar day across all users, so
-two users seeking the same role and location share the same provider work.
+two users seeking the same role, skills, and geographic scope share the same provider work.
 Failed claims are released for retry. The automatic path remains protected by
 the kill switch and global daily run, query, concurrency, and output-token
 limits.
@@ -278,9 +288,10 @@ The development match audit remains a bounded recent-catalog diagnostic sample;
 it is not the source of feed completeness. The materialized reconciliation
 pipeline described above is the authoritative suggestion path.
 
-The daily sweep runs hourly, with at most one automatic attempt per eligible paid
-profile on an Israel calendar day. New completed paid profiles join the next
-sweep. No browser session is required. Failures are recorded in
+The daily sweep runs the matching cohort hourly from 08:00 through 17:00 Israel
+time, with at most one automatic attempt per eligible paid profile on an Israel
+calendar day. New completed paid profiles are queued immediately. No browser
+session is required. Failures are recorded in
 `dailyDiscoveryAttempts.lastOutcome`; a failed shared-query claim may be retried
 by another eligible user.
 

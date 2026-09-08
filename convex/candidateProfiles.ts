@@ -653,6 +653,9 @@ export const saveCurrent = mutation({
       const updated = await ctx.db.get("candidateProfiles", existing._id);
       if (!updated) throw new Error("Candidate profile update failed");
       if (updated.onboardingCompleted) {
+        await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+          userId,
+        });
         await ctx.scheduler.runAfter(
           0,
           internal.jobMatching.reconcileUserPage,
@@ -679,6 +682,9 @@ export const saveCurrent = mutation({
     const created = await ctx.db.get("candidateProfiles", id);
     if (!created) throw new Error("Candidate profile creation failed");
     if (created.onboardingCompleted) {
+      await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
+        userId,
+      });
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
         userId,
         lifecycleStatus: "verified_active",
