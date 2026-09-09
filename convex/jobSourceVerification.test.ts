@@ -35,6 +35,7 @@ describe("deterministic source activity classification", () => {
       activeEvidenceType: "active_application_flow",
       identityMatched: true,
       applicationAvailable: true,
+      applicationUrl: "https://careers.example.com/jobs/12345/apply",
     });
   });
 

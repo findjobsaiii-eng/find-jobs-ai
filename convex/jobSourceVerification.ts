@@ -7,6 +7,7 @@ import { isIP } from "node:net";
 import type { IncomingHttpHeaders } from "node:http";
 import type { NormalizedJob } from "./jobDiscoveryModel";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
+import { classifyJobSource } from "./jobSourceQuality";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 const DNS_TIMEOUT_MS = 3_000;
@@ -26,6 +27,7 @@ export type SourceVerification = {
   activeEvidenceType: string | null;
   identityMatched: boolean;
   applicationAvailable: boolean;
+  applicationUrl?: string | null;
   structuredDatePosted: string | null;
   structuredValidThrough: string | null;
   structuredJobIdentifier: string | null;
@@ -40,20 +42,22 @@ export type VerifiableJob = Pick<
   "title" | "companyName" | "sourceUrl" | "sourceType"
 >;
 
-const ATS_DOMAINS = [
+const SHARED_RATE_LIMIT_DOMAINS = [
+  "comeet.co",
+  "comeet.com",
   "greenhouse.io",
   "lever.co",
   "myworkdayjobs.com",
   "smartrecruiters.com",
   "ashbyhq.com",
   "recruitee.com",
-] as const;
-const JOB_BOARD_DOMAINS = [
+  "workable.com",
+  "drushim.co.il",
+  "jobmaster.co.il",
+  "alljobs.co.il",
+  "jobify360.co.il",
   "linkedin.com",
   "indeed.com",
-  "glassdoor.com",
-  "alljobs.co.il",
-  "drushim.co.il",
 ] as const;
 
 function domainMatches(hostname: string, domain: string) {
@@ -272,16 +276,7 @@ function sourceTier(
   job: VerifiableJob,
   hostname: string,
 ): SourceVerification["sourceTier"] {
-  if (ATS_DOMAINS.some((domain) => domainMatches(hostname, domain)))
-    return "ats";
-  if (job.sourceType === "employer") return "employer";
-  if (
-    job.sourceType === "job_board" ||
-    JOB_BOARD_DOMAINS.some((domain) => domainMatches(hostname, domain))
-  ) {
-    return "job_board";
-  }
-  return "aggregator";
+  return classifyJobSource(hostname, job.sourceType).sourceTier;
 }
 
 function externalJobId(url: URL) {
@@ -450,10 +445,33 @@ function hasApplicationAction(html: string) {
   );
 }
 
+function applicationUrl(html: string, baseUrl: string) {
+  for (const link of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)) {
+    const attributes = link[1];
+    const label = visibleText(link[2]);
+    const href = attributes.match(/href=["']([^"']+)["']/iu)?.[1] ?? "";
+    if (
+      !/(?:apply|application|candidate|מועמדות)/iu.test(href) ||
+      !/(?:apply|submit|application|הגש|מועמדות)/iu.test(
+        `${label} ${attributes}`,
+      )
+    ) {
+      continue;
+    }
+    try {
+      const normalized = normalizePublicUrl(new URL(href, baseUrl).toString());
+      if (normalized) return normalized;
+    } catch {
+      // A malformed action URL is not a usable application destination.
+    }
+  }
+  return null;
+}
+
 export function verificationRateLimitKey(sourceUrl: string) {
   try {
     const hostname = new URL(sourceUrl).hostname.toLocaleLowerCase("en-US");
-    const sharedDomain = [...ATS_DOMAINS, ...JOB_BOARD_DOMAINS].find((domain) =>
+    const sharedDomain = SHARED_RATE_LIMIT_DOMAINS.find((domain) =>
       domainMatches(hostname, domain),
     );
     return sharedDomain ?? hostname;
@@ -631,12 +649,14 @@ export function classifySourceResponse(args: {
   const structuredDeadline = parseTimestamp(structured.validThrough);
   const structuredPostedAt = parseTimestamp(structured.datePosted);
   const applicationAvailable = hasApplicationAction(postingHtml);
+  const directApplicationUrl = applicationUrl(postingHtml, normalizedUrl);
   const evidence = {
     ...common,
     structuredDatePosted: structured.datePosted,
     structuredValidThrough: structured.validThrough,
     structuredJobIdentifier: structured.identifier,
     applicationAvailable,
+    applicationUrl: directApplicationUrl,
   };
   if (
     structured.matched &&

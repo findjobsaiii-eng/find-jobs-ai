@@ -560,6 +560,7 @@ const schema = defineSchema({
     activeEvidenceType: v.optional(v.string()),
     identityMatched: v.optional(v.boolean()),
     applicationAvailable: v.optional(v.boolean()),
+    applicationUrl: v.optional(v.string()),
     structuredDatePosted: v.optional(v.string()),
     structuredValidThrough: v.optional(v.string()),
     structuredJobIdentifier: v.optional(v.string()),

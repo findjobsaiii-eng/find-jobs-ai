@@ -13,6 +13,10 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
 import {
+  classifyJobSource,
+  sourcePriority as sourceTierPriority,
+} from "./jobSourceQuality";
+import {
   isDevelopmentFixtureJob,
   isUserFacingJobSource,
 } from "./jobSourceProvenance";
@@ -50,6 +54,7 @@ const verificationValidator = v.object({
   activeEvidenceType: v.union(v.string(), v.null()),
   identityMatched: v.boolean(),
   applicationAvailable: v.boolean(),
+  applicationUrl: v.optional(v.union(v.string(), v.null())),
   structuredDatePosted: v.union(v.string(), v.null()),
   structuredValidThrough: v.union(v.string(), v.null()),
   structuredJobIdentifier: v.union(v.string(), v.null()),
@@ -89,44 +94,18 @@ function storedSourceUrls(job: Doc<"jobs">) {
 
 function recoveredSourceTier(job: Doc<"jobs">, normalizedUrl: string) {
   const hostname = new URL(normalizedUrl).hostname.toLocaleLowerCase("en-US");
-  const matches = (domain: string) =>
-    hostname === domain || hostname.endsWith(`.${domain}`);
-  if (
-    [
-      "greenhouse.io",
-      "lever.co",
-      "myworkdayjobs.com",
-      "smartrecruiters.com",
-      "ashbyhq.com",
-      "recruitee.com",
-    ].some(matches)
-  )
-    return "ats" as const;
-  if (
-    [
-      "linkedin.com",
-      "indeed.com",
-      "glassdoor.com",
-      "alljobs.co.il",
-      "drushim.co.il",
-    ].some(matches)
-  )
-    return "job_board" as const;
-  if (normalizedUrl === job.normalizedSourceUrl) {
-    return job.sourceType === "other"
-      ? ("aggregator" as const)
-      : job.sourceType;
-  }
-  return "employer" as const;
+  const declared =
+    normalizedUrl === job.normalizedSourceUrl ? job.sourceType : undefined;
+  return classifyJobSource(hostname, declared).sourceTier;
 }
 
 function sourcePriority(source: {
   sourceTier: string;
   lastVerifiedAt?: number;
 }) {
-  const tier = { employer: 1, ats: 2, job_board: 3, aggregator: 4 }[
-    source.sourceTier as "employer" | "ats" | "job_board" | "aggregator"
-  ];
+  const tier = sourceTierPriority(
+    source.sourceTier as "employer" | "ats" | "job_board" | "aggregator",
+  );
   return [tier, -(source.lastVerifiedAt ?? 0)] as const;
 }
 
@@ -694,6 +673,7 @@ export const recordVerification = internalMutation({
         activeEvidenceType: args.verification.activeEvidenceType ?? undefined,
         identityMatched: args.verification.identityMatched,
         applicationAvailable: args.verification.applicationAvailable,
+        applicationUrl: args.verification.applicationUrl ?? undefined,
         structuredDatePosted:
           args.verification.structuredDatePosted ?? undefined,
         structuredValidThrough:

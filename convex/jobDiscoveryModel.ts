@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveJobGeography, type JobGeography } from "./jobGeography";
+import { DISCOVERY_SOURCE_GUIDANCE } from "./jobSourceQuality";
 
 export const JOB_DISCOVERY_LIMITS = {
   maxQueries: 5,
@@ -250,7 +251,7 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       6,
     );
     const generatedQuery = normalizeWhitespace(
-      `${alternatives(aliases)} ${skills.length ? alternatives(skills) : ""} ${alternatives(locationScope)} jobs`,
+      `${alternatives(aliases)} ${skills.length ? alternatives(skills) : ""} ${alternatives(locationScope)} jobs. ${DISCOVERY_SOURCE_GUIDANCE}`,
     );
     // Sharing identity follows the real provider query so users with the same
     // role, skills, and geographic scope reuse one recent discovery run.
@@ -261,6 +262,7 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       locationScope: locationScope.map(normalizedKey).sort(),
       radiusBand: radius <= 25 ? "city" : radius <= 75 ? "district" : "country",
       countryCode: profile.location.countryCode.toUpperCase(),
+      coverageVersion: "israel_source_mix_v1",
     });
     return {
       generatedQuery,

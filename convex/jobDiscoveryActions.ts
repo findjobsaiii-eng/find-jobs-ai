@@ -104,6 +104,17 @@ export const discoverJobsForCurrentUser = action({
   },
 });
 
+export const discoverJobsForUserDevelopment = internalAction({
+  args: { userId: v.id("users") },
+  returns: resultValidator,
+  handler: async (ctx, args): Promise<DiscoveryResult> => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    return await discoverForUser(ctx, args.userId, true);
+  },
+});
+
 async function discoverForUser(
   ctx: ActionCtx,
   userId: Id<"users">,

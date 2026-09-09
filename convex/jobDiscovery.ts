@@ -28,6 +28,11 @@ import type { SearchProfile } from "./jobDiscoveryModel";
 import { normalizedKey, normalizePublicUrl } from "./jobDiscoveryModel";
 import { locationNamesForGeography } from "./jobGeography";
 import {
+  classifyJobSource,
+  sourcePriority as sourceTierPriority,
+} from "./jobSourceQuality";
+import { DISCOVERY_SOURCE_FAMILIES } from "./jobSourceQuality";
+import {
   isDevelopmentFixtureJob,
   isUserFacingJobSource,
 } from "./jobSourceProvenance";
@@ -111,6 +116,7 @@ const sourceVerificationValidator = v.object({
   activeEvidenceType: v.union(v.string(), v.null()),
   identityMatched: v.boolean(),
   applicationAvailable: v.boolean(),
+  applicationUrl: v.optional(v.union(v.string(), v.null())),
   structuredDatePosted: v.union(v.string(), v.null()),
   structuredValidThrough: v.union(v.string(), v.null()),
   structuredJobIdentifier: v.union(v.string(), v.null()),
@@ -247,6 +253,37 @@ const matchAuditValidator = v.object({
         v.literal("acceptable"),
         v.literal("reject"),
       ),
+    }),
+  ),
+});
+const sourceCoverageValidator = v.object({
+  totals: v.object({
+    employerOrAtsJobs: v.number(),
+    majorJobBoardJobs: v.number(),
+    secondaryOnlyJobs: v.number(),
+    directApplicationJobs: v.number(),
+  }),
+  sources: v.array(
+    v.object({
+      family: v.string(),
+      domain: v.string(),
+      canonicalJobs: v.number(),
+      active: v.number(),
+      unknown: v.number(),
+      closed: v.number(),
+      expired: v.number(),
+      suggestions: v.number(),
+      directApplication: v.number(),
+    }),
+  ),
+  recentSearches: v.array(
+    v.object({
+      query: v.string(),
+      searchedFamilies: v.array(v.string()),
+      producedFamilies: v.array(
+        v.object({ family: v.string(), count: v.number() }),
+      ),
+      uniqueCanonicalJobs: v.number(),
     }),
   ),
 });
@@ -621,29 +658,7 @@ export const markProviderStarted = internalMutation({
 });
 
 function sourcePriority(source: Doc<"jobSources">) {
-  return { employer: 1, ats: 2, job_board: 3, aggregator: 4 }[
-    source.sourceTier
-  ];
-}
-
-const ATS_HOSTS = [
-  "greenhouse.io",
-  "lever.co",
-  "myworkdayjobs.com",
-  "smartrecruiters.com",
-  "ashbyhq.com",
-  "recruitee.com",
-] as const;
-const JOB_BOARD_HOSTS = [
-  "linkedin.com",
-  "indeed.com",
-  "glassdoor.com",
-  "alljobs.co.il",
-  "drushim.co.il",
-] as const;
-
-function hostMatches(hostname: string, domain: string) {
-  return hostname === domain || hostname.endsWith(`.${domain}`);
+  return sourceTierPriority(source.sourceTier);
 }
 
 function inferredSourceTier(
@@ -651,15 +666,7 @@ function inferredSourceTier(
   declared?: "employer" | "ats" | "job_board" | "other",
 ): Doc<"jobSources">["sourceTier"] {
   const hostname = new URL(normalizedUrl).hostname.toLocaleLowerCase("en-US");
-  if (ATS_HOSTS.some((domain) => hostMatches(hostname, domain))) return "ats";
-  if (JOB_BOARD_HOSTS.some((domain) => hostMatches(hostname, domain))) {
-    return "job_board";
-  }
-  if (declared === "ats" || declared === "job_board") return declared;
-  if (declared === "other") return "aggregator";
-  // A public posting on an otherwise unknown company domain is the best
-  // available employer-source candidate; verification still gates display.
-  return "employer";
+  return classifyJobSource(hostname, declared).sourceTier;
 }
 
 function compatibleRequirements(
@@ -898,6 +905,9 @@ async function upsertSource(
     applicationAvailable: temporaryFailure
       ? existingSource?.applicationAvailable
       : args.verification.applicationAvailable,
+    applicationUrl: temporaryFailure
+      ? existingSource?.applicationUrl
+      : (args.verification.applicationUrl ?? undefined),
     structuredDatePosted: temporaryFailure
       ? existingSource?.structuredDatePosted
       : (args.verification.structuredDatePosted ?? undefined),
@@ -1023,10 +1033,54 @@ async function refreshBestSource(
       bestSource: best,
     }),
     closedAt: lifecycle.closedAt,
-    lastDiscoveredAt: now,
   });
   return best ?? null;
 }
+
+export const reclassifySourcesForDevelopment = internalMutation({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    changed: v.number(),
+    processed: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    done: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    const page = await ctx.db.query("jobSources").paginate({
+      cursor: args.cursor,
+      numItems: Math.min(Math.max(args.limit ?? 100, 1), 200),
+    });
+    const affected = new Set<Id<"jobs">>();
+    let changed = 0;
+    for (const source of page.page) {
+      const declared =
+        source.sourceTier === "aggregator"
+          ? "other"
+          : source.sourceTier === "employer"
+            ? "employer"
+            : source.sourceTier;
+      const next = classifyJobSource(source.domain, declared).sourceTier;
+      if (next === source.sourceTier) continue;
+      await ctx.db.patch("jobSources", source._id, { sourceTier: next });
+      affected.add(source.jobId);
+      changed += 1;
+    }
+    for (const jobId of affected)
+      await refreshBestSource(ctx, jobId, Date.now());
+    return {
+      changed,
+      processed: page.page.length,
+      cursor: page.isDone ? null : page.continueCursor,
+      done: page.isDone,
+    };
+  },
+});
 
 export const completeSearch = internalMutation({
   args: {
@@ -1366,7 +1420,7 @@ async function feedItem(
     requiredSkills: job.requiredSkills.slice(0, 6),
     postedAt: job.postedAt,
     unavailable: false,
-    sourceUrl: source.finalUrl,
+    sourceUrl: source.applicationUrl ?? source.finalUrl,
     sourceName: source.sourceName ?? source.domain ?? null,
     sourceTier: source.sourceTier,
     locationText: job.locationText,
@@ -1737,6 +1791,210 @@ export const getCurrentUserMatchAudit = query({
     if (env.DEV_TOOLS_ENABLED !== "true")
       throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
     return await buildMatchAudit(ctx, userId);
+  },
+});
+
+async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
+  const profileRecord = await getProfile(ctx, userId);
+  const [jobs, sources, discoveries, matches] = await Promise.all([
+    ctx.db.query("jobs").take(500),
+    ctx.db.query("jobSources").take(1000),
+    ctx.db
+      .query("jobDiscoveries")
+      .withIndex("by_userId_and_discoveredAt", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(200),
+    profileRecord
+      ? ctx.db
+          .query("jobMatches")
+          .withIndex(
+            "by_userId_profileRevision_displayEligible_relevanceScore",
+            (q) =>
+              q
+                .eq("userId", userId)
+                .eq("profileRevision", profileRecord.updatedAt)
+                .eq("displayEligible", true),
+          )
+          .take(100)
+      : Promise.resolve([]),
+  ]);
+  const sourceJobIds = new Set(
+    sources.filter(isUserFacingJobSource).map((source) => source.jobId),
+  );
+  const fixtureJobIds = new Set(
+    sources
+      .filter((source) => !isUserFacingJobSource(source))
+      .map((source) => source.jobId),
+  );
+  const canonicalJobs = jobs.filter(
+    (job) =>
+      !job.canonicalJobId &&
+      sourceJobIds.has(job._id) &&
+      !fixtureJobIds.has(job._id) &&
+      !isDevelopmentFixtureJob(job),
+  );
+  const canonicalById = new Map(canonicalJobs.map((job) => [job._id, job]));
+  const suggestionIds = new Set(matches.map((match) => match.jobId));
+  const byJob = new Map<Id<"jobs">, Doc<"jobSources">[]>();
+  for (const source of sources.filter(isUserFacingJobSource)) {
+    if (!canonicalById.has(source.jobId)) continue;
+    const values = byJob.get(source.jobId) ?? [];
+    values.push(source);
+    byJob.set(source.jobId, values);
+  }
+  const grouped = new Map<
+    string,
+    {
+      family: string;
+      domain: string;
+      jobIds: Set<Id<"jobs">>;
+      active: Set<Id<"jobs">>;
+      unknown: Set<Id<"jobs">>;
+      closed: Set<Id<"jobs">>;
+      expired: Set<Id<"jobs">>;
+      suggestions: Set<Id<"jobs">>;
+      directApplication: Set<Id<"jobs">>;
+    }
+  >();
+  for (const source of sources.filter(isUserFacingJobSource)) {
+    const job = canonicalById.get(source.jobId);
+    if (!job) continue;
+    const classified = classifyJobSource(source.domain);
+    const key = `${classified.sourceFamily}:${source.domain}`;
+    const row = grouped.get(key) ?? {
+      family: classified.sourceFamily,
+      domain: source.domain,
+      jobIds: new Set(),
+      active: new Set(),
+      unknown: new Set(),
+      closed: new Set(),
+      expired: new Set(),
+      suggestions: new Set(),
+      directApplication: new Set(),
+    };
+    row.jobIds.add(job._id);
+    const lifecycle = job.lifecycleStatus ?? "unknown";
+    if (lifecycle === "verified_active" || lifecycle === "probably_active") {
+      row.active.add(job._id);
+    } else if (lifecycle === "closed") row.closed.add(job._id);
+    else if (lifecycle === "expired") row.expired.add(job._id);
+    else row.unknown.add(job._id);
+    if (suggestionIds.has(job._id)) row.suggestions.add(job._id);
+    if (source.applicationAvailable) row.directApplication.add(job._id);
+    grouped.set(key, row);
+  }
+  const sourceRows = [...grouped.values()]
+    .map((row) => ({
+      family: row.family,
+      domain: row.domain,
+      canonicalJobs: row.jobIds.size,
+      active: row.active.size,
+      unknown: row.unknown.size,
+      closed: row.closed.size,
+      expired: row.expired.size,
+      suggestions: row.suggestions.size,
+      directApplication: row.directApplication.size,
+    }))
+    .sort(
+      (a, b) =>
+        b.canonicalJobs - a.canonicalJobs || a.domain.localeCompare(b.domain),
+    );
+
+  const recentRunIds = [
+    ...new Set(discoveries.map((item) => item.searchRunId)),
+  ].slice(0, 10);
+  const recentSearches = [];
+  for (const runId of recentRunIds) {
+    const run = await ctx.db.get("jobSearchRuns", runId);
+    if (!run) continue;
+    const queryRecord = await ctx.db.get("jobSearchQueries", run.queryId);
+    const runDiscoveries = await ctx.db
+      .query("jobDiscoveries")
+      .withIndex("by_searchRunId", (q) => q.eq("searchRunId", runId))
+      .take(50);
+    const produced = new Map<string, Set<Id<"jobs">>>();
+    for (const discovery of runDiscoveries) {
+      for (const source of byJob.get(discovery.jobId) ?? []) {
+        const family = classifyJobSource(source.domain).sourceFamily;
+        const ids = produced.get(family) ?? new Set<Id<"jobs">>();
+        ids.add(discovery.jobId);
+        produced.set(family, ids);
+      }
+    }
+    recentSearches.push({
+      query: queryRecord?.generatedQueries[0] ?? "",
+      searchedFamilies: [...DISCOVERY_SOURCE_FAMILIES],
+      producedFamilies: [...produced.entries()].map(([family, ids]) => ({
+        family,
+        count: ids.size,
+      })),
+      uniqueCanonicalJobs: new Set(runDiscoveries.map((item) => item.jobId))
+        .size,
+    });
+  }
+  let employerOrAtsJobs = 0;
+  let majorJobBoardJobs = 0;
+  let secondaryOnlyJobs = 0;
+  let directApplicationJobs = 0;
+  for (const job of canonicalJobs) {
+    const classifications = (byJob.get(job._id) ?? []).map((source) => ({
+      ...classifyJobSource(source.domain),
+      applicationAvailable: source.applicationAvailable === true,
+    }));
+    if (
+      classifications.some(
+        (item) =>
+          item.sourceFamily === "employer_direct" ||
+          item.sourceFamily === "ats_direct",
+      )
+    )
+      employerOrAtsJobs += 1;
+    if (classifications.some((item) => item.sourceFamily === "major_job_board"))
+      majorJobBoardJobs += 1;
+    if (
+      classifications.length &&
+      classifications.every(
+        (item) =>
+          item.sourceFamily === "aggregator" ||
+          item.sourceFamily === "other_reputable",
+      )
+    )
+      secondaryOnlyJobs += 1;
+    if (classifications.some((item) => item.applicationAvailable))
+      directApplicationJobs += 1;
+  }
+  return {
+    totals: {
+      employerOrAtsJobs,
+      majorJobBoardJobs,
+      secondaryOnlyJobs,
+      directApplicationJobs,
+    },
+    sources: sourceRows,
+    recentSearches,
+  };
+}
+
+export const getCurrentUserSourceCoverage = query({
+  args: {},
+  returns: sourceCoverageValidator,
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    return await buildSourceCoverage(ctx, userId);
+  },
+});
+
+export const getSourceCoverageForDevelopment = internalQuery({
+  args: { userId: v.id("users") },
+  returns: sourceCoverageValidator,
+  handler: async (ctx, args) => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    return await buildSourceCoverage(ctx, args.userId);
   },
 });
 

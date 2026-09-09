@@ -43,6 +43,10 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
     api.jobDiscovery.getCurrentUserMatchAudit,
     auditOpen ? {} : "skip",
   );
+  const sourceCoverage = useQuery(
+    api.jobDiscovery.getCurrentUserSourceCoverage,
+    auditOpen ? {} : "skip",
+  );
   const paid = discoveryState?.plan !== "free";
   const busy = pending !== null || discoveryState?.runActive === true;
 
@@ -228,6 +232,48 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                   </li>
                 ))}
               </ol>
+              {sourceCoverage ? (
+                <div className="border-border mt-3 border-t pt-3 text-xs">
+                  <p className="text-muted-foreground mb-2 font-medium">
+                    {t("jobDiscovery.audit.sourceCoverage")}
+                  </p>
+                  <p className="mb-2">
+                    {t("jobDiscovery.audit.directOrAts")}:{" "}
+                    {sourceCoverage.totals.employerOrAtsJobs}
+                    {" · "}
+                    {t("jobDiscovery.audit.majorBoards")}:{" "}
+                    {sourceCoverage.totals.majorJobBoardJobs}
+                    {" · "}
+                    {t("jobDiscovery.audit.secondaryOnly")}:{" "}
+                    {sourceCoverage.totals.secondaryOnlyJobs}
+                    {" · "}
+                    {t("jobDiscovery.audit.directApplication")}:{" "}
+                    {sourceCoverage.totals.directApplicationJobs}
+                  </p>
+                  <ul className="space-y-1">
+                    {sourceCoverage.sources.map((source) => (
+                      <li key={`${source.family}:${source.domain}`}>
+                        <span className="font-medium">{source.domain}</span> ·{" "}
+                        {source.canonicalJobs} · active {source.active} ·
+                        suggestions {source.suggestions}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-muted-foreground mt-3 mb-1 font-medium">
+                    {t("jobDiscovery.audit.discoveryGaps")}
+                  </p>
+                  <ul className="space-y-1">
+                    {sourceCoverage.recentSearches.map((search, index) => (
+                      <li key={`${index}:${search.query}`}>
+                        {search.uniqueCanonicalJobs} unique ·{" "}
+                        {search.producedFamilies
+                          .map(({ family, count }) => `${family} ${count}`)
+                          .join(" · ") || "no results"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </>
           )}
         </div>

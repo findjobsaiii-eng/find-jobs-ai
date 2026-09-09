@@ -30,6 +30,7 @@ import type * as jobReviews from "../jobReviews.js";
 import type * as jobSearchPolicy from "../jobSearchPolicy.js";
 import type * as jobSearchRuntimeConfig from "../jobSearchRuntimeConfig.js";
 import type * as jobSourceProvenance from "../jobSourceProvenance.js";
+import type * as jobSourceQuality from "../jobSourceQuality.js";
 import type * as jobSourceVerification from "../jobSourceVerification.js";
 import type * as openAIJobProvider from "../openAIJobProvider.js";
 import type * as referenceCatalogData from "../referenceCatalogData.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   jobSearchPolicy: typeof jobSearchPolicy;
   jobSearchRuntimeConfig: typeof jobSearchRuntimeConfig;
   jobSourceProvenance: typeof jobSourceProvenance;
+  jobSourceQuality: typeof jobSourceQuality;
   jobSourceVerification: typeof jobSourceVerification;
   openAIJobProvider: typeof openAIJobProvider;
   referenceCatalogData: typeof referenceCatalogData;

@@ -72,7 +72,7 @@ export async function searchJobsWithOpenAI(
         {
           role: "system",
           content:
-            "Find current, specific, public job-posting pages matching the query. Prefer direct employer career pages and public ATS postings. Never invent facts. Use null or empty arrays when a source does not state a field. Salary is null unless explicitly stated. Work-authorization requirements are null unless explicitly stated. Every job URL and evidence URL must come from web search sources. Aim for 4-10 genuine relevant jobs; return fewer when insufficient evidence exists. Never fabricate to fill the target. Return at most 10 jobs.",
+            "Find current, specific, public job-posting pages matching the query. Prefer a direct employer career or public ATS URL as sourceUrl. If the same vacancy also appears on a major job board, include every exact job URL in sourceEvidence so they can be attached to one canonical job. Cover multiple source families when results exist: employer/ATS, Jobify, Drushim, JobMaster, AllJobs, LinkedIn, and Indeed Israel. Prefer exact job pages over homepages, search pages, tracking redirects, and aggregators. Never invent facts or URLs. Use null or empty arrays when a source does not state a field. Salary is null unless explicitly stated. Work-authorization requirements are null unless explicitly stated. Every job URL and evidence URL must come from web search sources. Aim for 4-10 genuine relevant jobs across diverse domains; return fewer when insufficient evidence exists. Never fabricate to fill the target. Return at most 10 jobs.",
         },
         { role: "user", content: searchQuery },
       ],

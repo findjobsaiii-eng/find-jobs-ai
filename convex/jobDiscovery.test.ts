@@ -500,7 +500,10 @@ describe("shared job discovery", () => {
     );
     expect(plan.generatedQueries[0]).toContain('"React" OR "Node.js"');
     expect(plan.generatedQueries[0]).toContain('"Tel Aviv" OR "תל אביב-יפו"');
-    expect(plan.generatedQueries[0]).not.toContain("careers");
+    expect(plan.generatedQueries[0]).toContain("direct employer careers");
+    expect(plan.generatedQueries[0]).toContain("Jobify");
+    expect(plan.generatedQueries[0]).toContain("Drushim");
+    expect(plan.generatedQueries[0]).toContain("LinkedIn");
     expect(plan.generatedQueries[0]).not.toContain('"management"');
   });
 
