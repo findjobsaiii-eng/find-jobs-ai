@@ -147,3 +147,51 @@ export function classifyJobSource(
 export function sourcePriority(tier: JobSourceTier) {
   return { employer: 1, ats: 2, job_board: 3, aggregator: 4 }[tier];
 }
+
+export type SourceYieldGroup =
+  | "Employer careers"
+  | "ATS"
+  | "Drushim"
+  | "JobMaster"
+  | "AllJobs"
+  | "Jobify"
+  | "LinkedIn"
+  | "Indeed"
+  | "Recruiting agencies"
+  | "Aggregators"
+  | "Other secondary sources";
+
+const RECRUITING_AGENCY_DOMAINS = [
+  "gotfriends.co.il",
+  "ethosia.co.il",
+  "nisha.co.il",
+  "dialog.co.il",
+  "sqlink.com",
+  "experis.co.il",
+  "manpower.co.il",
+  "jobs.lhh.co.il",
+] as const;
+
+export function sourceYieldGroup(
+  hostname: string,
+  declared?: JobSourceTier,
+): SourceYieldGroup {
+  const source = classifyJobSource(
+    hostname,
+    declared === "aggregator" ? "other" : declared,
+  );
+  if (source.sourceFamily === "employer_direct") return "Employer careers";
+  if (source.sourceFamily === "ats_direct") return "ATS";
+  if (source.sourceFamily === "aggregator") return "Aggregators";
+  if (source.sourceLabel === "Drushim") return "Drushim";
+  if (source.sourceLabel === "JobMaster") return "JobMaster";
+  if (source.sourceLabel === "AllJobs") return "AllJobs";
+  if (source.sourceLabel === "Jobify") return "Jobify";
+  if (source.sourceLabel === "LinkedIn") return "LinkedIn";
+  if (source.sourceLabel === "Indeed") return "Indeed";
+  const host = hostname.toLocaleLowerCase("en-US").replace(/^www\./u, "");
+  if (RECRUITING_AGENCY_DOMAINS.some((domain) => hostMatches(host, domain))) {
+    return "Recruiting agencies";
+  }
+  return "Other secondary sources";
+}

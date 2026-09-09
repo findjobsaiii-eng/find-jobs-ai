@@ -439,6 +439,7 @@ const schema = defineSchema({
   })
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_startedAt", ["userId", "startedAt"])
+    .index("by_startedAt", ["startedAt"])
     .index("by_fingerprint_and_status_and_completedAt", [
       "fingerprint",
       "status",
@@ -586,6 +587,7 @@ const schema = defineSchema({
     mergeReason: v.optional(v.string()),
     observedAt: v.number(),
   })
+    .index("by_observedAt", ["observedAt"])
     .index("by_jobId_and_observedAt", ["jobId", "observedAt"])
     .index("by_sourceId_and_observedAt", ["sourceId", "observedAt"]),
   jobDiscoveries: defineTable({
@@ -613,6 +615,7 @@ const schema = defineSchema({
     resultSource,
     evaluatedAt: v.number(),
   })
+    .index("by_evaluatedAt", ["evaluatedAt"])
     .index("by_userId_and_outcome_and_relevanceScore", [
       "userId",
       "outcome",

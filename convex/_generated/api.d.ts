@@ -38,6 +38,7 @@ import type * as referenceData from "../referenceData.js";
 import type * as resumeActions from "../resumeActions.js";
 import type * as resumeProfileModel from "../resumeProfileModel.js";
 import type * as resumes from "../resumes.js";
+import type * as sourceYieldAudit from "../sourceYieldAudit.js";
 
 import type {
   ApiFromModules,
@@ -76,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   resumeActions: typeof resumeActions;
   resumeProfileModel: typeof resumeProfileModel;
   resumes: typeof resumes;
+  sourceYieldAudit: typeof sourceYieldAudit;
 }>;
 
 /**
