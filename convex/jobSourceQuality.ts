@@ -20,6 +20,10 @@ const ATS_DOMAINS = [
   "bamboohr.com",
   "applytojob.com",
   "teamtailor.com",
+  "successfactors.com",
+  "icims.com",
+  "oraclecloud.com",
+  "dayforcehcm.com",
 ] as const;
 
 const MAJOR_JOB_BOARD_DOMAINS = [
@@ -65,7 +69,7 @@ export const DISCOVERY_SOURCE_FAMILIES = [
 ] as const;
 
 export const DISCOVERY_SOURCE_GUIDANCE =
-  "Cover several source families in this one search: direct employer careers and public ATS pages first, then Jobify, Drushim, JobMaster, AllJobs, LinkedIn, and Indeed Israel. Return exact job pages, not homepages or search-result pages. Include both Hebrew and English listings when available, diversify domains, and use aggregators only when no better job-specific source exists.";
+  "Prioritize recent exact employer career and public ATS job pages. Use major Israeli job boards for additional discovery.";
 
 function hostMatches(hostname: string, domain: string) {
   return hostname === domain || hostname.endsWith(`.${domain}`);

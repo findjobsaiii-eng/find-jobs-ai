@@ -265,7 +265,19 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                   <ul className="space-y-1">
                     {sourceCoverage.recentSearches.map((search, index) => (
                       <li key={`${index}:${search.query}`}>
-                        {search.uniqueCanonicalJobs} unique ·{" "}
+                        <span className="font-medium">{search.role}</span> ·
+                        {t("jobDiscovery.audit.candidates")}{" "}
+                        {search.providerCandidates} ·{" "}
+                        {t("jobDiscovery.audit.newCanonical")}{" "}
+                        {search.newCanonicalJobs} ·{" "}
+                        {t("jobDiscovery.audit.existingCanonical")}{" "}
+                        {search.existingCanonicalJobs} ·{" "}
+                        {t("jobDiscovery.audit.active")} {search.verifiedActive}{" "}
+                        · {t("jobDiscovery.audit.unknown")} {search.unknown} ·{" "}
+                        {t("jobDiscovery.audit.closed")} {search.closed} ·{" "}
+                        {t("jobDiscovery.audit.above")} {search.aboveThreshold}{" "}
+                        · {t("jobDiscovery.audit.suggestions")}{" "}
+                        {search.newSuggestions} ·{" "}
                         {search.producedFamilies
                           .map(({ family, count }) => `${family} ${count}`)
                           .join(" · ") || "no results"}

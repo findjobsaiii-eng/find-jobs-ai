@@ -482,7 +482,7 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
   });
 
-  it("searches role aliases and strong skills in one city-scoped query", () => {
+  it("searches controlled role aliases in one compact city-scoped query", () => {
     const plan = buildSearchPlan({
       ...searchProfile,
       targetJobTitles: ["Software Engineer"],
@@ -495,16 +495,22 @@ describe("shared job discovery", () => {
       skills: ["React", "Node.js", "management"],
     });
     expect(plan.generatedQueries).toHaveLength(1);
-    expect(plan.generatedQueries[0]).toContain(
-      '"Software Engineer" OR "מהנדס תוכנה"',
-    );
-    expect(plan.generatedQueries[0]).toContain('"React" OR "Node.js"');
-    expect(plan.generatedQueries[0]).toContain('"Tel Aviv" OR "תל אביב-יפו"');
-    expect(plan.generatedQueries[0]).toContain("direct employer careers");
-    expect(plan.generatedQueries[0]).toContain("Jobify");
-    expect(plan.generatedQueries[0]).toContain("Drushim");
-    expect(plan.generatedQueries[0]).toContain("LinkedIn");
+    expect(plan.generatedQueries[0]).toContain("Software Engineer");
+    expect(plan.generatedQueries[0]).toContain("מהנדס תוכנה");
+    expect(plan.generatedQueries[0]).toContain("Tel Aviv / תל אביב-יפו");
+    expect(plan.generatedQueries[0]).toContain("employer career");
     expect(plan.generatedQueries[0]).not.toContain('"management"');
+    expect(plan.generatedQueries[0]).not.toContain('"React"');
+  });
+
+  it("adds controlled bilingual discovery aliases without changing the profile", () => {
+    const plan = buildSearchPlan({
+      ...searchProfile,
+      targetJobTitles: ["מיישם CRM ואוטומציות"],
+      targetRoleVariants: [],
+    });
+    expect(plan.generatedQueries[0]).toContain("CRM Automation Specialist");
+    expect(plan.generatedQueries[0]).toContain("מיישם/ת CRM");
   });
 
   it("expands location from city to district and then Israel by radius", () => {
@@ -529,12 +535,10 @@ describe("shared job discovery", () => {
       },
     });
     expect(district.generatedQueries[0]).toContain(
-      '"Tel Aviv District" OR "מחוז תל אביב"',
+      "Tel Aviv District / מחוז תל אביב",
     );
-    expect(country.generatedQueries[0]).toContain('"Israel" OR "ישראל"');
-    expect(south.generatedQueries[0]).toContain(
-      '"Southern District" OR "דרום"',
-    );
+    expect(country.generatedQueries[0]).toContain("Israel / ישראל");
+    expect(south.generatedQueries[0]).toContain("Southern District / דרום");
   });
 
   it("keeps search sharing identity stable across localized place labels", () => {

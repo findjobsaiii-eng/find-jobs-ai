@@ -5,6 +5,7 @@ describe("job source quality", () => {
   it.each([
     ["jobs.workable.com", "ats", "ats_direct"],
     ["jobs.comeet.co", "ats", "ats_direct"],
+    ["career5.successfactors.com", "ats", "ats_direct"],
     ["il.linkedin.com", "job_board", "major_job_board"],
     ["jobify360.co.il", "job_board", "major_job_board"],
     ["jobswipe.co", "aggregator", "aggregator"],

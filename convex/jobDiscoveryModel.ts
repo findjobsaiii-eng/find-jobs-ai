@@ -168,6 +168,44 @@ function uniqueNormalized(values: string[], max: number) {
   return result;
 }
 
+const CONTROLLED_DISCOVERY_ALIASES: Record<string, string[]> = {
+  "ecommerce manager": [
+    "Ecommerce Manager",
+    "E-Commerce Manager",
+    "E-commerce Website Manager",
+    "E-commerce Operations Manager",
+    "מנהל איקומרס",
+    "מנהל/ת איקומרס",
+    "מנהל אתר איקומרס",
+  ],
+  "מנהל אתר ecommerce": [
+    "E-commerce Website Manager",
+    "Website Manager",
+    "מנהל אתר",
+    "מנהל/ת אתר איקומרס",
+  ],
+  "מנהל פרויקטים דיגיטליים": [
+    "Digital Project Manager",
+    "Digital Projects Manager",
+    "מנהל/ת פרויקטים דיגיטליים",
+  ],
+  "מנהל דיגיטל": [
+    "Digital Manager",
+    "Digital Operations Manager",
+    "מנהל/ת דיגיטל",
+  ],
+  "מיישם crm ואוטומציות": [
+    "CRM Automation Specialist",
+    "CRM Implementation Specialist",
+    "מיישם/ת CRM",
+    "מומחה אוטומציות CRM",
+  ],
+};
+
+function controlledDiscoveryAliases(title: string) {
+  return CONTROLLED_DISCOVERY_ALIASES[normalizeTitleIdentity(title)] ?? [];
+}
+
 export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
   const titles = uniqueNormalized(profile.targetJobTitles, 5).sort((a, b) =>
     normalizedKey(a).localeCompare(normalizedKey(b)),
@@ -237,32 +275,27 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
             2,
           ))
         : ["Israel", "ישראל"];
-  const skills = uniqueNormalized(profile.skills, 5).filter(
-    (skill) =>
-      !/^(?:management|operations|digital|technology|website|ניהול|תפעול)$/iu.test(
-        skill,
-      ),
-  );
-  const alternatives = (values: string[]) =>
-    `(${values.map((value) => `"${value.replace(/"/gu, "")}"`).join(" OR ")})`;
   const queryPlans = titles.slice(0, Math.min(maxQueries, 5)).map((title) => {
     const aliases = uniqueNormalized(
-      [title, ...(roleVariants.get(normalizeTitleIdentity(title)) ?? [])],
-      6,
+      [
+        title,
+        ...(roleVariants.get(normalizeTitleIdentity(title)) ?? []),
+        ...controlledDiscoveryAliases(title),
+      ],
+      8,
     );
     const generatedQuery = normalizeWhitespace(
-      `${alternatives(aliases)} ${skills.length ? alternatives(skills) : ""} ${alternatives(locationScope)} jobs. ${DISCOVERY_SOURCE_GUIDANCE}`,
+      `Role: "${title}". Location: ${locationScope.join(" / ")}. Search aliases: ${aliases.join(", ")}. Search current matching vacancies in two passes within this request: direct employer or ATS listings first, then major Israeli job boards and recruiting agencies. ${DISCOVERY_SOURCE_GUIDANCE}`,
     );
     // Sharing identity follows the real provider query so users with the same
     // role, skills, and geographic scope reuse one recent discovery run.
     const normalizedCriteria = JSON.stringify({
       role: normalizeTitleIdentity(title),
       aliases: aliases.map(normalizeTitleIdentity).sort(),
-      skills: skills.map(normalizedKey).sort(),
       locationScope: locationScope.map(normalizedKey).sort(),
       radiusBand: radius <= 25 ? "city" : radius <= 75 ? "district" : "country",
       countryCode: profile.location.countryCode.toUpperCase(),
-      coverageVersion: "israel_source_mix_v1",
+      coverageVersion: "israel_source_mix_v3",
     });
     return {
       generatedQuery,

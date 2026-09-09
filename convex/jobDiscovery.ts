@@ -279,11 +279,23 @@ const sourceCoverageValidator = v.object({
   recentSearches: v.array(
     v.object({
       query: v.string(),
+      role: v.string(),
       searchedFamilies: v.array(v.string()),
       producedFamilies: v.array(
         v.object({ family: v.string(), count: v.number() }),
       ),
       uniqueCanonicalJobs: v.number(),
+      providerCandidates: v.number(),
+      newCanonicalJobs: v.number(),
+      existingCanonicalJobs: v.number(),
+      employerOrAts: v.number(),
+      majorBoards: v.number(),
+      aggregators: v.number(),
+      verifiedActive: v.number(),
+      unknown: v.number(),
+      closed: v.number(),
+      aboveThreshold: v.number(),
+      newSuggestions: v.number(),
     }),
   ),
 });
@@ -1795,15 +1807,13 @@ export const getCurrentUserMatchAudit = query({
 });
 
 async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
-  const profileRecord = await getProfile(ctx, userId);
-  const [jobs, sources, discoveries, matches] = await Promise.all([
+  const [profileRecord, profile] = await Promise.all([
+    getProfile(ctx, userId),
+    loadSearchProfile(ctx, userId),
+  ]);
+  const [jobs, sources, matches, recentRuns] = await Promise.all([
     ctx.db.query("jobs").take(500),
     ctx.db.query("jobSources").take(1000),
-    ctx.db
-      .query("jobDiscoveries")
-      .withIndex("by_userId_and_discoveredAt", (q) => q.eq("userId", userId))
-      .order("desc")
-      .take(200),
     profileRecord
       ? ctx.db
           .query("jobMatches")
@@ -1817,6 +1827,11 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
           )
           .take(100)
       : Promise.resolve([]),
+    ctx.db
+      .query("jobSearchRuns")
+      .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(10),
   ]);
   const sourceJobIds = new Set(
     sources.filter(isUserFacingJobSource).map((source) => source.jobId),
@@ -1835,6 +1850,7 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
   );
   const canonicalById = new Map(canonicalJobs.map((job) => [job._id, job]));
   const suggestionIds = new Set(matches.map((match) => match.jobId));
+  const sourceById = new Map(sources.map((source) => [source._id, source]));
   const byJob = new Map<Id<"jobs">, Doc<"jobSources">[]>();
   for (const source of sources.filter(isUserFacingJobSource)) {
     if (!canonicalById.has(source.jobId)) continue;
@@ -1900,17 +1916,12 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
         b.canonicalJobs - a.canonicalJobs || a.domain.localeCompare(b.domain),
     );
 
-  const recentRunIds = [
-    ...new Set(discoveries.map((item) => item.searchRunId)),
-  ].slice(0, 10);
   const recentSearches = [];
-  for (const runId of recentRunIds) {
-    const run = await ctx.db.get("jobSearchRuns", runId);
-    if (!run) continue;
+  for (const run of recentRuns) {
     const queryRecord = await ctx.db.get("jobSearchQueries", run.queryId);
     const runDiscoveries = await ctx.db
       .query("jobDiscoveries")
-      .withIndex("by_searchRunId", (q) => q.eq("searchRunId", runId))
+      .withIndex("by_searchRunId", (q) => q.eq("searchRunId", run._id))
       .take(50);
     const produced = new Map<string, Set<Id<"jobs">>>();
     for (const discovery of runDiscoveries) {
@@ -1921,8 +1932,51 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
         produced.set(family, ids);
       }
     }
+    const runJobs = [
+      ...new Set(runDiscoveries.map((item) => item.jobId)),
+    ].flatMap((jobId) => {
+      const job = canonicalById.get(jobId);
+      return job ? [job] : [];
+    });
+    const employerOrAts = new Set<Id<"jobs">>();
+    const majorBoards = new Set<Id<"jobs">>();
+    const aggregators = new Set<Id<"jobs">>();
+    for (const job of runJobs) {
+      for (const source of byJob.get(job._id) ?? []) {
+        const family = classifyJobSource(source.domain).sourceFamily;
+        if (family === "employer_direct" || family === "ats_direct") {
+          employerOrAts.add(job._id);
+        } else if (family === "major_job_board") {
+          majorBoards.add(job._id);
+        } else if (family === "aggregator") aggregators.add(job._id);
+      }
+    }
+    const parseRole = () => {
+      try {
+        const criteria = JSON.parse(
+          queryRecord?.normalizedCriteria ?? "{}",
+        ) as {
+          role?: unknown;
+        };
+        return typeof criteria.role === "string" ? criteria.role : "unknown";
+      } catch {
+        return "unknown";
+      }
+    };
+    const currentEligible = (job: Doc<"jobs">) => {
+      const bestSource = job.bestSourceId
+        ? sourceById.get(job.bestSourceId)
+        : undefined;
+      return Boolean(
+        bestSource &&
+        isUserFacingJobSource(bestSource) &&
+        isDisplayEligibleJob(job) &&
+        isFreshActiveSource(bestSource),
+      );
+    };
     recentSearches.push({
       query: queryRecord?.generatedQueries[0] ?? "",
+      role: parseRole(),
       searchedFamilies: [...DISCOVERY_SOURCE_FAMILIES],
       producedFamilies: [...produced.entries()].map(([family, ids]) => ({
         family,
@@ -1930,6 +1984,26 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
       })),
       uniqueCanonicalJobs: new Set(runDiscoveries.map((item) => item.jobId))
         .size,
+      providerCandidates: run.returnedCandidateCount,
+      newCanonicalJobs: run.insertedCount,
+      existingCanonicalJobs: run.deduplicatedCount,
+      employerOrAts: employerOrAts.size,
+      majorBoards: majorBoards.size,
+      aggregators: aggregators.size,
+      verifiedActive: runJobs.filter(currentEligible).length,
+      unknown: runJobs.filter(
+        (job) => (job.lifecycleStatus ?? "unknown") === "unknown",
+      ).length,
+      closed: runJobs.filter(
+        (job) =>
+          job.lifecycleStatus === "closed" || job.lifecycleStatus === "expired",
+      ).length,
+      aboveThreshold: runJobs.filter((job) => {
+        const quality = evaluateJobQuality(job, profile);
+        return currentEligible(job) && quality.outcome === "eligible";
+      }).length,
+      newSuggestions: runJobs.filter((job) => suggestionIds.has(job._id))
+        .length,
     });
   }
   let employerOrAtsJobs = 0;
