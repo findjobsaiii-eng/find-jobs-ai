@@ -170,12 +170,12 @@ provider path; their feed is assembled only from jobs already stored in the
 central database. The browser never receives the API key, selected model,
 prompts, or raw provider response.
 
-Each role query combines the curated title and its aliases, up to five
-non-generic profile skills, and a radius-aware geographic scope. Radii through
-25 km use the canonical city, radii through 75 km use the district, and larger
-radii use Israel. The exact role, aliases, skills, and geographic scope form the
-daily shared-query identity, so identical searches are performed once even when
-several users need them.
+Each role query combines the curated title with at most four strong discovery
+aliases and searches the shared Israeli market. Profile skills and personal
+radius stay out of paid discovery; location and professional fit are applied by
+the downstream matching pipeline. The normalized role and country form the
+daily shared-query identity, so one result can serve Israeli users with
+different locations and radii.
 
 The Convex deployment requires these additional server-only variables:
 
@@ -190,6 +190,10 @@ JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
 JOB_SEARCH_MAX_CONCURRENT_RUNS
 JOB_SEARCH_OUTPUT_TOKEN_LIMIT
 ```
+
+Use at least `4000` for `JOB_SEARCH_OUTPUT_TOKEN_LIMIT`; the structured job
+batch can contain up to ten candidates and a smaller limit can truncate useful
+provider results.
 
 The model must support the Responses API, Web Search, and Structured Outputs.
 The initial recommended development value is `gpt-5.6-luna`; keep the model in

@@ -69,7 +69,7 @@ export const DISCOVERY_SOURCE_FAMILIES = [
 ] as const;
 
 export const DISCOVERY_SOURCE_GUIDANCE =
-  "Prioritize recent exact employer career and public ATS job pages. Use major Israeli job boards for additional discovery.";
+  "Prefer recent employer or ATS sources; major reputable job boards and recruiting agencies are acceptable.";
 
 function hostMatches(hostname: string, domain: string) {
   return hostname === domain || hostname.endsWith(`.${domain}`);

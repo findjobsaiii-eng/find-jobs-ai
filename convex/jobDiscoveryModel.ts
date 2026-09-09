@@ -171,11 +171,8 @@ function uniqueNormalized(values: string[], max: number) {
 const CONTROLLED_DISCOVERY_ALIASES: Record<string, string[]> = {
   "ecommerce manager": [
     "Ecommerce Manager",
-    "E-Commerce Manager",
     "E-commerce Website Manager",
-    "E-commerce Operations Manager",
     "מנהל איקומרס",
-    "מנהל/ת איקומרס",
     "מנהל אתר איקומרס",
   ],
   "מנהל אתר ecommerce": [
@@ -216,88 +213,32 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       role.aliases,
     ]),
   );
-  const resolvedLocation = resolveJobGeography({
-    city: profile.location.city ?? null,
-    locationText: profile.location.formattedAddress,
-    country: profile.location.country,
-  });
-  const radius = profile.location.radiusKm;
-  const centralDistrict = ["Central District", "מרכז"];
-  const telAvivDistrict = ["Tel Aviv District", "מחוז תל אביב"];
-  const southernDistrict = ["Southern District", "דרום"];
-  const northernDistrict = ["Northern District", "צפון"];
-  const haifaDistrict = ["Haifa District", "מחוז חיפה"];
-  const jerusalemDistrict = ["Jerusalem District", "מחוז ירושלים"];
-  const districtAliases: Record<string, string[]> = {
-    central: centralDistrict,
-    center: centralDistrict,
-    מרכז: centralDistrict,
-    המרכז: centralDistrict,
-    telaviv: telAvivDistrict,
-    תלאביב: telAvivDistrict,
-    southern: southernDistrict,
-    south: southernDistrict,
-    דרום: southernDistrict,
-    הדרום: southernDistrict,
-    northern: northernDistrict,
-    north: northernDistrict,
-    צפון: northernDistrict,
-    הצפון: northernDistrict,
-    haifa: haifaDistrict,
-    חיפה: haifaDistrict,
-    jerusalem: jerusalemDistrict,
-    ירושלים: jerusalemDistrict,
-  };
-  const administrativeKey = normalizedKey(
-    profile.location.administrativeArea ?? "",
-  )
-    .replace(/\b(?:district|מחוז)\b/gu, "")
-    .replace(/[^\p{L}]+/gu, "")
-    .trim();
-  const locationScope =
-    radius <= 25
-      ? uniqueNormalized(
-          [
-            resolvedLocation?.labelEn ??
-              profile.location.city ??
-              profile.location.formattedAddress,
-            resolvedLocation?.labelHe ?? "",
-          ],
-          2,
-        )
-      : radius <= 75
-        ? (districtAliases[administrativeKey] ??
-          uniqueNormalized(
-            [
-              profile.location.administrativeArea ?? "Central District",
-              "Israel",
-            ],
-            2,
-          ))
-        : ["Israel", "ישראל"];
+  // Discovery populates one shared national catalog. User-specific distance
+  // belongs to the downstream location gate, not paid provider search identity.
+  const locationScope = ["Israel", "ישראל"];
   const queryPlans = titles.slice(0, Math.min(maxQueries, 5)).map((title) => {
     const aliases = uniqueNormalized(
       [
         title,
-        ...(roleVariants.get(normalizeTitleIdentity(title)) ?? []),
         ...controlledDiscoveryAliases(title),
+        ...(roleVariants.get(normalizeTitleIdentity(title)) ?? []),
       ],
-      8,
+      5,
     );
     const generatedQuery = normalizeWhitespace(
-      `Role: "${title}". Location: ${locationScope.join(" / ")}. Search aliases: ${aliases.join(", ")}. Search current matching vacancies in two passes within this request: direct employer or ATS listings first, then major Israeli job boards and recruiting agencies. ${DISCOVERY_SOURCE_GUIDANCE}`,
+      `Find current job vacancies in Israel for "${title}". Equivalent titles: ${aliases.slice(1).join(", ")}. Return real job-specific posting URLs. ${DISCOVERY_SOURCE_GUIDANCE}`,
     );
-    // Sharing identity follows the real provider query so users with the same
-    // role, skills, and geographic scope reuse one recent discovery run.
+    // Discovery is national and shared, so the same role reuses one provider
+    // result across Israeli users regardless of their personal radius.
     const normalizedCriteria = JSON.stringify({
       role: normalizeTitleIdentity(title),
       aliases: aliases.map(normalizeTitleIdentity).sort(),
       locationScope: locationScope.map(normalizedKey).sort(),
-      radiusBand: radius <= 25 ? "city" : radius <= 75 ? "district" : "country",
       countryCode: profile.location.countryCode.toUpperCase(),
-      coverageVersion: "israel_source_mix_v3",
+      coverageVersion: "israel_recall_v1",
     });
     return {
+      role: title,
       generatedQuery,
       normalizedCriteria,
       fingerprint: hashText(normalizedCriteria),

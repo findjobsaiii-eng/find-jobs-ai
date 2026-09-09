@@ -50,6 +50,7 @@ export async function searchJobsWithOpenAI(
   },
 ) {
   const accepted: NormalizedJob[] = [];
+  const candidateUrls = new Set<string>();
   let returnedCandidateCount = 0;
   let rejectedCount = 0;
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -72,7 +73,7 @@ export async function searchJobsWithOpenAI(
         {
           role: "system",
           content:
-            "Find current, specific Israeli job-posting pages matching the role query. Within this single request, use one search pass for direct employer career and public ATS sources, including Comeet, Greenhouse, Lever, Workday, Workable, SmartRecruiters, Ashby, SAP SuccessFactors, iCIMS, and Oracle Recruiting, and another pass for Jobify, Drushim, JobMaster, AllJobs, LinkedIn Jobs, Indeed Israel, and reputable Israeli recruiting agencies. Return useful matches from either pass; a result set does not need to contain every source family. Prefer a direct employer or ATS URL as sourceUrl. If the same vacancy appears elsewhere, include every exact job URL in sourceEvidence so they attach to one canonical job. Avoid more than four results from one domain when alternatives exist. Favor recently posted listings, but retain older listings with explicit current evidence for deterministic verification. Prefer exact job pages over homepages, search pages, tracking redirects, and aggregators. Never invent facts or URLs. Use null or empty arrays when a source does not state a field. Salary is null unless explicitly stated. Work-authorization requirements are null unless explicitly stated. Every job URL and evidence URL must come from web search sources. Aim for 4-10 genuine relevant jobs across diverse domains; return fewer when insufficient evidence exists. Never fabricate to fill the target. Return at most 10 jobs.",
+            "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles. Prefer recent vacancies and exact job-specific URLs. Prefer employer career or public ATS pages, but major reputable job boards and recruiting agencies are acceptable. Source quality is a preference, not a requirement. Discovery only finds candidates; it does not need to prove that a vacancy is active or relevant to a particular person. Never invent facts or URLs. Use null or empty arrays when a source does not state a field. Every job URL and evidence URL must come from web search sources. Return up to 10 useful candidates and return fewer only when search evidence is insufficient.",
         },
         { role: "user", content: searchQuery },
       ],
@@ -87,6 +88,10 @@ export async function searchJobsWithOpenAI(
     webSearchToolCallCount += provider.webSearchToolCallCount;
     const candidates = response.output_parsed?.jobs ?? [];
     returnedCandidateCount += candidates.length;
+    for (const candidate of candidates) {
+      const url = normalizePublicUrl(candidate.sourceUrl);
+      if (url) candidateUrls.add(url);
+    }
     for (const candidate of candidates.slice(
       0,
       JOB_DISCOVERY_LIMITS.maxJobsPerQuery,
@@ -104,6 +109,7 @@ export async function searchJobsWithOpenAI(
   );
   return {
     accepted,
+    candidateUrls: [...candidateUrls],
     returnedCandidateCount,
     rejectedCount,
     usage,

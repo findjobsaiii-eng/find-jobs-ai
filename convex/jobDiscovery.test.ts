@@ -482,7 +482,7 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries.join(" ")).toContain("QA Engineer");
   });
 
-  it("searches controlled role aliases in one compact city-scoped query", () => {
+  it("searches controlled role aliases in one compact national query", () => {
     const plan = buildSearchPlan({
       ...searchProfile,
       targetJobTitles: ["Software Engineer"],
@@ -497,8 +497,8 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries).toHaveLength(1);
     expect(plan.generatedQueries[0]).toContain("Software Engineer");
     expect(plan.generatedQueries[0]).toContain("מהנדס תוכנה");
-    expect(plan.generatedQueries[0]).toContain("Tel Aviv / תל אביב-יפו");
-    expect(plan.generatedQueries[0]).toContain("employer career");
+    expect(plan.generatedQueries[0]).toContain("vacancies in Israel");
+    expect(plan.generatedQueries[0]).toContain("employer or ATS");
     expect(plan.generatedQueries[0]).not.toContain('"management"');
     expect(plan.generatedQueries[0]).not.toContain('"React"');
   });
@@ -513,7 +513,7 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries[0]).toContain("מיישם/ת CRM");
   });
 
-  it("expands location from city to district and then Israel by radius", () => {
+  it("shares national discovery across user radii and Israeli locations", () => {
     const district = buildSearchPlan({
       ...searchProfile,
       location: { ...searchProfile.location, radiusKm: 60 },
@@ -534,11 +534,14 @@ describe("shared job discovery", () => {
         radiusKm: 60,
       },
     });
-    expect(district.generatedQueries[0]).toContain(
-      "Tel Aviv District / מחוז תל אביב",
+    expect(district.generatedQueries).toEqual(country.generatedQueries);
+    expect(south.generatedQueries).toEqual(country.generatedQueries);
+    expect(district.queryPlans.map((query) => query.fingerprint)).toEqual(
+      country.queryPlans.map((query) => query.fingerprint),
     );
-    expect(country.generatedQueries[0]).toContain("Israel / ישראל");
-    expect(south.generatedQueries[0]).toContain("Southern District / דרום");
+    expect(south.queryPlans.map((query) => query.fingerprint)).toEqual(
+      country.queryPlans.map((query) => query.fingerprint),
+    );
   });
 
   it("keeps search sharing identity stable across localized place labels", () => {

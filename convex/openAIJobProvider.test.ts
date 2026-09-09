@@ -62,6 +62,10 @@ describe("OpenAI job provider boundary", () => {
       maxOutputTokens: 2_000,
     });
     expect(result.accepted).toHaveLength(1);
+    expect(result.candidateUrls).toEqual([
+      citedUrl,
+      "https://invented.example/jobs/999",
+    ]);
     expect(result.rejectedCount).toBe(1);
     expect(result.usage).toEqual({
       inputTokens: 100,

@@ -25,7 +25,11 @@ import {
   retryDelayMs,
 } from "./jobActivityPolicy";
 import type { SearchProfile } from "./jobDiscoveryModel";
-import { normalizedKey, normalizePublicUrl } from "./jobDiscoveryModel";
+import {
+  buildSearchPlan,
+  normalizedKey,
+  normalizePublicUrl,
+} from "./jobDiscoveryModel";
 import { locationNamesForGeography } from "./jobGeography";
 import {
   classifyJobSource,
@@ -2069,6 +2073,21 @@ export const getSourceCoverageForDevelopment = internalQuery({
       throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
     }
     return await buildSourceCoverage(ctx, args.userId);
+  },
+});
+
+export const getSearchPlanForDevelopment = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.array(v.object({ role: v.string(), query: v.string() })),
+  handler: async (ctx, args) => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    const profile = await loadSearchProfile(ctx, args.userId);
+    return buildSearchPlan(profile).queryPlans.map((plan) => ({
+      role: plan.role,
+      query: plan.generatedQuery,
+    }));
   },
 });
 

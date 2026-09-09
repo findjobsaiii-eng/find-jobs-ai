@@ -7,10 +7,11 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction, env } from "./_generated/server";
-import { buildSearchPlan } from "./jobDiscoveryModel";
+import { buildSearchPlan, normalizeTitleIdentity } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
 import { searchJobsWithOpenAI } from "./openAIJobProvider";
+import { classifyJobSource } from "./jobSourceQuality";
 
 const discoveryBucketValidator = v.union(
   v.null(),
@@ -47,6 +48,27 @@ const resultValidator = v.object({
   insertedCount: v.number(),
   deduplicatedCount: v.number(),
   webSearchToolCallCount: v.number(),
+  candidateUrls: v.array(v.string()),
+  verification: v.object({
+    verifiedActive: v.number(),
+    unknown: v.number(),
+    closed: v.number(),
+    temporaryFailure: v.number(),
+  }),
+  candidateSources: v.array(
+    v.object({
+      url: v.string(),
+      domain: v.string(),
+      sourceTier: v.union(
+        v.literal("employer"),
+        v.literal("ats"),
+        v.literal("job_board"),
+        v.literal("aggregator"),
+      ),
+      sourceFamily: v.string(),
+      activityStatus: v.string(),
+    }),
+  ),
   usage: usageValidator,
 });
 
@@ -62,6 +84,20 @@ type DiscoveryResult = {
   insertedCount: number;
   deduplicatedCount: number;
   webSearchToolCallCount: number;
+  candidateUrls: string[];
+  verification: {
+    verifiedActive: number;
+    unknown: number;
+    closed: number;
+    temporaryFailure: number;
+  };
+  candidateSources: Array<{
+    url: string;
+    domain: string;
+    sourceTier: "employer" | "ats" | "job_board" | "aggregator";
+    sourceFamily: string;
+    activityStatus: string;
+  }>;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 };
 
@@ -115,10 +151,22 @@ export const discoverJobsForUserDevelopment = internalAction({
   },
 });
 
+export const discoverRoleForUserDevelopment = internalAction({
+  args: { userId: v.id("users"), role: v.string() },
+  returns: resultValidator,
+  handler: async (ctx, args): Promise<DiscoveryResult> => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    return await discoverForUser(ctx, args.userId, true, args.role);
+  },
+});
+
 async function discoverForUser(
   ctx: ActionCtx,
   userId: Id<"users">,
   manual = false,
+  requestedRole?: string,
 ): Promise<DiscoveryResult> {
   const plan = await ctx.runQuery(internal.jobDiscovery.getUserPlan, {
     userId,
@@ -136,6 +184,14 @@ async function discoverForUser(
     insertedCount: 0,
     deduplicatedCount: 0,
     webSearchToolCallCount: 0,
+    candidateUrls: [],
+    verification: {
+      verifiedActive: 0,
+      unknown: 0,
+      closed: 0,
+      temporaryFailure: 0,
+    },
+    candidateSources: [],
     usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
   };
   // Free users never require provider credentials, configuration, or network IO.
@@ -149,7 +205,16 @@ async function discoverForUser(
     "OPENAI_JOB_SEARCH_MODEL",
     env.OPENAI_JOB_SEARCH_MODEL,
   );
-  const queryPlans = buildSearchPlan(profile).queryPlans;
+  const allQueryPlans = buildSearchPlan(profile).queryPlans;
+  const requestedIdentity = requestedRole
+    ? normalizeTitleIdentity(requestedRole)
+    : null;
+  const queryPlans = requestedIdentity
+    ? allQueryPlans.filter(
+        (queryPlan) =>
+          normalizeTitleIdentity(queryPlan.role) === requestedIdentity,
+      )
+    : allQueryPlans;
   if (!queryPlans.length)
     throw new ConvexError({ code: "INCOMPLETE_SEARCH_PROFILE" });
   let lastProviderError: string | null = null;
@@ -184,6 +249,25 @@ async function discoverForUser(
         },
       );
       const jobs = await verifyJobSources(provider.accepted);
+      result.candidateUrls = [
+        ...new Set([...result.candidateUrls, ...provider.candidateUrls]),
+      ];
+      for (const candidate of jobs) {
+        const status = candidate.verification.activityStatus;
+        if (status === "verified_active")
+          result.verification.verifiedActive += 1;
+        else if (status === "unknown") result.verification.unknown += 1;
+        else if (status === "inactive") result.verification.closed += 1;
+        else result.verification.temporaryFailure += 1;
+        result.candidateSources.push({
+          url: candidate.job.sourceUrl,
+          domain: candidate.verification.domain,
+          sourceTier: candidate.verification.sourceTier,
+          sourceFamily: classifyJobSource(candidate.verification.domain)
+            .sourceFamily,
+          activityStatus: status,
+        });
+      }
       const persisted = await ctx.runMutation(
         internal.jobDiscovery.completeSearch,
         {
