@@ -12,10 +12,14 @@ import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
+import { classifyJobSource, preferredSourceSortKey } from "./jobSourceQuality";
 import {
-  classifyJobSource,
-  sourcePriority as sourceTierPriority,
-} from "./jobSourceQuality";
+  classifyFreshness,
+  normalizeDiscoveredPostingDate,
+  selectOriginalPostingDate,
+  type DatePostedProvenance,
+} from "./jobFreshness";
+import { rememberVerifiedCompanySource } from "./companySourceMemory";
 import {
   isDevelopmentFixtureJob,
   isUserFacingJobSource,
@@ -56,6 +60,17 @@ const verificationValidator = v.object({
   applicationAvailable: v.boolean(),
   applicationUrl: v.optional(v.union(v.string(), v.null())),
   structuredDatePosted: v.union(v.string(), v.null()),
+  datePosted: v.optional(v.union(v.string(), v.null())),
+  datePostedProvenance: v.optional(
+    v.union(
+      v.literal("employer_ats_structured"),
+      v.literal("jobposting_jsonld"),
+      v.literal("provider_structured"),
+      v.literal("page_explicit"),
+      v.literal("discovery_metadata"),
+      v.null(),
+    ),
+  ),
   structuredValidThrough: v.union(v.string(), v.null()),
   structuredJobIdentifier: v.union(v.string(), v.null()),
   pageTitle: v.union(v.string(), v.null()),
@@ -101,12 +116,15 @@ function recoveredSourceTier(job: Doc<"jobs">, normalizedUrl: string) {
 
 function sourcePriority(source: {
   sourceTier: string;
+  applicationUrl?: string;
   lastVerifiedAt?: number;
 }) {
-  const tier = sourceTierPriority(
-    source.sourceTier as "employer" | "ats" | "job_board" | "aggregator",
-  );
-  return [tier, -(source.lastVerifiedAt ?? 0)] as const;
+  return preferredSourceSortKey({
+    applicationUrl: source.applicationUrl,
+    sourceTier: source.sourceTier as
+      "employer" | "ats" | "job_board" | "aggregator",
+    lastVerifiedAt: source.lastVerifiedAt,
+  });
 }
 
 async function refreshJobLifecycle(
@@ -125,7 +143,7 @@ async function refreshJobLifecycle(
     .sort((left, right) => {
       const a = sourcePriority(left);
       const b = sourcePriority(right);
-      return a[0] - b[0] || a[1] - b[1];
+      return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
     });
   const lifecycle = deriveJobLifecycle({
     sources,
@@ -676,6 +694,9 @@ export const recordVerification = internalMutation({
         applicationUrl: args.verification.applicationUrl ?? undefined,
         structuredDatePosted:
           args.verification.structuredDatePosted ?? undefined,
+        datePosted: args.verification.datePosted ?? undefined,
+        datePostedProvenance:
+          args.verification.datePostedProvenance ?? undefined,
         structuredValidThrough:
           args.verification.structuredValidThrough ?? undefined,
         structuredJobIdentifier:
@@ -689,8 +710,208 @@ export const recordVerification = internalMutation({
           : undefined,
       });
     }
+    if (args.verification.datePosted) {
+      const job = await ctx.db.get("jobs", source.jobId);
+      if (job) {
+        const selected = selectOriginalPostingDate(job, {
+          postedAt: args.verification.datePosted,
+          datePostedProvenance:
+            args.verification.datePostedProvenance ?? undefined,
+        });
+        if (
+          selected.postedAt !== job.postedAt ||
+          selected.datePostedProvenance !== job.datePostedProvenance
+        ) {
+          await ctx.db.patch("jobs", job._id, {
+            postedAt: selected.postedAt ?? null,
+            datePostedProvenance: selected.datePostedProvenance,
+          });
+        }
+      }
+    }
     await refreshJobLifecycle(ctx, source.jobId, now);
+    const [job, updatedSource] = await Promise.all([
+      ctx.db.get("jobs", source.jobId),
+      ctx.db.get("jobSources", source._id),
+    ]);
+    if (job && updatedSource) {
+      await rememberVerifiedCompanySource(ctx, { job, source: updatedSource });
+    }
     return null;
+  },
+});
+
+export const backfillDatePostedProvenance = internalMutation({
+  args: { limit: v.number() },
+  returns: v.object({ scanned: v.number(), updated: v.number() }),
+  handler: async (ctx, args) => {
+    const jobs = await ctx.db
+      .query("jobs")
+      .withIndex("by_lifecycleStatus_and_lastVerifiedAt")
+      .take(Math.min(Math.max(Math.floor(args.limit), 1), 200));
+    let updated = 0;
+    for (const job of jobs) {
+      if (job.canonicalJobId || isDevelopmentFixtureJob(job)) continue;
+      const sources = await ctx.db
+        .query("jobSources")
+        .withIndex("by_jobId", (q) => q.eq("jobId", job._id))
+        .take(50);
+      let originallyDiscoveredPostedAt = job.postedAt;
+      if (
+        job.datePostedProvenance === "discovery_metadata" &&
+        job.rawProviderJson
+      ) {
+        try {
+          const raw = JSON.parse(job.rawProviderJson) as {
+            postedAt?: unknown;
+          };
+          if (typeof raw.postedAt === "string") {
+            originallyDiscoveredPostedAt = raw.postedAt;
+          }
+        } catch {
+          // Keep the stored value when historical provider JSON is malformed.
+        }
+      }
+      const normalizedExisting = normalizeDiscoveredPostingDate(
+        originallyDiscoveredPostedAt,
+        job.firstDiscoveredAt,
+      );
+      let selected: {
+        postedAt?: string | null;
+        datePostedProvenance?: DatePostedProvenance;
+      } = {
+        postedAt: normalizedExisting,
+        datePostedProvenance:
+          job.datePostedProvenance ??
+          (normalizedExisting ? ("discovery_metadata" as const) : undefined),
+      };
+      for (const source of sources) {
+        selected = selectOriginalPostingDate(selected, {
+          postedAt: source.datePosted ?? source.structuredDatePosted,
+          datePostedProvenance:
+            source.datePostedProvenance ??
+            (source.structuredDatePosted
+              ? source.sourceTier === "employer" || source.sourceTier === "ats"
+                ? "employer_ats_structured"
+                : "jobposting_jsonld"
+              : undefined),
+        });
+      }
+      if (
+        selected.postedAt === job.postedAt &&
+        selected.datePostedProvenance === job.datePostedProvenance
+      ) {
+        continue;
+      }
+      await ctx.db.patch("jobs", job._id, {
+        postedAt: selected.postedAt ?? null,
+        datePostedProvenance: selected.datePostedProvenance,
+      });
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileJobUsers, {
+        jobId: job._id,
+        cursor: null,
+      });
+      updated += 1;
+    }
+    return { scanned: jobs.length, updated };
+  },
+});
+
+export const getCatalogFreshnessAudit = internalQuery({
+  args: { now: v.number() },
+  returns: v.object({
+    totalCanonical: v.number(),
+    buckets: v.object({
+      veryFresh: v.object({ catalog: v.number(), active: v.number() }),
+      fresh: v.object({ catalog: v.number(), active: v.number() }),
+      acceptable: v.object({ catalog: v.number(), active: v.number() }),
+      old: v.object({ catalog: v.number(), active: v.number() }),
+      stale: v.object({ catalog: v.number(), active: v.number() }),
+      unknown: v.object({ catalog: v.number(), active: v.number() }),
+    }),
+    activeJobs: v.array(
+      v.object({
+        jobId: v.id("jobs"),
+        title: v.string(),
+        companyName: v.string(),
+        postedAt: v.union(v.string(), v.null()),
+        datePostedProvenance: v.union(v.string(), v.null()),
+        ageDays: v.union(v.number(), v.null()),
+        freshnessBucket: v.string(),
+        firstSeenAt: v.number(),
+        lastSeenAt: v.number(),
+        lastVerifiedAt: v.union(v.number(), v.null()),
+        activityState: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const [jobs, sources] = await Promise.all([
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt")
+        .take(1_000),
+      ctx.db.query("jobSources").withIndex("by_nextVerificationAt").take(2_000),
+    ]);
+    const fixtureJobIds = new Set(
+      sources
+        .filter((source) => !isUserFacingJobSource(source))
+        .map((source) => source.jobId),
+    );
+    const canonical = jobs.filter(
+      (job) =>
+        !job.canonicalJobId &&
+        !fixtureJobIds.has(job._id) &&
+        !isDevelopmentFixtureJob(job),
+    );
+    const sourceById = new Map(sources.map((source) => [source._id, source]));
+    const bucket = () => ({ catalog: 0, active: 0 });
+    const buckets = {
+      veryFresh: bucket(),
+      fresh: bucket(),
+      acceptable: bucket(),
+      old: bucket(),
+      stale: bucket(),
+      unknown: bucket(),
+    };
+    const activeJobs = [];
+    for (const job of canonical) {
+      const freshness = classifyFreshness(job.postedAt, args.now);
+      const key =
+        freshness.bucket === "very_fresh"
+          ? "veryFresh"
+          : freshness.bucket === "fresh"
+            ? "fresh"
+            : freshness.bucket === "acceptable"
+              ? "acceptable"
+              : freshness.bucket === "old"
+                ? "old"
+                : freshness.bucket === "stale_for_suggestions"
+                  ? "stale"
+                  : "unknown";
+      const active = isActiveFeedLifecycle(job.lifecycleStatus);
+      buckets[key].catalog += 1;
+      if (active) buckets[key].active += 1;
+      if (!active) continue;
+      const source = job.bestSourceId ? sourceById.get(job.bestSourceId) : null;
+      activeJobs.push({
+        jobId: job._id,
+        title: job.title,
+        companyName: job.companyName,
+        postedAt: job.postedAt,
+        datePostedProvenance: job.datePostedProvenance ?? null,
+        ageDays: freshness.ageDays,
+        freshnessBucket: freshness.bucket,
+        firstSeenAt: job.firstDiscoveredAt,
+        lastSeenAt: source?.lastSeenAt ?? job.lastDiscoveredAt,
+        lastVerifiedAt: source?.lastVerifiedAt ?? null,
+        activityState: job.lifecycleStatus ?? "unknown",
+      });
+    }
+    activeJobs.sort(
+      (left, right) => (right.ageDays ?? -1) - (left.ageDays ?? -1),
+    );
+    return { totalCanonical: canonical.length, buckets, activeJobs };
   },
 });
 

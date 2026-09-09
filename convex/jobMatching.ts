@@ -6,6 +6,7 @@ import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
 import { isFreshActiveSource } from "./jobActivityPolicy";
+import { evaluateSuggestionFreshness } from "./jobFreshness";
 
 const lifecycleValidator = v.union(
   v.literal("verified_active"),
@@ -106,6 +107,12 @@ export const reconcileUserPage = internalMutation({
     const now = Date.now();
     for (const job of page.page) {
       const quality = evaluateJobQuality(job, loaded.profile);
+      const freshness = evaluateSuggestionFreshness({
+        postedAt: job.postedAt,
+        lifecycleStatus: job.lifecycleStatus,
+        relevanceScore: quality.relevanceScore,
+        now,
+      });
       const source = job.bestSourceId
         ? await ctx.db.get("jobSources", job.bestSourceId)
         : null;
@@ -118,6 +125,7 @@ export const reconcileUserPage = internalMutation({
       const displayEligible = Boolean(
         !application &&
         quality.outcome === "eligible" &&
+        freshness.eligible &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
         source !== null &&
@@ -138,6 +146,9 @@ export const reconcileUserPage = internalMutation({
         displayEligible,
         outcome: quality.outcome,
         exclusionReasons: quality.exclusionReasons,
+        finalExclusionReasons: freshness.reason ? [freshness.reason] : [],
+        freshnessBucket: freshness.bucket,
+        freshnessEligible: freshness.eligible,
         relevanceScore: quality.relevanceScore,
         scoreComponents: quality.scoreComponents,
         matchReasons: quality.matchReasons,
@@ -224,6 +235,12 @@ export const reconcileJobUsers = internalMutation({
       const loaded = await loadProfile(ctx, storedProfile.userId);
       if (!loaded) continue;
       const quality = evaluateJobQuality(job, loaded.profile);
+      const freshness = evaluateSuggestionFreshness({
+        postedAt: job.postedAt,
+        lifecycleStatus: job.lifecycleStatus,
+        relevanceScore: quality.relevanceScore,
+        now,
+      });
       const application = await ctx.db
         .query("jobApplications")
         .withIndex("by_userId_and_jobId", (q) =>
@@ -233,6 +250,7 @@ export const reconcileJobUsers = internalMutation({
       const displayEligible = Boolean(
         !application &&
         quality.outcome === "eligible" &&
+        freshness.eligible &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
         source !== null &&
@@ -253,6 +271,9 @@ export const reconcileJobUsers = internalMutation({
         displayEligible,
         outcome: quality.outcome,
         exclusionReasons: quality.exclusionReasons,
+        finalExclusionReasons: freshness.reason ? [freshness.reason] : [],
+        freshnessBucket: freshness.bucket,
+        freshnessEligible: freshness.eligible,
         relevanceScore: quality.relevanceScore,
         scoreComponents: quality.scoreComponents,
         matchReasons: quality.matchReasons,
@@ -300,9 +321,17 @@ export const reconcileUserJob = internalMutation({
         .unique(),
     ]);
     const quality = evaluateJobQuality(job, loaded.profile);
+    const now = Date.now();
+    const freshness = evaluateSuggestionFreshness({
+      postedAt: job.postedAt,
+      lifecycleStatus: job.lifecycleStatus,
+      relevanceScore: quality.relevanceScore,
+      now,
+    });
     const displayEligible = Boolean(
       !application &&
       quality.outcome === "eligible" &&
+      freshness.eligible &&
       isDisplayEligibleJob(job) &&
       isUserFacingJobSource(source) &&
       source !== null &&
@@ -321,11 +350,14 @@ export const reconcileUserJob = internalMutation({
       displayEligible: true,
       outcome: quality.outcome,
       exclusionReasons: quality.exclusionReasons,
+      finalExclusionReasons: freshness.reason ? [freshness.reason] : [],
+      freshnessBucket: freshness.bucket,
+      freshnessEligible: freshness.eligible,
       relevanceScore: quality.relevanceScore,
       scoreComponents: quality.scoreComponents,
       matchReasons: quality.matchReasons,
       resultSource: "central" as const,
-      evaluatedAt: Date.now(),
+      evaluatedAt: now,
     };
     if (existing) await ctx.db.patch("jobMatches", existing._id, values);
     else await ctx.db.insert("jobMatches", values);

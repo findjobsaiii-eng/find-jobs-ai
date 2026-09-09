@@ -31,11 +31,16 @@ import {
   normalizePublicUrl,
 } from "./jobDiscoveryModel";
 import { locationNamesForGeography } from "./jobGeography";
+import { classifyJobSource, preferredSourceSortKey } from "./jobSourceQuality";
 import {
-  classifyJobSource,
-  sourcePriority as sourceTierPriority,
-} from "./jobSourceQuality";
+  evaluateSuggestionFreshness,
+  freshnessSortValue,
+  normalizeDiscoveredPostingDate,
+  selectOriginalPostingDate,
+} from "./jobFreshness";
+import { rememberVerifiedCompanySource } from "./companySourceMemory";
 import { DISCOVERY_SOURCE_FAMILIES } from "./jobSourceQuality";
+import { sourceYieldGroup } from "./jobSourceQuality";
 import {
   isDevelopmentFixtureJob,
   isUserFacingJobSource,
@@ -122,6 +127,17 @@ const sourceVerificationValidator = v.object({
   applicationAvailable: v.boolean(),
   applicationUrl: v.optional(v.union(v.string(), v.null())),
   structuredDatePosted: v.union(v.string(), v.null()),
+  datePosted: v.optional(v.union(v.string(), v.null())),
+  datePostedProvenance: v.optional(
+    v.union(
+      v.literal("employer_ats_structured"),
+      v.literal("jobposting_jsonld"),
+      v.literal("provider_structured"),
+      v.literal("page_explicit"),
+      v.literal("discovery_metadata"),
+      v.null(),
+    ),
+  ),
   structuredValidThrough: v.union(v.string(), v.null()),
   structuredJobIdentifier: v.union(v.string(), v.null()),
   pageTitle: v.union(v.string(), v.null()),
@@ -222,6 +238,8 @@ const matchAuditValidator = v.object({
     canonicalRealJobs: v.number(),
     realSourceJobs: v.number(),
     activityEligible: v.number(),
+    freshnessEligible: v.number(),
+    stalePostingExcluded: v.number(),
     afterDedupe: v.number(),
     insideLocation: v.number(),
     outsideRadiusRelevant: v.number(),
@@ -252,6 +270,20 @@ const matchAuditValidator = v.object({
         v.literal("aggregator"),
         v.null(),
       ),
+      sourceFamily: v.union(v.string(), v.null()),
+      preferredSource: v.union(v.string(), v.null()),
+      datePosted: v.union(v.string(), v.null()),
+      datePostedProvenance: v.union(v.string(), v.null()),
+      ageDays: v.union(v.number(), v.null()),
+      freshnessBucket: v.string(),
+      firstSeenAt: v.number(),
+      lastSeenAt: v.number(),
+      lastVerifiedAt: v.union(v.number(), v.null()),
+      activityState: v.string(),
+      locationEligible: v.boolean(),
+      professionalEligible: v.boolean(),
+      freshnessEligible: v.boolean(),
+      suggestionsEligible: v.boolean(),
       decision: v.union(
         v.literal("strong"),
         v.literal("acceptable"),
@@ -295,11 +327,36 @@ const sourceCoverageValidator = v.object({
       employerOrAts: v.number(),
       majorBoards: v.number(),
       aggregators: v.number(),
+      sourceCounts: v.object({
+        employerCareers: v.number(),
+        ats: v.number(),
+        linkedIn: v.number(),
+        israeliBoards: v.number(),
+        recruiting: v.number(),
+        aggregators: v.number(),
+        other: v.number(),
+      }),
       verifiedActive: v.number(),
       unknown: v.number(),
       closed: v.number(),
+      expired: v.number(),
+      freshness: v.object({
+        veryFresh: v.number(),
+        fresh: v.number(),
+        acceptable: v.number(),
+        old: v.number(),
+        stale: v.number(),
+        unknown: v.number(),
+      }),
+      passedLocation: v.number(),
+      professionallyEligible: v.number(),
       aboveThreshold: v.number(),
+      stalePostingExclusions: v.number(),
       newSuggestions: v.number(),
+      newDirectCanonicalJobs: v.number(),
+      upgradedWithDirectSource: v.number(),
+      directSourceRate: v.number(),
+      directActiveYield: v.number(),
     }),
   ),
 });
@@ -674,7 +731,7 @@ export const markProviderStarted = internalMutation({
 });
 
 function sourcePriority(source: Doc<"jobSources">) {
-  return sourceTierPriority(source.sourceTier);
+  return preferredSourceSortKey(source);
 }
 
 function inferredSourceTier(
@@ -728,9 +785,11 @@ async function canMergeCandidate(
       source.externalJobId &&
       source.externalJobId !== verification.externalJobId,
   );
-  return (
-    !conflictingSameProvider || existing.contentHash === candidate.contentHash
-  );
+  // A provider-issued vacancy ID is stronger repost evidence than an
+  // identical description. Employers commonly reuse the same copy when they
+  // publish a genuinely new opening, so content equality must not collapse it
+  // back into the old canonical vacancy.
+  return !conflictingSameProvider;
 }
 
 type JobInput = (typeof jobInputValidator)["type"];
@@ -927,6 +986,12 @@ async function upsertSource(
     structuredDatePosted: temporaryFailure
       ? existingSource?.structuredDatePosted
       : (args.verification.structuredDatePosted ?? undefined),
+    datePosted: temporaryFailure
+      ? existingSource?.datePosted
+      : (args.verification.datePosted ?? undefined),
+    datePostedProvenance: temporaryFailure
+      ? existingSource?.datePostedProvenance
+      : (args.verification.datePostedProvenance ?? undefined),
     structuredValidThrough: temporaryFailure
       ? existingSource?.structuredValidThrough
       : (args.verification.structuredValidThrough ?? undefined),
@@ -1025,7 +1090,11 @@ async function refreshBestSource(
   const activeSources = allSources.filter((source) =>
     isFreshActiveSource(source, now),
   );
-  activeSources.sort((a, b) => sourcePriority(a) - sourcePriority(b));
+  activeSources.sort((a, b) => {
+    const left = sourcePriority(a);
+    const right = sourcePriority(b);
+    return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
+  });
   const best = activeSources[0];
   const lifecycle = deriveJobLifecycle({
     sources: allSources,
@@ -1146,23 +1215,58 @@ export const completeSearch = internalMutation({
     for (const { job, verification } of args.jobs.slice(0, maxJobs)) {
       const canonical = await findCanonicalJob(ctx, job, verification);
       let centralJob = canonical.job;
+      const discoveredPostedAt = normalizeDiscoveredPostingDate(
+        job.postedAt,
+        now,
+      );
+      const providerPosting = {
+        postedAt: discoveredPostedAt,
+        datePostedProvenance: discoveredPostedAt
+          ? ("discovery_metadata" as const)
+          : undefined,
+      };
+      const verifiedPosting = {
+        postedAt: verification.datePosted,
+        datePostedProvenance: verification.datePostedProvenance ?? undefined,
+      };
+      const incomingPosting = selectOriginalPostingDate(
+        providerPosting,
+        verifiedPosting,
+      );
+      const selectedPosting = centralJob
+        ? selectOriginalPostingDate(centralJob, incomingPosting)
+        : incomingPosting;
+      const storedJob = {
+        ...job,
+        postedAt: selectedPosting.postedAt ?? null,
+        datePostedProvenance: selectedPosting.datePostedProvenance,
+      };
       let jobId: Id<"jobs">;
       if (centralJob) {
         jobId = centralJob._id;
         deduplicatedCount += 1;
         if (centralJob.contentHash !== job.contentHash) {
           await ctx.db.patch("jobs", jobId, {
-            ...job,
+            ...storedJob,
             firstDiscoveredAt: centralJob.firstDiscoveredAt,
             lastDiscoveredAt: now,
             lifecycleStatus: centralJob.lifecycleStatus,
             activityStatus: centralJob.activityStatus,
             bestSourceId: centralJob.bestSourceId,
           });
+        } else if (
+          centralJob.postedAt !== storedJob.postedAt ||
+          centralJob.datePostedProvenance !== storedJob.datePostedProvenance
+        ) {
+          await ctx.db.patch("jobs", jobId, {
+            postedAt: storedJob.postedAt,
+            datePostedProvenance: storedJob.datePostedProvenance,
+            lastDiscoveredAt: now,
+          });
         }
       } else {
         jobId = await ctx.db.insert("jobs", {
-          ...job,
+          ...storedJob,
           firstDiscoveredAt: now,
           lastDiscoveredAt: now,
           lastVerifiedAt:
@@ -1191,6 +1295,14 @@ export const completeSearch = internalMutation({
         duplicateReason: canonical.reason,
         now,
       });
+      const storedSource = await ctx.db.get("jobSources", sourceId);
+      const storedCanonical = await ctx.db.get("jobs", jobId);
+      if (storedSource && storedCanonical) {
+        await rememberVerifiedCompanySource(ctx, {
+          job: storedCanonical,
+          source: storedSource,
+        });
+      }
       await ctx.db.insert("jobIngestionEvents", {
         jobId,
         sourceId,
@@ -1229,6 +1341,12 @@ export const completeSearch = internalMutation({
       if (!centralJob) continue;
 
       const quality = evaluateJobQuality(centralJob, args.profile);
+      const freshness = evaluateSuggestionFreshness({
+        postedAt: centralJob.postedAt,
+        lifecycleStatus: centralJob.lifecycleStatus,
+        relevanceScore: quality.relevanceScore,
+        now,
+      });
       if (
         !bestSource &&
         !quality.exclusionReasons.includes("not_verified_active")
@@ -1238,7 +1356,8 @@ export const completeSearch = internalMutation({
       }
       const alreadySeen = seenJobs.has(jobId);
       if (!alreadySeen) {
-        if (quality.outcome === "eligible") eligibleCount += 1;
+        if (quality.outcome === "eligible" && freshness.eligible)
+          eligibleCount += 1;
         else qualityRejectedCount += 1;
       }
       if (alreadySeen) continue;
@@ -1412,9 +1531,15 @@ async function feedItem(
   profile: SearchProfile,
 ) {
   const quality = evaluateJobQuality(job, profile);
+  const freshness = evaluateSuggestionFreshness({
+    postedAt: job.postedAt,
+    lifecycleStatus: job.lifecycleStatus,
+    relevanceScore: quality.relevanceScore,
+  });
   if (
     !isDisplayEligibleJob(job) ||
     quality.outcome !== "eligible" ||
+    !freshness.eligible ||
     !job.bestSourceId
   )
     return null;
@@ -1435,6 +1560,9 @@ async function feedItem(
     descriptionText: job.descriptionText,
     requiredSkills: job.requiredSkills.slice(0, 6),
     postedAt: job.postedAt,
+    datePostedProvenance: job.datePostedProvenance,
+    postedAgeDays: freshness.ageDays,
+    freshnessBucket: freshness.bucket,
     unavailable: false,
     sourceUrl: source.applicationUrl ?? source.finalUrl,
     sourceName: source.sourceName ?? source.domain ?? null,
@@ -1454,11 +1582,6 @@ async function feedItem(
     matchHighlights: quality.matchDetails,
     resultSource: "central" as const,
   };
-}
-
-function jobFreshness(job: { postedAt?: string | null; discoveredAt: number }) {
-  const parsed = job.postedAt ? Date.parse(job.postedAt) : Number.NaN;
-  return Number.isFinite(parsed) ? parsed : job.discoveredAt;
 }
 
 function feedSourcePriority(tier: string) {
@@ -1598,7 +1721,7 @@ export const listCurrentUserJobs = query({
     jobs.sort(
       (a, b) =>
         b.relevanceScore - a.relevanceScore ||
-        jobFreshness(b) - jobFreshness(a) ||
+        freshnessSortValue(b.postedAt) - freshnessSortValue(a.postedAt) ||
         feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
     );
     const emptyState = jobs.length
@@ -1655,6 +1778,11 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
   const realSourceJobIds = new Set(realSources.map((source) => source.jobId));
   const evaluated = canonicalJobs.map((job) => {
     const quality = evaluateJobQuality(job, profile);
+    const freshness = evaluateSuggestionFreshness({
+      postedAt: job.postedAt,
+      lifecycleStatus: job.lifecycleStatus,
+      relevanceScore: quality.relevanceScore,
+    });
     const source = job.bestSourceId ? sourceById.get(job.bestSourceId) : null;
     const activityEligible = Boolean(
       isDisplayEligibleJob(job) &&
@@ -1667,22 +1795,22 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       job,
       source,
       quality,
+      freshness,
       activityEligible,
-      accepted: activityEligible && quality.outcome === "eligible",
+      accepted:
+        activityEligible &&
+        freshness.eligible &&
+        quality.outcome === "eligible",
     };
   });
   const activityEligible = evaluated.filter((item) => item.activityEligible);
+  const freshnessEligible = activityEligible.filter(
+    (item) => item.freshness.eligible,
+  );
   activityEligible.sort(
     (a, b) =>
       b.quality.relevanceScore - a.quality.relevanceScore ||
-      jobFreshness({
-        postedAt: b.job.postedAt,
-        discoveredAt: b.job.firstDiscoveredAt,
-      }) -
-        jobFreshness({
-          postedAt: a.job.postedAt,
-          discoveredAt: a.job.firstDiscoveredAt,
-        }) ||
+      freshnessSortValue(b.job.postedAt) - freshnessSortValue(a.job.postedAt) ||
       feedSourcePriority(b.source?.sourceTier ?? "") -
         feedSourcePriority(a.source?.sourceTier ?? ""),
   );
@@ -1700,6 +1828,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       reject(reason);
       continue;
     }
+    if (item.freshness.reason) reject(item.freshness.reason);
     for (const reason of item.quality.exclusionReasons) {
       reject(reason === "location_conflict" ? "outside_radius" : reason);
     }
@@ -1713,9 +1842,12 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       .map((item) => item.job._id),
   );
   const insideLocation = activityEligible.filter(
-    (item) => !item.quality.exclusionReasons.includes("location_conflict"),
+    (item) =>
+      item.freshness.eligible &&
+      !item.quality.exclusionReasons.includes("location_conflict"),
   );
   const outsideRadiusRelevant = activityEligible.filter((item) => {
+    if (!item.freshness.eligible) return false;
     if (!item.quality.exclusionReasons.includes("location_conflict")) {
       return false;
     }
@@ -1740,6 +1872,10 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
         realSourceJobIds.has(job._id),
       ).length,
       activityEligible: activityEligible.length,
+      freshnessEligible: freshnessEligible.length,
+      stalePostingExcluded: activityEligible.filter(
+        (item) => item.freshness.reason === "stale_posting",
+      ).length,
       afterDedupe: activityEligible.length,
       insideLocation: insideLocation.length,
       outsideRadiusRelevant: outsideRadiusRelevant.length,
@@ -1748,7 +1884,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       aboveThreshold: professionalEligible.filter(
         (item) => item.quality.passesRelevanceThreshold,
       ).length,
-      finalExcluded: activityEligible.filter(
+      finalExcluded: freshnessEligible.filter(
         (item) => item.accepted && appliedJobIds.has(item.job._id),
       ).length,
       displayed: materializedMatches.filter((match) =>
@@ -1766,12 +1902,35 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       relevanceScore: item.quality.relevanceScore,
       scoreComponents: item.quality.scoreComponents,
       exclusionReasons: item.quality.exclusionReasons,
-      finalExclusionReasons:
-        item.accepted && appliedJobIds.has(item.job._id)
+      finalExclusionReasons: [
+        ...(item.freshness.reason ? [item.freshness.reason] : []),
+        ...(item.accepted && appliedJobIds.has(item.job._id)
           ? ["already_applied"]
-          : [],
+          : []),
+      ],
       matchReasons: item.quality.matchReasons,
       sourceTier: item.source?.sourceTier ?? null,
+      sourceFamily: item.source
+        ? classifyJobSource(item.source.domain).sourceFamily
+        : null,
+      preferredSource: item.source?.finalUrl ?? null,
+      datePosted: item.job.postedAt,
+      datePostedProvenance: item.job.datePostedProvenance ?? null,
+      ageDays: item.freshness.ageDays,
+      freshnessBucket: item.freshness.bucket,
+      firstSeenAt: item.job.firstDiscoveredAt,
+      lastSeenAt: item.source?.lastSeenAt ?? item.job.lastDiscoveredAt,
+      lastVerifiedAt: item.source?.lastVerifiedAt ?? null,
+      activityState: item.job.lifecycleStatus ?? "unknown",
+      locationEligible:
+        !item.quality.exclusionReasons.includes("location_conflict"),
+      professionalEligible: item.quality.exclusionReasons.every(
+        (reason) =>
+          reason === "location_conflict" ||
+          reason === "below_relevance_threshold",
+      ),
+      freshnessEligible: item.freshness.eligible,
+      suggestionsEligible: item.accepted && !appliedJobIds.has(item.job._id),
       decision: item.accepted
         ? item.quality.relevanceScore >= 78
           ? ("strong" as const)
@@ -1945,9 +2104,19 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
     const employerOrAts = new Set<Id<"jobs">>();
     const majorBoards = new Set<Id<"jobs">>();
     const aggregators = new Set<Id<"jobs">>();
+    const sourceGroups = new Map<string, Set<Id<"jobs">>>();
+    const runEndedAt = run.completedAt ?? Date.now();
     for (const job of runJobs) {
-      for (const source of byJob.get(job._id) ?? []) {
+      const sourcesSeenThisRun = (byJob.get(job._id) ?? []).filter(
+        (source) =>
+          source.lastSeenAt >= run.startedAt && source.lastSeenAt <= runEndedAt,
+      );
+      for (const source of sourcesSeenThisRun) {
         const family = classifyJobSource(source.domain).sourceFamily;
+        const group = sourceYieldGroup(source.domain, source.sourceTier);
+        const groupJobs = sourceGroups.get(group) ?? new Set<Id<"jobs">>();
+        groupJobs.add(job._id);
+        sourceGroups.set(group, groupJobs);
         if (family === "employer_direct" || family === "ats_direct") {
           employerOrAts.add(job._id);
         } else if (family === "major_job_board") {
@@ -1978,6 +2147,45 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
         isFreshActiveSource(bestSource),
       );
     };
+    const evaluatedRunJobs = runJobs.map((job) => {
+      const quality = evaluateJobQuality(job, profile);
+      const freshness = evaluateSuggestionFreshness({
+        postedAt: job.postedAt,
+        lifecycleStatus: job.lifecycleStatus,
+        relevanceScore: quality.relevanceScore,
+      });
+      return {
+        job,
+        quality,
+        freshness,
+        activityEligible: currentEligible(job),
+      };
+    });
+    const countGroup = (name: string) => sourceGroups.get(name)?.size ?? 0;
+    const activeDirectNew = evaluatedRunJobs.filter(
+      ({ job, activityEligible }) =>
+        activityEligible &&
+        job.firstDiscoveredAt >= run.startedAt &&
+        employerOrAts.has(job._id),
+    ).length;
+    const newDirectCanonicalJobs = runJobs.filter(
+      (job) =>
+        job.firstDiscoveredAt >= run.startedAt && employerOrAts.has(job._id),
+    ).length;
+    const upgradedWithDirectSource = runJobs.filter(
+      (job) =>
+        job.firstDiscoveredAt < run.startedAt &&
+        (byJob.get(job._id) ?? []).some(
+          (source) =>
+            (source.sourceTier === "employer" || source.sourceTier === "ats") &&
+            source.firstSeenAt >= run.startedAt &&
+            source.firstSeenAt <= runEndedAt,
+        ),
+    ).length;
+    const pct = (value: number) =>
+      run.returnedCandidateCount === 0
+        ? 0
+        : Math.round((value / run.returnedCandidateCount) * 1_000) / 10;
     recentSearches.push({
       query: queryRecord?.generatedQueries[0] ?? "",
       role: parseRole(),
@@ -1994,20 +2202,80 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
       employerOrAts: employerOrAts.size,
       majorBoards: majorBoards.size,
       aggregators: aggregators.size,
-      verifiedActive: runJobs.filter(currentEligible).length,
+      sourceCounts: {
+        employerCareers: countGroup("Employer careers"),
+        ats: countGroup("ATS"),
+        linkedIn: countGroup("LinkedIn"),
+        israeliBoards:
+          countGroup("Drushim") +
+          countGroup("JobMaster") +
+          countGroup("AllJobs") +
+          countGroup("Jobify") +
+          countGroup("Indeed"),
+        recruiting: countGroup("Recruiting agencies"),
+        aggregators: countGroup("Aggregators"),
+        other: countGroup("Other secondary sources"),
+      },
+      verifiedActive: evaluatedRunJobs.filter(
+        ({ activityEligible }) => activityEligible,
+      ).length,
       unknown: runJobs.filter(
         (job) => (job.lifecycleStatus ?? "unknown") === "unknown",
       ).length,
-      closed: runJobs.filter(
-        (job) =>
-          job.lifecycleStatus === "closed" || job.lifecycleStatus === "expired",
+      closed: runJobs.filter((job) => job.lifecycleStatus === "closed").length,
+      expired: runJobs.filter((job) => job.lifecycleStatus === "expired")
+        .length,
+      freshness: {
+        veryFresh: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "very_fresh",
+        ).length,
+        fresh: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "fresh",
+        ).length,
+        acceptable: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "acceptable",
+        ).length,
+        old: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "old",
+        ).length,
+        stale: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "stale_for_suggestions",
+        ).length,
+        unknown: evaluatedRunJobs.filter(
+          ({ freshness }) => freshness.bucket === "freshness_unknown",
+        ).length,
+      },
+      passedLocation: evaluatedRunJobs.filter(
+        ({ activityEligible, freshness, quality }) =>
+          activityEligible &&
+          freshness.eligible &&
+          !quality.exclusionReasons.includes("location_conflict"),
       ).length,
-      aboveThreshold: runJobs.filter((job) => {
-        const quality = evaluateJobQuality(job, profile);
-        return currentEligible(job) && quality.outcome === "eligible";
-      }).length,
+      professionallyEligible: evaluatedRunJobs.filter(
+        ({ activityEligible, freshness, quality }) =>
+          activityEligible &&
+          freshness.eligible &&
+          quality.exclusionReasons.every(
+            (reason) =>
+              reason === "location_conflict" ||
+              reason === "below_relevance_threshold",
+          ),
+      ).length,
+      aboveThreshold: evaluatedRunJobs.filter(
+        ({ activityEligible, freshness, quality }) =>
+          activityEligible &&
+          freshness.eligible &&
+          quality.outcome === "eligible",
+      ).length,
+      stalePostingExclusions: evaluatedRunJobs.filter(
+        ({ freshness }) => freshness.reason === "stale_posting",
+      ).length,
       newSuggestions: runJobs.filter((job) => suggestionIds.has(job._id))
         .length,
+      newDirectCanonicalJobs,
+      upgradedWithDirectSource,
+      directSourceRate: pct(employerOrAts.size),
+      directActiveYield: pct(activeDirectNew),
     });
   }
   let employerOrAtsJobs = 0;

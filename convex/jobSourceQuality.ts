@@ -69,7 +69,7 @@ export const DISCOVERY_SOURCE_FAMILIES = [
 ] as const;
 
 export const DISCOVERY_SOURCE_GUIDANCE =
-  "Prefer recent employer or ATS sources; major reputable job boards and recruiting agencies are acceptable.";
+  "Prioritize exact employer career pages and public ATS vacancies (Comeet, Lever, Greenhouse, Workday, SmartRecruiters, Ashby, or SuccessFactors). Major reputable job boards and recruiting agencies are acceptable coverage sources. Prefer postings from the last 60 days when a publication date is available, but retain exact direct vacancies whose publication date is not shown.";
 
 function hostMatches(hostname: string, domain: string) {
   return hostname === domain || hostname.endsWith(`.${domain}`);
@@ -146,6 +146,18 @@ export function classifyJobSource(
 
 export function sourcePriority(tier: JobSourceTier) {
   return { employer: 1, ats: 2, job_board: 3, aggregator: 4 }[tier];
+}
+
+export function preferredSourceSortKey(source: {
+  sourceTier: JobSourceTier;
+  applicationUrl?: string;
+  lastVerifiedAt?: number;
+}) {
+  return [
+    source.applicationUrl ? 0 : 1,
+    sourcePriority(source.sourceTier),
+    -(source.lastVerifiedAt ?? 0),
+  ] as const;
 }
 
 export type SourceYieldGroup =

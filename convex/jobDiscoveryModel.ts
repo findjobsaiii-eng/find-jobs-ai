@@ -226,7 +226,7 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       5,
     );
     const generatedQuery = normalizeWhitespace(
-      `Find current job vacancies in Israel for "${title}". Equivalent titles: ${aliases.slice(1).join(", ")}. Return real job-specific posting URLs. ${DISCOVERY_SOURCE_GUIDANCE}`,
+      `Find recent public job vacancies in Israel for "${title}"${aliases.length > 1 ? `. Strong equivalent titles: ${aliases.slice(1).join(", ")}` : ""}. Return exact job-specific URLs and preserve direct employer or ATS URLs when found. ${DISCOVERY_SOURCE_GUIDANCE}`,
     );
     // Discovery is national and shared, so the same role reuses one provider
     // result across Israeli users regardless of their personal radius.
@@ -235,7 +235,7 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       aliases: aliases.map(normalizeTitleIdentity).sort(),
       locationScope: locationScope.map(normalizedKey).sort(),
       countryCode: profile.location.countryCode.toUpperCase(),
-      coverageVersion: "israel_recall_v1",
+      coverageVersion: "israel_direct_fresh_v2",
     });
     return {
       role: title,

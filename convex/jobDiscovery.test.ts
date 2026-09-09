@@ -724,6 +724,37 @@ describe("canonical job identity", () => {
     });
   });
 
+  it("keeps a provider repost with a new job ID separate even when content is unchanged", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const repost = normalizeCandidate({
+      ...rawJob,
+      sourceUrl: "https://careers.example.com/jobs/role-2",
+      sourceEvidence: [
+        {
+          url: "https://careers.example.com/jobs/role-2",
+          title: rawJob.title,
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    });
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+      {
+        job: repost,
+        verification: {
+          ...verification(),
+          finalUrl: repost.sourceUrl,
+          externalJobId: "role-2",
+        },
+      },
+    ]);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobs").collect()).toHaveLength(2);
+      expect(await ctx.db.query("jobSources").collect()).toHaveLength(2);
+    });
+  });
+
   it("merges equivalent company, title, and Israeli location across providers", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);

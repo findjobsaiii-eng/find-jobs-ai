@@ -151,6 +151,18 @@ export const discoverJobsForUserDevelopment = internalAction({
   },
 });
 
+export const discoverJobsForUserCachedDevelopment = internalAction({
+  args: { userId: v.id("users") },
+  returns: resultValidator,
+  handler: async (ctx, args): Promise<DiscoveryResult> => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    // Uses the same shared Israel-day cache and quota claims as the scheduler.
+    return await discoverForUser(ctx, args.userId, false);
+  },
+});
+
 export const discoverRoleForUserDevelopment = internalAction({
   args: { userId: v.id("users"), role: v.string() },
   returns: resultValidator,

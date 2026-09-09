@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
+import type * as companySourceMemory from "../companySourceMemory.js";
 import type * as crons from "../crons.js";
 import type * as dailyDiscovery from "../dailyDiscovery.js";
 import type * as http from "../http.js";
@@ -20,6 +21,7 @@ import type * as jobActivityPolicy from "../jobActivityPolicy.js";
 import type * as jobDiscovery from "../jobDiscovery.js";
 import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
 import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
+import type * as jobFreshness from "../jobFreshness.js";
 import type * as jobGeography from "../jobGeography.js";
 import type * as jobGeographyData from "../jobGeographyData.js";
 import type * as jobMatching from "../jobMatching.js";
@@ -50,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;
+  companySourceMemory: typeof companySourceMemory;
   crons: typeof crons;
   dailyDiscovery: typeof dailyDiscovery;
   http: typeof http;
@@ -59,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   jobDiscovery: typeof jobDiscovery;
   jobDiscoveryActions: typeof jobDiscoveryActions;
   jobDiscoveryModel: typeof jobDiscoveryModel;
+  jobFreshness: typeof jobFreshness;
   jobGeography: typeof jobGeography;
   jobGeographyData: typeof jobGeographyData;
   jobMatching: typeof jobMatching;

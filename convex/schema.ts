@@ -87,6 +87,23 @@ const sourceActivityStatus = v.union(
   v.literal("verification_failed"),
 );
 
+const datePostedProvenance = v.union(
+  v.literal("employer_ats_structured"),
+  v.literal("jobposting_jsonld"),
+  v.literal("provider_structured"),
+  v.literal("page_explicit"),
+  v.literal("discovery_metadata"),
+);
+
+const freshnessBucket = v.union(
+  v.literal("very_fresh"),
+  v.literal("fresh"),
+  v.literal("acceptable"),
+  v.literal("old"),
+  v.literal("stale_for_suggestions"),
+  v.literal("freshness_unknown"),
+);
+
 const profileOverrideField = v.union(
   v.literal("targetJobTitles"),
   v.literal("professionalSummary"),
@@ -180,6 +197,9 @@ export const jobFeedItem = v.object({
   descriptionText: v.optional(nullableString),
   requiredSkills: v.optional(v.array(v.string())),
   postedAt: v.optional(nullableString),
+  datePostedProvenance: v.optional(datePostedProvenance),
+  postedAgeDays: v.optional(v.union(v.number(), v.null())),
+  freshnessBucket: v.optional(freshnessBucket),
   unavailable: v.optional(v.boolean()),
   sourceUrl: v.string(),
   sourceName: v.union(v.string(), v.null()),
@@ -497,6 +517,7 @@ const schema = defineSchema({
       v.null(),
     ),
     postedAt: nullableString,
+    datePostedProvenance: v.optional(datePostedProvenance),
     applicationDeadline: nullableString,
     sourceEvidence: v.array(
       v.object({
@@ -563,6 +584,8 @@ const schema = defineSchema({
     applicationAvailable: v.optional(v.boolean()),
     applicationUrl: v.optional(v.string()),
     structuredDatePosted: v.optional(v.string()),
+    datePosted: v.optional(v.string()),
+    datePostedProvenance: v.optional(datePostedProvenance),
     structuredValidThrough: v.optional(v.string()),
     structuredJobIdentifier: v.optional(v.string()),
     pageTitle: v.optional(v.string()),
@@ -609,6 +632,9 @@ const schema = defineSchema({
     displayEligible: v.optional(v.boolean()),
     outcome: v.union(v.literal("eligible"), v.literal("excluded")),
     exclusionReasons: v.array(v.string()),
+    finalExclusionReasons: v.optional(v.array(v.string())),
+    freshnessBucket: v.optional(freshnessBucket),
+    freshnessEligible: v.optional(v.boolean()),
     relevanceScore: v.number(),
     scoreComponents: relevanceComponents,
     matchReasons: v.array(v.string()),
@@ -629,6 +655,17 @@ const schema = defineSchema({
       "relevanceScore",
     ])
     .index("by_searchRunId", ["searchRunId"]),
+  companySourceMemory: defineTable({
+    normalizedCompany: v.string(),
+    domain: v.string(),
+    sourceTier: v.union(v.literal("employer"), v.literal("ats")),
+    evidenceJobId: v.id("jobs"),
+    evidenceSourceId: v.id("jobSources"),
+    firstVerifiedAt: v.number(),
+    lastVerifiedAt: v.number(),
+  })
+    .index("by_normalizedCompany_and_domain", ["normalizedCompany", "domain"])
+    .index("by_lastVerifiedAt", ["lastVerifiedAt"]),
   jobDeepReviews: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),

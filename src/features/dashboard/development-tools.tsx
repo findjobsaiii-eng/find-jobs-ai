@@ -174,6 +174,11 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                     ["canonicalRealJobs", matchAudit.counts.canonicalRealJobs],
                     ["realSourceJobs", matchAudit.counts.realSourceJobs],
                     ["activityEligible", matchAudit.counts.activityEligible],
+                    ["freshnessEligible", matchAudit.counts.freshnessEligible],
+                    [
+                      "stalePostingExcluded",
+                      matchAudit.counts.stalePostingExcluded,
+                    ],
                     ["afterDedupe", matchAudit.counts.afterDedupe],
                     ["insideLocation", matchAudit.counts.insideLocation],
                     [
@@ -218,6 +223,17 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                     <p className="text-muted-foreground">
                       {candidate.companyName} · {candidate.relevanceScore} ·{" "}
                       {t(`jobDiscovery.audit.${candidate.decision}`)}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {candidate.sourceFamily ?? "unknown"} ·{" "}
+                      {candidate.freshnessBucket}
+                      {candidate.ageDays == null
+                        ? ""
+                        : ` · ${candidate.ageDays}d`}{" "}
+                      · {candidate.datePostedProvenance ?? "date unknown"}
+                    </p>
+                    <p className="text-muted-foreground break-all">
+                      {candidate.preferredSource ?? "no preferred source"}
                     </p>
                     {candidate.exclusionReasons.length ? (
                       <p className="text-destructive/80">
@@ -277,7 +293,13 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                         {t("jobDiscovery.audit.closed")} {search.closed} ·{" "}
                         {t("jobDiscovery.audit.above")} {search.aboveThreshold}{" "}
                         · {t("jobDiscovery.audit.suggestions")}{" "}
-                        {search.newSuggestions} ·{" "}
+                        {search.newSuggestions} · direct{" "}
+                        {search.directSourceRate}% · direct active{" "}
+                        {search.directActiveYield}% · fresh{" "}
+                        {search.freshness.veryFresh}/{search.freshness.fresh}/
+                        {search.freshness.acceptable}/{search.freshness.old} ·
+                        stale {search.freshness.stale} · unknown{" "}
+                        {search.freshness.unknown} ·{" "}
                         {search.producedFamilies
                           .map(({ family, count }) => `${family} ${count}`)
                           .join(" · ") || "no results"}

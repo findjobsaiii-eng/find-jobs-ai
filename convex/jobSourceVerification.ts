@@ -8,6 +8,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import type { NormalizedJob } from "./jobDiscoveryModel";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
 import { classifyJobSource } from "./jobSourceQuality";
+import type { DatePostedProvenance } from "./jobFreshness";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 const DNS_TIMEOUT_MS = 3_000;
@@ -29,6 +30,8 @@ export type SourceVerification = {
   applicationAvailable: boolean;
   applicationUrl?: string | null;
   structuredDatePosted: string | null;
+  datePosted?: string | null;
+  datePostedProvenance?: DatePostedProvenance | null;
   structuredValidThrough: string | null;
   structuredJobIdentifier: string | null;
   pageTitle: string | null;
@@ -319,6 +322,8 @@ function failure(
     identityMatched: false,
     applicationAvailable: false,
     structuredDatePosted: null,
+    datePosted: null,
+    datePostedProvenance: null,
     structuredValidThrough: null,
     structuredJobIdentifier: null,
     pageTitle: null,
@@ -422,6 +427,14 @@ function hasApplicationAction(html: string) {
   if (/data-tracking-control-name=["'][^"']*apply[^"']*["']/iu.test(html)) {
     return true;
   }
+  if (
+    /<(?:button|input)\b[^>]*(?:type=["']submit["']|data-(?:qa|automation-id)=["'][^"']*apply)[^>]*>/iu.test(
+      html,
+    ) &&
+    /(?:apply|submit application|הגש(?:ת)? מועמדות)/iu.test(visibleText(html))
+  ) {
+    return true;
+  }
   for (const link of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)) {
     const attributes = link[1];
     const label = visibleText(link[2]);
@@ -490,11 +503,13 @@ type StructuredPosting = {
   datePosted: string | null;
   validThrough: string | null;
   identifier: string | null;
+  directApply: boolean;
 };
 
 function structuredPosting(
   html: string,
   job: VerifiableJob,
+  allowPageCompanyFallback: boolean,
 ): StructuredPosting {
   const result: StructuredPosting = {
     matched: false,
@@ -502,6 +517,7 @@ function structuredPosting(
     datePosted: null,
     validThrough: null,
     identifier: null,
+    directApply: false,
   };
   for (const script of html.matchAll(
     /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu,
@@ -524,11 +540,19 @@ function structuredPosting(
         result.anyPosting = true;
         const organization = data.hiringOrganization as
           Record<string, unknown> | undefined;
+        const titleMatched =
+          typeof data.title === "string" &&
+          expectedEntityPresent(data.title, job.title);
+        const companyMatched =
+          typeof organization?.name === "string" &&
+          expectedEntityPresent(organization.name, job.companyName);
+        const pageCompanyMatched = expectedEntityPresent(
+          visibleText(html),
+          job.companyName,
+        );
         if (
-          typeof data.title !== "string" ||
-          !expectedEntityPresent(data.title, job.title) ||
-          typeof organization?.name !== "string" ||
-          !expectedEntityPresent(organization.name, job.companyName)
+          !titleMatched ||
+          (!companyMatched && !(allowPageCompanyFallback && pageCompanyMatched))
         ) {
           continue;
         }
@@ -538,6 +562,7 @@ function structuredPosting(
         result.validThrough =
           typeof data.validThrough === "string" ? data.validThrough : null;
         result.identifier = jobPostingIdentifier(data);
+        result.directApply = data.directApply === true;
         return result;
       }
     } catch {
@@ -571,6 +596,8 @@ export function classifySourceResponse(args: {
     identityMatched: false,
     applicationAvailable: false,
     structuredDatePosted: null,
+    datePosted: null,
+    datePostedProvenance: null,
     structuredValidThrough: null,
     structuredJobIdentifier: null,
     pageTitle: pageTitle(args.body ?? ""),
@@ -649,7 +676,11 @@ export function classifySourceResponse(args: {
     };
   }
   const postingHtml = primaryPostingHtml(args.body ?? "");
-  const structured = structuredPosting(postingHtml, args.job);
+  const structured = structuredPosting(
+    postingHtml,
+    args.job,
+    common.sourceTier === "ats",
+  );
   const structuredDeadline = parseTimestamp(structured.validThrough);
   const structuredPostedAt = parseTimestamp(structured.datePosted);
   const applicationAvailable = hasApplicationAction(postingHtml);
@@ -662,13 +693,29 @@ export function classifySourceResponse(args: {
     applicationAvailable,
     applicationUrl: directApplicationUrl,
   };
+  const pagePostedAt =
+    structuredPostedAt ?? relativePostedAt(primaryText, common.verifiedAt);
+  const normalizedDatePosted =
+    pagePostedAt === null ? null : new Date(pagePostedAt).toISOString();
+  const datePostedProvenance: DatePostedProvenance | null = structuredPostedAt
+    ? evidence.sourceTier === "employer" || evidence.sourceTier === "ats"
+      ? "employer_ats_structured"
+      : "jobposting_jsonld"
+    : pagePostedAt !== null
+      ? "page_explicit"
+      : null;
+  const datedEvidence = {
+    ...evidence,
+    datePosted: normalizedDatePosted,
+    datePostedProvenance,
+  };
   if (
     structured.matched &&
     structuredDeadline !== null &&
     structuredDeadline < common.verifiedAt
   ) {
     return {
-      ...evidence,
+      ...datedEvidence,
       identityMatched: true,
       activityStatus: "inactive",
       verificationEvidence: "structured_valid_through_expired",
@@ -676,7 +723,7 @@ export function classifySourceResponse(args: {
   }
   if (CLOSED_POSITION_PATTERN.test(primaryText)) {
     return {
-      ...evidence,
+      ...datedEvidence,
       activityStatus: "inactive",
       verificationEvidence: "explicit_closed_marker",
       rawSourceText: primaryText.slice(0, 32000),
@@ -686,7 +733,7 @@ export function classifySourceResponse(args: {
   const finalId = externalJobId(parsed);
   if (requestedId && finalId && requestedId !== finalId) {
     return {
-      ...evidence,
+      ...datedEvidence,
       activityStatus: "inactive",
       verificationEvidence: "job_identity_replaced",
     };
@@ -700,21 +747,21 @@ export function classifySourceResponse(args: {
     structured.matched || (titleMatched && companyMatched);
   if (structured.anyPosting && !structured.matched) {
     return {
-      ...evidence,
+      ...datedEvidence,
       activityStatus: "inactive",
       verificationEvidence: "job_identity_replaced",
     };
   }
   if (!identityMatched) {
     return {
-      ...evidence,
+      ...datedEvidence,
       activityStatus: "unknown",
       verificationEvidence: "job_identity_not_confirmed",
     };
   }
   if (structuredDeadline !== null && structuredDeadline >= common.verifiedAt) {
     return {
-      ...evidence,
+      ...datedEvidence,
       identityMatched: true,
       activeEvidenceType: "structured_valid_through_future",
       activityStatus: "verified_active",
@@ -722,9 +769,20 @@ export function classifySourceResponse(args: {
       rawSourceText: primaryText.slice(0, 32000),
     };
   }
+  if (structured.directApply) {
+    return {
+      ...datedEvidence,
+      identityMatched: true,
+      applicationAvailable: true,
+      activeEvidenceType: "structured_direct_apply",
+      activityStatus: "verified_active",
+      verificationEvidence: "structured_direct_apply",
+      rawSourceText: primaryText.slice(0, 32000),
+    };
+  }
   if (applicationAvailable) {
     return {
-      ...evidence,
+      ...datedEvidence,
       identityMatched: true,
       activeEvidenceType: "active_application_flow",
       activityStatus: "verified_active",
@@ -732,8 +790,6 @@ export function classifySourceResponse(args: {
       rawSourceText: primaryText.slice(0, 32000),
     };
   }
-  const pagePostedAt =
-    structuredPostedAt ?? relativePostedAt(primaryText, common.verifiedAt);
   if (
     pagePostedAt !== null &&
     pagePostedAt <= common.verifiedAt + 2 * 24 * 60 * 60 * 1_000 &&
@@ -743,7 +799,7 @@ export function classifySourceResponse(args: {
       ? "structured_recent_date_posted"
       : "recent_page_date";
     return {
-      ...evidence,
+      ...datedEvidence,
       identityMatched: true,
       activeEvidenceType,
       activityStatus: "verified_active",
@@ -752,7 +808,7 @@ export function classifySourceResponse(args: {
     };
   }
   return {
-    ...evidence,
+    ...datedEvidence,
     identityMatched: true,
     rawSourceText: primaryText.slice(0, 32000),
     activityStatus: "unknown",

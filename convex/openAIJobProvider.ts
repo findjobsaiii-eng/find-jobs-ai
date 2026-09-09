@@ -73,7 +73,7 @@ export async function searchJobsWithOpenAI(
         {
           role: "system",
           content:
-            "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles. Prefer recent vacancies and exact job-specific URLs. Prefer employer career or public ATS pages, but major reputable job boards and recruiting agencies are acceptable. Source quality is a preference, not a requirement. Discovery only finds candidates; it does not need to prove that a vacancy is active or relevant to a particular person. Never invent facts or URLs. Use null or empty arrays when a source does not state a field. Every job URL and evidence URL must come from web search sources. Return up to 10 useful candidates and return fewer only when search evidence is insufficient.",
+            "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles. Prefer vacancies published in the last 60 days when the source shows a date. Prioritize exact employer career and public ATS pages; major reputable job boards and recruiting agencies are valid coverage sources. Preserve every exact source URL found for the same vacancy, especially an employer or ATS URL. Source quality is a preference, never a requirement. Discovery finds candidates only; deterministic verification and matching happen later. Never invent facts, dates, or URLs. Use null or empty arrays when the source does not state a field. Every job URL and evidence URL must come from web search sources. Return up to 10 useful candidates and return fewer only when search evidence is insufficient.",
         },
         { role: "user", content: searchQuery },
       ],

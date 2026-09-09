@@ -136,6 +136,31 @@ export function JobDiscoveryPanel({
               const visibleDate = hasPostedDate
                 ? postedTimestamp
                 : job.discoveredAt;
+              const publishedAge = (() => {
+                if (!hasPostedDate) return null;
+                const days =
+                  job.postedAgeDays ??
+                  Math.max(
+                    0,
+                    Math.floor(
+                      (Date.now() - postedTimestamp) / (24 * 60 * 60 * 1_000),
+                    ),
+                  );
+                if (days === 0) return t("jobDiscovery.age.today");
+                if (days === 1)
+                  return t("jobDiscovery.age.days", { count: days });
+                if (days < 7)
+                  return t("jobDiscovery.age.days", { count: days });
+                if (days < 14) return t("jobDiscovery.age.week", { count: 1 });
+                if (days < 30)
+                  return t("jobDiscovery.age.weeks", {
+                    count: Math.floor(days / 7),
+                  });
+                if (days < 60) return t("jobDiscovery.age.month", { count: 1 });
+                return t("jobDiscovery.age.months", {
+                  count: Math.floor(days / 30),
+                });
+              })();
               const skills = (job.requiredSkills ?? []).slice(0, 5);
               const highlights = job.matchHighlights;
               const explanations = [
@@ -231,28 +256,50 @@ export function JobDiscoveryPanel({
                           </dd>
                         </div>
                       ) : null}
-                      <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
-                        <CalendarDays aria-hidden="true" className="size-3.5" />
-                        <dt className="sr-only">
-                          {t(
-                            hasPostedDate
-                              ? "jobDiscovery.posted"
-                              : "jobDiscovery.discovered",
-                          )}
-                        </dt>
-                        <dd>
-                          <LocalizedDate value={visibleDate}>
-                            {(date) =>
-                              t(
-                                hasPostedDate
-                                  ? "jobDiscovery.postedAt"
-                                  : "jobDiscovery.discoveredAt",
-                                { date },
-                              )
-                            }
-                          </LocalizedDate>
-                        </dd>
-                      </div>
+                      {view === "suggestions" && publishedAge ? (
+                        <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
+                          <CalendarDays
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                          <dt className="sr-only">
+                            {t("jobDiscovery.posted")}
+                          </dt>
+                          <dd>
+                            <time
+                              dateTime={new Date(postedTimestamp).toISOString()}
+                            >
+                              {publishedAge}
+                            </time>
+                          </dd>
+                        </div>
+                      ) : view === "inProgress" ? (
+                        <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
+                          <CalendarDays
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                          <dt className="sr-only">
+                            {t(
+                              hasPostedDate
+                                ? "jobDiscovery.posted"
+                                : "jobDiscovery.discovered",
+                            )}
+                          </dt>
+                          <dd>
+                            <LocalizedDate value={visibleDate}>
+                              {(date) =>
+                                t(
+                                  hasPostedDate
+                                    ? "jobDiscovery.postedAt"
+                                    : "jobDiscovery.discoveredAt",
+                                  { date },
+                                )
+                              }
+                            </LocalizedDate>
+                          </dd>
+                        </div>
+                      ) : null}
                     </dl>
 
                     {job.descriptionText ? (

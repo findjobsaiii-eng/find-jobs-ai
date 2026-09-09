@@ -87,6 +87,35 @@ describe("deterministic source activity classification", () => {
     });
   });
 
+  it("uses ATS JobPosting directApply without requiring visible button text", () => {
+    const atsJob = {
+      ...job,
+      sourceUrl: "https://jobs.lever.co/example/12345678",
+      sourceType: "ats" as const,
+    };
+    const body = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "JobPosting",
+      title: "Product Manager",
+      datePosted: "2026-09-01",
+      directApply: true,
+    })}</script>Example Company Product Manager`;
+    expect(
+      classifySourceResponse({
+        job: atsJob,
+        status: 200,
+        finalUrl: atsJob.sourceUrl,
+        contentType: "text/html",
+        body,
+        now: Date.UTC(2026, 8, 9),
+      }),
+    ).toMatchObject({
+      activityStatus: "verified_active",
+      activeEvidenceType: "structured_direct_apply",
+      datePosted: "2026-09-01T00:00:00.000Z",
+      datePostedProvenance: "employer_ats_structured",
+    });
+  });
+
   it("expires matching structured postings after validThrough", () => {
     const body = `<script type="application/ld+json">${JSON.stringify({
       "@type": "JobPosting",
