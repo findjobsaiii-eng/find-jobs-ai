@@ -28,6 +28,7 @@ import {
 const verificationValidator = v.object({
   activityStatus: v.union(
     v.literal("verified_active"),
+    v.literal("unknown"),
     v.literal("inactive"),
     v.literal("verification_failed"),
   ),
@@ -41,8 +42,19 @@ const verificationValidator = v.object({
   ),
   externalJobId: v.union(v.string(), v.null()),
   verifiedAt: v.number(),
-  verificationMethod: v.literal("http_content_v1"),
+  verificationMethod: v.union(
+    v.literal("http_content_v1"),
+    v.literal("http_content_v2"),
+  ),
   verificationEvidence: v.string(),
+  activeEvidenceType: v.union(v.string(), v.null()),
+  identityMatched: v.boolean(),
+  applicationAvailable: v.boolean(),
+  structuredDatePosted: v.union(v.string(), v.null()),
+  structuredValidThrough: v.union(v.string(), v.null()),
+  structuredJobIdentifier: v.union(v.string(), v.null()),
+  pageTitle: v.union(v.string(), v.null()),
+  redirected: v.boolean(),
   rawSourceText: v.optional(v.string()),
   httpStatus: v.optional(v.number()),
 });
@@ -432,11 +444,35 @@ export const claimDueSources = internalMutation({
       .withIndex("by_nextVerificationAt", (q) =>
         q.lt("nextVerificationAt", now + 1),
       )
-      .take(Math.min(Math.max(Math.floor(args.limit), 1), 50));
+      .take(200);
+    const hydrated = await Promise.all(
+      due.map(async (source) => ({
+        source,
+        job: await ctx.db.get("jobs", source.jobId),
+      })),
+    );
+    hydrated.sort((left, right) => {
+      const leftVisible = isActiveFeedLifecycle(left.job?.lifecycleStatus)
+        ? 0
+        : 1;
+      const rightVisible = isActiveFeedLifecycle(right.job?.lifecycleStatus)
+        ? 0
+        : 1;
+      const leftWeak = left.source.activeEvidenceType ? 1 : 0;
+      const rightWeak = right.source.activeEvidenceType ? 1 : 0;
+      return (
+        leftVisible - rightVisible ||
+        leftWeak - rightWeak ||
+        left.source.lastSeenAt - right.source.lastSeenAt ||
+        (left.source.nextVerificationAt ?? 0) -
+          (right.source.nextVerificationAt ?? 0)
+      );
+    });
+    const limit = Math.min(Math.max(Math.floor(args.limit), 1), 50);
     const claimed = [];
-    for (const source of due) {
+    for (const { source, job } of hydrated) {
+      if (claimed.length >= limit) break;
       if ((source.verificationLeaseUntil ?? 0) > now) continue;
-      const job = await ctx.db.get("jobs", source.jobId);
       if (!job || job.canonicalJobId) {
         await ctx.db.patch("jobSources", source._id, {
           nextVerificationAt: now + JOB_ACTIVITY_POLICY.maxRetryBackoffMs,
@@ -457,6 +493,132 @@ export const claimDueSources = internalMutation({
       });
     }
     return claimed;
+  },
+});
+
+export const claimVisibleSourcesForEvidenceRecheck = internalMutation({
+  args: { limit: v.number() },
+  returns: v.object({
+    eligibleBefore: v.number(),
+    claimed: v.array(
+      v.object({
+        job: schema.doc("jobs"),
+        sources: v.array(schema.doc("jobSources")),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const [active, probablyActive] = await Promise.all([
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+          q.eq("lifecycleStatus", "verified_active"),
+        )
+        .take(100),
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+          q.eq("lifecycleStatus", "probably_active"),
+        )
+        .take(100),
+    ]);
+    const candidates = [...active, ...probablyActive].filter(
+      (job) =>
+        !job.canonicalJobId &&
+        !isDevelopmentFixtureJob(job) &&
+        Boolean(job.bestSourceId),
+    );
+    candidates.sort((left, right) => {
+      const leftPosted = left.postedAt ? Date.parse(left.postedAt) : NaN;
+      const rightPosted = right.postedAt ? Date.parse(right.postedAt) : NaN;
+      const leftAgeKey = Number.isFinite(leftPosted) ? leftPosted : 0;
+      const rightAgeKey = Number.isFinite(rightPosted) ? rightPosted : 0;
+      return (
+        leftAgeKey - rightAgeKey ||
+        left.lastDiscoveredAt - right.lastDiscoveredAt
+      );
+    });
+    const claimed = [];
+    const limit = Math.min(Math.max(Math.floor(args.limit), 1), 40);
+    for (const job of candidates.slice(0, limit)) {
+      const sources = (
+        await ctx.db
+          .query("jobSources")
+          .withIndex("by_jobId", (q) => q.eq("jobId", job._id))
+          .take(10)
+      ).filter(isUserFacingJobSource);
+      sources.sort((left, right) => {
+        if (left._id === job.bestSourceId) return -1;
+        if (right._id === job.bestSourceId) return 1;
+        return sourcePriority(left)[0] - sourcePriority(right)[0];
+      });
+      if (!sources.length) continue;
+      for (const source of sources) {
+        await ctx.db.patch("jobSources", source._id, {
+          verificationLeaseUntil: now + JOB_ACTIVITY_POLICY.verificationLeaseMs,
+          nextVerificationAt: now + JOB_ACTIVITY_POLICY.verificationLeaseMs,
+        });
+      }
+      claimed.push({ job, sources });
+    }
+    return { eligibleBefore: candidates.length, claimed };
+  },
+});
+
+export const getLifecycleCountsForJobs = internalQuery({
+  args: { jobIds: v.array(v.id("jobs")) },
+  returns: v.object({
+    eligible: v.number(),
+    unknown: v.number(),
+    closed: v.number(),
+    expired: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const jobs = await Promise.all(
+      args.jobIds.slice(0, 40).map((jobId) => ctx.db.get("jobs", jobId)),
+    );
+    return {
+      eligible: jobs.filter((job) =>
+        isActiveFeedLifecycle(job?.lifecycleStatus),
+      ).length,
+      unknown: jobs.filter((job) => job?.lifecycleStatus === "unknown").length,
+      closed: jobs.filter((job) => job?.lifecycleStatus === "closed").length,
+      expired: jobs.filter((job) => job?.lifecycleStatus === "expired").length,
+    };
+  },
+});
+
+export const demoteLegacyHttpOnlySources = internalMutation({
+  args: { limit: v.number() },
+  returns: v.object({
+    sourcesDemoted: v.number(),
+    jobsRecalculated: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const sources = await ctx.db
+      .query("jobSources")
+      .withIndex("by_nextVerificationAt")
+      .take(Math.min(Math.max(Math.floor(args.limit), 1), 200));
+    const jobIds = new Set<Id<"jobs">>();
+    let sourcesDemoted = 0;
+    for (const source of sources) {
+      if (
+        source.activityStatus !== "verified_active" ||
+        source.activeEvidenceType !== undefined ||
+        !isUserFacingJobSource(source)
+      ) {
+        continue;
+      }
+      await ctx.db.patch("jobSources", source._id, {
+        activityStatus: "unknown",
+      });
+      jobIds.add(source.jobId);
+      sourcesDemoted += 1;
+    }
+    const now = Date.now();
+    for (const jobId of jobIds) await refreshJobLifecycle(ctx, jobId, now);
+    return { sourcesDemoted, jobsRecalculated: jobIds.size };
   },
 });
 
@@ -482,9 +644,9 @@ export const recordVerification = internalMutation({
         verificationMethod: args.verification.verificationMethod,
         verificationEvidence: args.verification.verificationEvidence,
         activityStatus:
-          source.activityStatus === "pending_verification"
-            ? "verification_failed"
-            : source.activityStatus,
+          source.activeEvidenceType !== undefined
+            ? source.activityStatus
+            : "unknown",
       });
     } else {
       const closed = args.verification.activityStatus === "inactive";
@@ -505,6 +667,17 @@ export const recordVerification = internalMutation({
         activityStatus: args.verification.activityStatus,
         verificationMethod: args.verification.verificationMethod,
         verificationEvidence: args.verification.verificationEvidence,
+        activeEvidenceType: args.verification.activeEvidenceType ?? undefined,
+        identityMatched: args.verification.identityMatched,
+        applicationAvailable: args.verification.applicationAvailable,
+        structuredDatePosted:
+          args.verification.structuredDatePosted ?? undefined,
+        structuredValidThrough:
+          args.verification.structuredValidThrough ?? undefined,
+        structuredJobIdentifier:
+          args.verification.structuredJobIdentifier ?? undefined,
+        pageTitle: args.verification.pageTitle ?? undefined,
+        redirected: args.verification.redirected,
         rawSourceText: args.verification.rawSourceText,
         closedAt: closed ? now : undefined,
         closureReason: closed
@@ -691,6 +864,8 @@ export const getDiagnostics = query({
     eligible: v.boolean(),
     eligibilityReason: v.string(),
     eligibilityEvidenceAt: v.union(v.number(), v.null()),
+    postedAt: v.union(v.string(), v.null()),
+    firstSeenAt: v.number(),
     sourceCount: v.number(),
     lastSeenAt: v.number(),
     lastVerifiedAt: v.union(v.number(), v.null()),
@@ -707,6 +882,17 @@ export const getDiagnostics = query({
         activityStatus: v.string(),
         mergeReason: v.union(v.string(), v.null()),
         closureReason: v.union(v.string(), v.null()),
+        verificationEvidence: v.union(v.string(), v.null()),
+        activeEvidenceType: v.union(v.string(), v.null()),
+        httpStatus: v.union(v.number(), v.null()),
+        finalUrl: v.union(v.string(), v.null()),
+        redirected: v.union(v.boolean(), v.null()),
+        pageTitle: v.union(v.string(), v.null()),
+        identityMatched: v.union(v.boolean(), v.null()),
+        applicationAvailable: v.union(v.boolean(), v.null()),
+        structuredDatePosted: v.union(v.string(), v.null()),
+        structuredValidThrough: v.union(v.string(), v.null()),
+        structuredJobIdentifier: v.union(v.string(), v.null()),
       }),
     ),
   }),
@@ -739,6 +925,8 @@ export const getDiagnostics = query({
       eligibilityReason: job.activityReason ?? "activity_reason_missing",
       eligibilityEvidenceAt:
         bestSource?.lastVerifiedAt ?? bestSource?.lastSeenAt ?? null,
+      postedAt: job.postedAt,
+      firstSeenAt: job.firstDiscoveredAt,
       sourceCount: sources.length,
       lastSeenAt: Math.max(
         job.lastDiscoveredAt,
@@ -757,6 +945,17 @@ export const getDiagnostics = query({
         activityStatus: source.activityStatus,
         mergeReason: source.duplicateReason ?? null,
         closureReason: source.closureReason ?? null,
+        verificationEvidence: source.verificationEvidence ?? null,
+        activeEvidenceType: source.activeEvidenceType ?? null,
+        httpStatus: source.lastVerificationHttpStatus ?? null,
+        finalUrl: source.finalUrl ?? null,
+        redirected: source.redirected ?? null,
+        pageTitle: source.pageTitle ?? null,
+        identityMatched: source.identityMatched ?? null,
+        applicationAvailable: source.applicationAvailable ?? null,
+        structuredDatePosted: source.structuredDatePosted ?? null,
+        structuredValidThrough: source.structuredValidThrough ?? null,
+        structuredJobIdentifier: source.structuredJobIdentifier ?? null,
       })),
     };
   },

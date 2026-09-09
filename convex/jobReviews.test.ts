@@ -152,6 +152,7 @@ async function setupReviewContext(t: TestConvex<typeof schema>) {
       lastSeenAt: now,
       lastVerifiedAt: now,
       activityStatus: "verified_active",
+      activeEvidenceType: "active_application_flow",
       rawSourceText: "Example is hiring a Frontend Engineer.",
     });
     await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });

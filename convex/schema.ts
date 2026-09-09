@@ -82,6 +82,7 @@ const jobLifecycleStatus = v.union(
 const sourceActivityStatus = v.union(
   v.literal("pending_verification"),
   v.literal("verified_active"),
+  v.literal("unknown"),
   v.literal("inactive"),
   v.literal("verification_failed"),
 );
@@ -556,6 +557,14 @@ const schema = defineSchema({
     activityStatus: sourceActivityStatus,
     verificationMethod: v.optional(v.string()),
     verificationEvidence: v.optional(v.string()),
+    activeEvidenceType: v.optional(v.string()),
+    identityMatched: v.optional(v.boolean()),
+    applicationAvailable: v.optional(v.boolean()),
+    structuredDatePosted: v.optional(v.string()),
+    structuredValidThrough: v.optional(v.string()),
+    structuredJobIdentifier: v.optional(v.string()),
+    pageTitle: v.optional(v.string()),
+    redirected: v.optional(v.boolean()),
     duplicateReason: v.optional(v.string()),
     canonicalJobId: v.optional(v.id("jobs")),
   })

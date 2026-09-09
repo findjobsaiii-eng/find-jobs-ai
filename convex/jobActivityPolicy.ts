@@ -13,12 +13,14 @@ type SourceState = {
   activityStatus:
     | "pending_verification"
     | "verified_active"
+    | "unknown"
     | "inactive"
     | "verification_failed";
   lastSeenAt: number;
   lastVerifiedAt?: number;
   verificationMethod?: string;
   verificationEvidence?: string;
+  activeEvidenceType?: string;
 };
 
 export function retryDelayMs(failureCount: number) {
@@ -50,7 +52,9 @@ export function deriveJobLifecycle(args: {
     };
   }
   const active = args.sources.filter(
-    (source) => source.activityStatus === "verified_active",
+    (source) =>
+      source.activityStatus === "verified_active" &&
+      Boolean(source.activeEvidenceType),
   );
   if (
     active.some(
@@ -78,11 +82,17 @@ export function deriveJobLifecycle(args: {
     args.sources.length > 0 &&
     args.sources.every((source) => source.activityStatus === "inactive")
   ) {
+    const structuredExpiry = args.sources.find(
+      (source) =>
+        source.verificationEvidence === "structured_valid_through_expired",
+    );
     return {
-      status: "closed",
+      status: structuredExpiry ? "expired" : "closed",
       reason:
+        structuredExpiry?.verificationEvidence ??
         args.sources.find((source) => source.verificationEvidence)
-          ?.verificationEvidence ?? "all_sources_confirmed_inactive",
+          ?.verificationEvidence ??
+        "all_sources_confirmed_inactive",
       closedAt: args.now,
     };
   }
@@ -118,13 +128,7 @@ export function activityReasonForLifecycle(args: {
     if (args.sources.some((source) => source.activityStatus === "inactive")) {
       return "alternative_source_active";
     }
-    if (
-      args.bestSource?.verificationEvidence ===
-      "Structured JobPosting valid; HTTP 2xx"
-    ) {
-      return "structured_jobposting_valid";
-    }
-    return "http_verified";
+    return args.bestSource?.activeEvidenceType ?? "active_evidence_missing";
   }
   if (args.lifecycle.status === "probably_active") {
     return "http_verified_within_grace";
@@ -134,10 +138,18 @@ export function activityReasonForLifecycle(args: {
     args.sources.some(
       (source) =>
         source.activityStatus === "pending_verification" ||
+        source.activityStatus === "unknown" ||
         source.activityStatus === "verification_failed",
     )
   ) {
-    return "provider_recently_seen_unverified";
+    return (
+      args.sources.find(
+        (source) =>
+          (source.activityStatus === "unknown" ||
+            source.activityStatus === "verification_failed") &&
+          source.verificationEvidence,
+      )?.verificationEvidence ?? "provider_recently_seen_unverified"
+    );
   }
   if (args.lifecycle.status === "unknown" && args.sources.length === 0) {
     return "unverifiable_source";
@@ -150,6 +162,7 @@ export function activityReasonForLifecycle(args: {
 export function isFreshActiveSource(source: SourceState, now = Date.now()) {
   return (
     source.activityStatus === "verified_active" &&
+    Boolean(source.activeEvidenceType) &&
     source.lastVerifiedAt !== undefined &&
     source.lastVerifiedAt >= now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs
   );

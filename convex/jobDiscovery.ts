@@ -85,6 +85,7 @@ const searchProfileValidator = v.object({
 const sourceVerificationValidator = v.object({
   activityStatus: v.union(
     v.literal("verified_active"),
+    v.literal("unknown"),
     v.literal("inactive"),
     v.literal("verification_failed"),
   ),
@@ -98,8 +99,19 @@ const sourceVerificationValidator = v.object({
   ),
   externalJobId: v.union(v.string(), v.null()),
   verifiedAt: v.number(),
-  verificationMethod: v.literal("http_content_v1"),
+  verificationMethod: v.union(
+    v.literal("http_content_v1"),
+    v.literal("http_content_v2"),
+  ),
   verificationEvidence: v.string(),
+  activeEvidenceType: v.union(v.string(), v.null()),
+  identityMatched: v.boolean(),
+  applicationAvailable: v.boolean(),
+  structuredDatePosted: v.union(v.string(), v.null()),
+  structuredValidThrough: v.union(v.string(), v.null()),
+  structuredJobIdentifier: v.union(v.string(), v.null()),
+  pageTitle: v.union(v.string(), v.null()),
+  redirected: v.boolean(),
   rawSourceText: v.optional(v.string()),
   httpStatus: v.optional(v.number()),
 });
@@ -845,10 +857,36 @@ async function upsertSource(
       ? existingSource?.lastVerifiedAt
       : args.verification.verifiedAt,
     activityStatus: temporaryFailure
-      ? (existingSource?.activityStatus ?? "verification_failed")
+      ? existingSource?.activeEvidenceType !== undefined
+        ? existingSource.activityStatus
+        : "unknown"
       : args.verification.activityStatus,
     verificationMethod: args.verification.verificationMethod,
     verificationEvidence: args.verification.verificationEvidence,
+    activeEvidenceType: temporaryFailure
+      ? existingSource?.activeEvidenceType
+      : (args.verification.activeEvidenceType ?? undefined),
+    identityMatched: temporaryFailure
+      ? existingSource?.identityMatched
+      : args.verification.identityMatched,
+    applicationAvailable: temporaryFailure
+      ? existingSource?.applicationAvailable
+      : args.verification.applicationAvailable,
+    structuredDatePosted: temporaryFailure
+      ? existingSource?.structuredDatePosted
+      : (args.verification.structuredDatePosted ?? undefined),
+    structuredValidThrough: temporaryFailure
+      ? existingSource?.structuredValidThrough
+      : (args.verification.structuredValidThrough ?? undefined),
+    structuredJobIdentifier: temporaryFailure
+      ? existingSource?.structuredJobIdentifier
+      : (args.verification.structuredJobIdentifier ?? undefined),
+    pageTitle: temporaryFailure
+      ? existingSource?.pageTitle
+      : (args.verification.pageTitle ?? undefined),
+    redirected: temporaryFailure
+      ? existingSource?.redirected
+      : args.verification.redirected,
     rawSourceText: temporaryFailure
       ? existingSource?.rawSourceText
       : args.verification.rawSourceText,
@@ -1038,7 +1076,9 @@ export const completeSearch = internalMutation({
           activityStatus:
             verification.activityStatus === "verified_active"
               ? "active"
-              : "inactive",
+              : verification.activityStatus === "inactive"
+                ? "inactive"
+                : "unknown",
           lifecycleStatus:
             verification.activityStatus === "verified_active"
               ? "verified_active"
@@ -1286,7 +1326,7 @@ async function feedItem(
   if (
     !source ||
     !isUserFacingJobSource(source) ||
-    source.activityStatus !== "verified_active" ||
+    !isFreshActiveSource(source) ||
     !source.finalUrl ||
     !source.lastVerifiedAt
   )
@@ -1491,7 +1531,8 @@ export const getCurrentUserMatchAudit = query({
         const activeAndCanonical = Boolean(
           isDisplayEligibleJob(job) &&
           isUserFacingJobSource(source) &&
-          source?.activityStatus === "verified_active" &&
+          source !== null &&
+          isFreshActiveSource(source) &&
           source.finalUrl &&
           source.lastVerifiedAt,
         );

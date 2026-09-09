@@ -22,7 +22,7 @@ function classify(
     contentType: "text/html",
     body:
       options.body ??
-      "Example Company is hiring a Product Manager. Apply for this job.",
+      'Example Company is hiring a Product Manager. <a href="/jobs/12345/apply">Apply for this job</a>.',
     redirected: options.redirected,
     now: 100,
   });
@@ -30,7 +30,34 @@ function classify(
 
 describe("deterministic source activity classification", () => {
   it("confirms a specific active page", () => {
-    expect(classify(200).activityStatus).toBe("verified_active");
+    expect(classify(200)).toMatchObject({
+      activityStatus: "verified_active",
+      activeEvidenceType: "active_application_flow",
+      identityMatched: true,
+      applicationAvailable: true,
+    });
+  });
+
+  it("does not treat HTTP 200 and matching identity alone as active", () => {
+    expect(
+      classify(200, {
+        body: "Example Company is hiring a Product Manager.",
+      }),
+    ).toMatchObject({
+      activityStatus: "unknown",
+      verificationEvidence: "undated_listing_http_only",
+    });
+  });
+
+  it("accepts a matching page with a recent deterministic posting date", () => {
+    expect(
+      classify(200, {
+        body: "Example Company Product Manager posted 2 days ago",
+      }),
+    ).toMatchObject({
+      activityStatus: "verified_active",
+      activeEvidenceType: "recent_page_date",
+    });
   });
 
   it("records matching valid JobPosting evidence", () => {
@@ -42,7 +69,20 @@ describe("deterministic source activity classification", () => {
     })}</script>Example Company Product Manager`;
     expect(classify(200, { body })).toMatchObject({
       activityStatus: "verified_active",
-      verificationEvidence: "Structured JobPosting valid; HTTP 2xx",
+      verificationEvidence: "structured_valid_through_future",
+    });
+  });
+
+  it("expires matching structured postings after validThrough", () => {
+    const body = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "JobPosting",
+      title: "Product Manager",
+      hiringOrganization: { name: "Example Company" },
+      validThrough: "1970-01-01T00:00:00Z",
+    })}</script>Example Company Product Manager`;
+    expect(classify(200, { body })).toMatchObject({
+      activityStatus: "inactive",
+      verificationEvidence: "structured_valid_through_expired",
     });
   });
 
@@ -58,6 +98,7 @@ describe("deterministic source activity classification", () => {
     "Applications are closed",
     "המשרה אינה בתוקף",
     "הגשת המועמדות הסתיימה",
+    "כבר לא מקבלים בקשות",
   ])("closes pages with an explicit marker: %s", (marker) => {
     expect(classify(200, { body: marker }).activityStatus).toBe("inactive");
   });
@@ -77,6 +118,17 @@ describe("deterministic source activity classification", () => {
 
   it.each([403, 429, 500, 503])("treats HTTP %s as temporary", (status) => {
     expect(classify(status).activityStatus).toBe("verification_failed");
+  });
+
+  it("rejects a page whose job identifier changed", () => {
+    expect(
+      classify(200, {
+        finalUrl: "https://careers.example.com/jobs/99999",
+      }),
+    ).toMatchObject({
+      activityStatus: "inactive",
+      verificationEvidence: "job_identity_replaced",
+    });
   });
 
   it("treats a timeout as temporary", () => {

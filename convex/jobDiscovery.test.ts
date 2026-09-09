@@ -199,8 +199,16 @@ function verification(): SourceVerification {
     sourceTier: "employer" as const,
     externalJobId: "role-1",
     verifiedAt: Date.now(),
-    verificationMethod: "http_content_v1" as const,
-    verificationEvidence: "Expected role and company confirmed",
+    verificationMethod: "http_content_v2" as const,
+    verificationEvidence: "active_application_flow",
+    activeEvidenceType: "active_application_flow",
+    identityMatched: true,
+    applicationAvailable: true,
+    structuredDatePosted: null,
+    structuredValidThrough: null,
+    structuredJobIdentifier: null,
+    pageTitle: "Frontend Engineer - Example Company",
+    redirected: false,
     rawSourceText: "Original public posting text",
   };
 }
@@ -436,6 +444,7 @@ describe("shared job discovery", () => {
           lastSeenAt: now,
           lastVerifiedAt: now,
           activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
         });
         await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
       }
@@ -573,6 +582,7 @@ describe("shared job discovery", () => {
           lastSeenAt: now,
           lastVerifiedAt: now,
           activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
         });
         await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
       }

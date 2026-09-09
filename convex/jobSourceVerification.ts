@@ -14,14 +14,23 @@ const MAX_REDIRECTS = 3;
 const MAX_RESPONSE_BYTES = 512 * 1_024;
 
 export type SourceVerification = {
-  activityStatus: "verified_active" | "inactive" | "verification_failed";
+  activityStatus:
+    "verified_active" | "unknown" | "inactive" | "verification_failed";
   finalUrl: string | null;
   domain: string;
   sourceTier: "employer" | "ats" | "job_board" | "aggregator";
   externalJobId: string | null;
   verifiedAt: number;
-  verificationMethod: "http_content_v1";
+  verificationMethod: "http_content_v2";
   verificationEvidence: string;
+  activeEvidenceType: string | null;
+  identityMatched: boolean;
+  applicationAvailable: boolean;
+  structuredDatePosted: string | null;
+  structuredValidThrough: string | null;
+  structuredJobIdentifier: string | null;
+  pageTitle: string | null;
+  redirected: boolean;
   rawSourceText?: string;
   httpStatus?: number;
 };
@@ -216,6 +225,7 @@ export function visibleText(html: string) {
     .replace(/<[^>]+>/gu, " ")
     .replace(/&(nbsp|amp|quot|#39|lt|gt);/giu, " ")
     .normalize("NFKC")
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, "")
     .replace(/\s+/gu, " ")
     .trim()
     .slice(0, 120_000);
@@ -304,8 +314,16 @@ function failure(
     sourceTier: sourceTier(job, parsed.hostname.toLocaleLowerCase("en-US")),
     externalJobId: externalJobId(parsed),
     verifiedAt: Date.now(),
-    verificationMethod: "http_content_v1",
+    verificationMethod: "http_content_v2",
     verificationEvidence: evidence.slice(0, 240),
+    activeEvidenceType: null,
+    identityMatched: false,
+    applicationAvailable: false,
+    structuredDatePosted: null,
+    structuredValidThrough: null,
+    structuredJobIdentifier: null,
+    pageTitle: null,
+    redirected: false,
   };
 }
 
@@ -323,7 +341,168 @@ export function classifySourceFailure(
 }
 
 const CLOSED_POSITION_PATTERN =
-  /(?:position|job|vacancy|role) (?:has been |is )?(?:closed|filled|expired|no longer available)|applications? (?:are )?closed|vacancy closed|position filled|משרה (?:זו )?(?:אוישה|נסגרה|אינה זמינה|אינה בתוקף)|הגשת המועמדות הסתיימה/iu;
+  /(?:this\s+)?(?:position|job|vacancy|role|opportunity) (?:has been |has |is )?(?:closed|filled|expired|removed|no longer available)|applications? (?:are )?closed|no longer accepting applications|vacancy closed|position filled|המשרה (?:כבר )?(?:אינה זמינה|לא זמינה|נסגרה|אינה בתוקף|אוישה|פגה)|הגשת המועמדות הסתיימה|לא ניתן עוד להגיש מועמדות|כבר לא מקבלים בקשות/iu;
+
+const RECENT_POSTING_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
+
+function primaryPostingText(text: string) {
+  return text.split(
+    /(?:similar jobs|people also viewed|עבודות דומות|אנשים צפו גם)/iu,
+    1,
+  )[0];
+}
+
+function primaryPostingHtml(html: string) {
+  return html.split(
+    /(?:similar jobs|people also viewed|עבודות דומות|אנשים צפו גם)/iu,
+    1,
+  )[0];
+}
+
+function pageTitle(html: string) {
+  const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/iu);
+  return match ? visibleText(match[1]).slice(0, 300) : null;
+}
+
+function parseTimestamp(value: string | null) {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function relativePostedAt(text: string, now: number) {
+  const normalized = text.toLocaleLowerCase("en-US");
+  if (
+    /\b(?:posted\s+)?today\b/u.test(normalized) ||
+    /(?:^|\s)היום(?:\s|$)/u.test(normalized)
+  ) {
+    return now;
+  }
+  if (
+    /\b(?:posted\s+)?yesterday\b/u.test(normalized) ||
+    /(?:^|\s)אתמול(?:\s|$)/u.test(normalized)
+  ) {
+    return now - 24 * 60 * 60 * 1_000;
+  }
+  const english = normalized.match(
+    /(?:posted\s+)?(\d{1,3})\s+(minute|hour|day|week|month|year)s?\s+ago/u,
+  );
+  const hebrew = normalized.match(
+    /לפני\s+(\d{1,3})\s+(דקות?|שעות?|ימים?|שבועות?|חודשים?|שנים?)/u,
+  );
+  const match = english ?? hebrew;
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const unitDays = /minute|דק/u.test(unit)
+    ? 1 / 1440
+    : /hour|שע/u.test(unit)
+      ? 1 / 24
+      : /day|יום|ימים/u.test(unit)
+        ? 1
+        : /week|שבוע/u.test(unit)
+          ? 7
+          : /month|חודש/u.test(unit)
+            ? 30
+            : 365;
+  return now - amount * unitDays * 24 * 60 * 60 * 1_000;
+}
+
+function jobPostingIdentifier(data: Record<string, unknown>) {
+  if (typeof data.identifier === "string") return data.identifier.slice(0, 200);
+  if (data.identifier && typeof data.identifier === "object") {
+    const identifier = data.identifier as Record<string, unknown>;
+    const value = identifier.value ?? identifier.name;
+    if (typeof value === "string") return value.slice(0, 200);
+  }
+  return null;
+}
+
+function hasApplicationAction(html: string) {
+  if (/"directApply"\s*:\s*true/iu.test(html)) return true;
+  if (/data-tracking-control-name=["'][^"']*apply[^"']*["']/iu.test(html)) {
+    return true;
+  }
+  for (const link of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)) {
+    const attributes = link[1];
+    const label = visibleText(link[2]);
+    const href = attributes.match(/href=["']([^"']+)["']/iu)?.[1] ?? "";
+    if (
+      /(?:apply|application|candidate|מועמדות)/iu.test(href) &&
+      /(?:apply|submit|application|הגש|מועמדות)/iu.test(
+        `${label} ${attributes}`,
+      )
+    ) {
+      return true;
+    }
+  }
+  return /<form\b[^>]*(?:action=["'][^"']*(?:apply|application|candidate)[^"']*["']|data-[^>]*(?:apply|application))/iu.test(
+    html,
+  );
+}
+
+type StructuredPosting = {
+  matched: boolean;
+  anyPosting: boolean;
+  datePosted: string | null;
+  validThrough: string | null;
+  identifier: string | null;
+};
+
+function structuredPosting(
+  html: string,
+  job: VerifiableJob,
+): StructuredPosting {
+  const result: StructuredPosting = {
+    matched: false,
+    anyPosting: false,
+    datePosted: null,
+    validThrough: null,
+    identifier: null,
+  };
+  for (const script of html.matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu,
+  )) {
+    try {
+      const queue: unknown[] = [JSON.parse(script[1])];
+      for (let i = 0; i < queue.length && i < 100; i += 1) {
+        const item = queue[i];
+        if (Array.isArray(item)) {
+          queue.push(...item.slice(0, 100));
+          continue;
+        }
+        if (!item || typeof item !== "object") continue;
+        const data = item as Record<string, unknown>;
+        if (data["@graph"]) queue.push(data["@graph"]);
+        const types = Array.isArray(data["@type"])
+          ? data["@type"]
+          : [data["@type"]];
+        if (!types.includes("JobPosting")) continue;
+        result.anyPosting = true;
+        const organization = data.hiringOrganization as
+          Record<string, unknown> | undefined;
+        if (
+          typeof data.title !== "string" ||
+          !expectedEntityPresent(data.title, job.title) ||
+          typeof organization?.name !== "string" ||
+          !expectedEntityPresent(organization.name, job.companyName)
+        ) {
+          continue;
+        }
+        result.matched = true;
+        result.datePosted =
+          typeof data.datePosted === "string" ? data.datePosted : null;
+        result.validThrough =
+          typeof data.validThrough === "string" ? data.validThrough : null;
+        result.identifier = jobPostingIdentifier(data);
+        return result;
+      }
+    } catch {
+      // Malformed JSON-LD is missing evidence, not closure evidence.
+    }
+  }
+  return result;
+}
 
 export function classifySourceResponse(args: {
   job: VerifiableJob;
@@ -344,7 +523,15 @@ export function classifySourceResponse(args: {
     externalJobId: externalJobId(parsed),
     verifiedAt: args.now ?? Date.now(),
     httpStatus: args.status,
-    verificationMethod: "http_content_v1" as const,
+    verificationMethod: "http_content_v2" as const,
+    activeEvidenceType: null,
+    identityMatched: false,
+    applicationAvailable: false,
+    structuredDatePosted: null,
+    structuredValidThrough: null,
+    structuredJobIdentifier: null,
+    pageTitle: pageTitle(args.body ?? ""),
+    redirected: args.redirected ?? false,
   };
   if (args.status === 404 || args.status === 410) {
     return {
@@ -386,11 +573,12 @@ export function classifySourceResponse(args: {
     };
   }
   const text = visibleText(args.body ?? "");
+  const primaryText = primaryPostingText(text);
   if (
     /\b(?:sign in|log in|captcha|access denied|verify you are human|just a moment)\b/iu.test(
       text,
     ) &&
-    !expectedEntityPresent(text, args.job.title)
+    !expectedEntityPresent(primaryText, args.job.title)
   ) {
     return {
       ...common,
@@ -402,7 +590,7 @@ export function classifySourceResponse(args: {
     args.redirected &&
     isGenericDestination(parsed) &&
     !/\/(?:login|signin)(?:\/|$)/iu.test(parsed.pathname) &&
-    !expectedEntityPresent(text, args.job.title)
+    !expectedEntityPresent(primaryText, args.job.title)
   ) {
     return {
       ...common,
@@ -417,79 +605,116 @@ export function classifySourceResponse(args: {
       verificationEvidence: "Generic destination page",
     };
   }
-  // Only trust JobPosting data for this specific role/company, never related jobs.
-  let matchingStructuredJobPosting = false;
-  for (const script of (args.body ?? "").matchAll(
-    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu,
-  )) {
-    try {
-      const parsedData: unknown = JSON.parse(script[1]);
-      const queue: unknown[] = [parsedData];
-      for (let i = 0; i < queue.length && i < 100; i += 1) {
-        const item = queue[i];
-        if (Array.isArray(item)) {
-          queue.push(...item.slice(0, 100));
-          continue;
-        }
-        if (!item || typeof item !== "object") continue;
-        const data = item as Record<string, unknown>;
-        if (data["@graph"]) queue.push(data["@graph"]);
-        const organization = data.hiringOrganization as
-          Record<string, unknown> | undefined;
-        if (
-          data["@type"] !== "JobPosting" ||
-          typeof data.title !== "string" ||
-          !expectedEntityPresent(data.title, args.job.title) ||
-          typeof organization?.name !== "string" ||
-          !expectedEntityPresent(organization.name, args.job.companyName)
-        )
-          continue;
-        matchingStructuredJobPosting = true;
-        const deadline =
-          typeof data.validThrough === "string"
-            ? Date.parse(data.validThrough)
-            : NaN;
-        if (Number.isFinite(deadline) && deadline < common.verifiedAt) {
-          return {
-            ...common,
-            activityStatus: "inactive",
-            verificationEvidence: "JobPosting validThrough passed",
-          };
-        }
-      }
-    } catch {
-      /* Malformed structured data is not closure evidence. */
-    }
-  }
-  if (CLOSED_POSITION_PATTERN.test(text)) {
+  const postingHtml = primaryPostingHtml(args.body ?? "");
+  const structured = structuredPosting(postingHtml, args.job);
+  const structuredDeadline = parseTimestamp(structured.validThrough);
+  const structuredPostedAt = parseTimestamp(structured.datePosted);
+  const applicationAvailable = hasApplicationAction(postingHtml);
+  const evidence = {
+    ...common,
+    structuredDatePosted: structured.datePosted,
+    structuredValidThrough: structured.validThrough,
+    structuredJobIdentifier: structured.identifier,
+    applicationAvailable,
+  };
+  if (
+    structured.matched &&
+    structuredDeadline !== null &&
+    structuredDeadline < common.verifiedAt
+  ) {
     return {
-      ...common,
+      ...evidence,
+      identityMatched: true,
       activityStatus: "inactive",
-      verificationEvidence: "Closed-position marker present",
-      rawSourceText: text.slice(0, 32000),
+      verificationEvidence: "structured_valid_through_expired",
     };
   }
-  if (!expectedEntityPresent(text, args.job.title)) {
+  if (CLOSED_POSITION_PATTERN.test(primaryText)) {
     return {
-      ...common,
-      activityStatus: "verification_failed",
-      verificationEvidence: "Expected role not confirmed",
+      ...evidence,
+      activityStatus: "inactive",
+      verificationEvidence: "explicit_closed_marker",
+      rawSourceText: primaryText.slice(0, 32000),
     };
   }
-  if (!expectedEntityPresent(text, args.job.companyName)) {
+  const requestedId = externalJobId(new URL(args.job.sourceUrl));
+  const finalId = externalJobId(parsed);
+  if (requestedId && finalId && requestedId !== finalId) {
     return {
-      ...common,
-      activityStatus: "verification_failed",
-      verificationEvidence: "Expected company not confirmed",
+      ...evidence,
+      activityStatus: "inactive",
+      verificationEvidence: "job_identity_replaced",
+    };
+  }
+  const titleMatched = expectedEntityPresent(primaryText, args.job.title);
+  const companyMatched = expectedEntityPresent(
+    primaryText,
+    args.job.companyName,
+  );
+  const identityMatched =
+    structured.matched || (titleMatched && companyMatched);
+  if (structured.anyPosting && !structured.matched) {
+    return {
+      ...evidence,
+      activityStatus: "inactive",
+      verificationEvidence: "job_identity_replaced",
+    };
+  }
+  if (!identityMatched) {
+    return {
+      ...evidence,
+      activityStatus: "unknown",
+      verificationEvidence: "job_identity_not_confirmed",
+    };
+  }
+  if (structuredDeadline !== null && structuredDeadline >= common.verifiedAt) {
+    return {
+      ...evidence,
+      identityMatched: true,
+      activeEvidenceType: "structured_valid_through_future",
+      activityStatus: "verified_active",
+      verificationEvidence: "structured_valid_through_future",
+      rawSourceText: primaryText.slice(0, 32000),
+    };
+  }
+  if (applicationAvailable) {
+    return {
+      ...evidence,
+      identityMatched: true,
+      activeEvidenceType: "active_application_flow",
+      activityStatus: "verified_active",
+      verificationEvidence: "active_application_flow",
+      rawSourceText: primaryText.slice(0, 32000),
+    };
+  }
+  const pagePostedAt =
+    structuredPostedAt ?? relativePostedAt(primaryText, common.verifiedAt);
+  if (
+    pagePostedAt !== null &&
+    pagePostedAt <= common.verifiedAt + 2 * 24 * 60 * 60 * 1_000 &&
+    pagePostedAt >= common.verifiedAt - RECENT_POSTING_MAX_AGE_MS
+  ) {
+    const activeEvidenceType = structuredPostedAt
+      ? "structured_recent_date_posted"
+      : "recent_page_date";
+    return {
+      ...evidence,
+      identityMatched: true,
+      activeEvidenceType,
+      activityStatus: "verified_active",
+      verificationEvidence: activeEvidenceType,
+      rawSourceText: primaryText.slice(0, 32000),
     };
   }
   return {
-    ...common,
-    rawSourceText: text.slice(0, 32000),
-    activityStatus: "verified_active",
-    verificationEvidence: matchingStructuredJobPosting
-      ? "Structured JobPosting valid; HTTP 2xx"
-      : "HTTP 2xx; specific posting; expected role and company confirmed; no closure marker",
+    ...evidence,
+    identityMatched: true,
+    rawSourceText: primaryText.slice(0, 32000),
+    activityStatus: "unknown",
+    verificationEvidence:
+      pagePostedAt === null
+        ? "undated_listing_http_only"
+        : "old_listing_http_only",
   };
 }
 

@@ -5,6 +5,7 @@ import { internalMutation, type MutationCtx } from "./_generated/server";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
+import { isFreshActiveSource } from "./jobActivityPolicy";
 
 const lifecycleValidator = v.union(
   v.literal("verified_active"),
@@ -119,7 +120,8 @@ export const reconcileUserPage = internalMutation({
         quality.outcome === "eligible" &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
-        source?.activityStatus === "verified_active" &&
+        source !== null &&
+        isFreshActiveSource(source) &&
         source.finalUrl &&
         source.lastVerifiedAt,
       );
@@ -233,7 +235,8 @@ export const reconcileJobUsers = internalMutation({
         quality.outcome === "eligible" &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
-        source?.activityStatus === "verified_active" &&
+        source !== null &&
+        isFreshActiveSource(source) &&
         source.finalUrl &&
         source.lastVerifiedAt,
       );
@@ -302,7 +305,8 @@ export const reconcileUserJob = internalMutation({
       quality.outcome === "eligible" &&
       isDisplayEligibleJob(job) &&
       isUserFacingJobSource(source) &&
-      source?.activityStatus === "verified_active" &&
+      source !== null &&
+      isFreshActiveSource(source) &&
       source.finalUrl &&
       source.lastVerifiedAt,
     );

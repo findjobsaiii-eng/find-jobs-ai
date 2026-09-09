@@ -15,6 +15,7 @@ describe("job activity policy", () => {
         sources: [
           {
             activityStatus: "verified_active",
+            activeEvidenceType: "active_application_flow",
             lastSeenAt: now,
             lastVerifiedAt: now,
           },
@@ -31,6 +32,7 @@ describe("job activity policy", () => {
         sources: [
           {
             activityStatus: "verified_active",
+            activeEvidenceType: "active_application_flow",
             lastSeenAt: now,
             lastVerifiedAt:
               now - JOB_ACTIVITY_POLICY.activeVerificationTtlMs - 1,
@@ -71,6 +73,25 @@ describe("job activity policy", () => {
     ).toMatchObject({ status: "closed", reason: "HTTP 410" });
   });
 
+  it("marks an expired structured deadline as expired", () => {
+    expect(
+      deriveJobLifecycle({
+        sources: [
+          {
+            activityStatus: "inactive",
+            lastSeenAt: now,
+            verificationEvidence: "structured_valid_through_expired",
+          },
+        ],
+        lastSeenAt: now,
+        now,
+      }),
+    ).toMatchObject({
+      status: "expired",
+      reason: "structured_valid_through_expired",
+    });
+  });
+
   it("backs temporary failures off to a bounded delay", () => {
     expect(retryDelayMs(2)).toBeGreaterThan(retryDelayMs(1));
     expect(retryDelayMs(99)).toBe(JOB_ACTIVITY_POLICY.maxRetryBackoffMs);
@@ -83,6 +104,7 @@ it("does not let repeated discovery extend old verification", () => {
       sources: [
         {
           activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
           lastSeenAt: now,
           lastVerifiedAt: 1,
         },
@@ -99,6 +121,7 @@ it("keeps another fresh source eligible after one closes", () => {
         { activityStatus: "inactive", lastSeenAt: now },
         {
           activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
           lastSeenAt: 1,
           lastVerifiedAt: now,
         },
@@ -115,6 +138,7 @@ it("records whether active evidence came from HTTP or an alternative source", ()
     lastSeenAt: now,
     lastVerifiedAt: now,
     verificationMethod: "http_content_v1",
+    activeEvidenceType: "active_application_flow",
   };
   const lifecycle = deriveJobLifecycle({
     sources: [best],
@@ -127,7 +151,7 @@ it("records whether active evidence came from HTTP or an alternative source", ()
       sources: [best],
       bestSource: best,
     }),
-  ).toBe("http_verified");
+  ).toBe("active_application_flow");
   expect(
     activityReasonForLifecycle({
       lifecycle,
