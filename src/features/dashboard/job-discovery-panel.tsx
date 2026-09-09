@@ -20,8 +20,10 @@ import { JobMatchScore } from "./job-match-score";
 
 export function JobDiscoveryPanel({
   view,
+  onEdit,
 }: {
   view: "suggestions" | "inProgress";
+  onEdit?: () => void;
 }) {
   const { i18n, t } = useTranslation();
   const [pending, setPending] = useState<Id<"jobs"> | null>(null);
@@ -50,6 +52,8 @@ export function JobDiscoveryPanel({
 
   const jobs = result?.jobs ?? [];
   const plan = result?.plan ?? "free";
+  const emptyReason =
+    view === "suggestions" ? result?.emptyState?.reason : undefined;
   return (
     <section aria-label={t("dashboard.jobsTitle")} className="min-w-0">
       <div>
@@ -80,16 +84,40 @@ export function JobDiscoveryPanel({
               {t(
                 view === "inProgress"
                   ? "applications.emptyTitle"
-                  : "jobDiscovery.emptyTitle",
+                  : emptyReason === "location"
+                    ? "jobDiscovery.locationEmptyTitle"
+                    : emptyReason === "no_active_jobs"
+                      ? "jobDiscovery.noActiveEmptyTitle"
+                      : "jobDiscovery.emptyTitle",
               )}
             </h2>
             <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
               {t(
                 view === "inProgress"
                   ? "applications.emptyDescription"
-                  : "jobDiscovery.emptyDescription",
+                  : emptyReason === "location"
+                    ? "jobDiscovery.locationEmptyDescription"
+                    : emptyReason === "no_active_jobs"
+                      ? "jobDiscovery.noActiveEmptyDescription"
+                      : "jobDiscovery.emptyDescription",
+                emptyReason === "location"
+                  ? { radius: result?.emptyState?.radiusKm }
+                  : undefined,
               )}
             </p>
+            {emptyReason === "location" &&
+            result?.emptyState?.outsideRadiusCount ? (
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t("jobDiscovery.outsideRadiusCount", {
+                  count: result.emptyState.outsideRadiusCount,
+                })}
+              </p>
+            ) : null}
+            {emptyReason === "location" && onEdit ? (
+              <Button className="mt-5" onClick={onEdit}>
+                {t("jobDiscovery.expandSearchRadius")}
+              </Button>
+            ) : null}
           </div>
         ) : (
           <ul className="space-y-3">

@@ -28,7 +28,7 @@ export function DashboardScreen({
             : "dashboard.supportingText",
         )}
       />
-      <JobDiscoveryPanel view={view} />
+      <JobDiscoveryPanel view={view} onEdit={onEdit} />
       {developmentTools === true ? <DevelopmentTools onEdit={onEdit} /> : null}
     </>
   );

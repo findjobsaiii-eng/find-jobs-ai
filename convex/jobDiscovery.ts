@@ -11,7 +11,11 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
-import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
+import {
+  evaluateJobQuality,
+  isDisplayEligibleJob,
+  MINIMUM_RELEVANCE_SCORE,
+} from "./jobQuality";
 import {
   activityReasonForLifecycle,
   deriveJobLifecycle,
@@ -210,6 +214,7 @@ const matchAuditValidator = v.object({
     activityEligible: v.number(),
     afterDedupe: v.number(),
     insideLocation: v.number(),
+    outsideRadiusRelevant: v.number(),
     professionalEligible: v.number(),
     scoredForRelevance: v.number(),
     aboveThreshold: v.number(),
@@ -243,6 +248,18 @@ const matchAuditValidator = v.object({
     }),
   ),
 });
+const feedEmptyStateValidator = v.union(
+  v.null(),
+  v.object({
+    reason: v.union(
+      v.literal("location"),
+      v.literal("relevance"),
+      v.literal("no_active_jobs"),
+    ),
+    radiusKm: v.number(),
+    outsideRadiusCount: v.number(),
+  }),
+);
 
 async function requireUserId(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -1412,7 +1429,11 @@ export const listCurrentUserJobs = query({
       v.union(v.literal("suggestions"), v.literal("inProgress")),
     ),
   },
-  returns: v.object({ jobs: v.array(jobFeedItem), plan: planValidator }),
+  returns: v.object({
+    jobs: v.array(jobFeedItem),
+    plan: planValidator,
+    emptyState: feedEmptyStateValidator,
+  }),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
     const now = Date.now();
@@ -1462,15 +1483,19 @@ export const listCurrentUserJobs = query({
           };
         }),
       );
-      return { jobs: jobs.filter((job) => job !== null), plan };
+      return {
+        jobs: jobs.filter((job) => job !== null),
+        plan,
+        emptyState: null,
+      };
     }
     let profile: SearchProfile;
     try {
       profile = await loadSearchProfile(ctx, userId);
     } catch {
-      return { jobs: [], plan };
+      return { jobs: [], plan, emptyState: null };
     }
-    if (!profileRecord) return { jobs: [], plan };
+    if (!profileRecord) return { jobs: [], plan, emptyState: null };
     const matches = await ctx.db
       .query("jobMatches")
       .withIndex(
@@ -1504,7 +1529,10 @@ export const listCurrentUserJobs = query({
         jobFreshness(b) - jobFreshness(a) ||
         feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
     );
-    return { jobs, plan };
+    const emptyState = jobs.length
+      ? null
+      : emptyStateFromAudit(await buildMatchAudit(ctx, userId));
+    return { jobs, plan, emptyState };
   },
 });
 
@@ -1612,6 +1640,20 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
   const insideLocation = activityEligible.filter(
     (item) => !item.quality.exclusionReasons.includes("location_conflict"),
   );
+  const outsideRadiusRelevant = activityEligible.filter((item) => {
+    if (!item.quality.exclusionReasons.includes("location_conflict")) {
+      return false;
+    }
+    const otherBlockingReasons = item.quality.exclusionReasons.filter(
+      (reason) =>
+        reason !== "location_conflict" &&
+        reason !== "below_relevance_threshold",
+    );
+    return (
+      otherBlockingReasons.length === 0 &&
+      item.quality.relevanceScore + 5 >= MINIMUM_RELEVANCE_SCORE
+    );
+  });
   const professionalEligible = insideLocation.filter(
     (item) => item.quality.hardEligibilityPassed,
   );
@@ -1625,6 +1667,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       activityEligible: activityEligible.length,
       afterDedupe: activityEligible.length,
       insideLocation: insideLocation.length,
+      outsideRadiusRelevant: outsideRadiusRelevant.length,
       professionalEligible: professionalEligible.length,
       scoredForRelevance: professionalEligible.length,
       aboveThreshold: professionalEligible.filter(
@@ -1653,6 +1696,24 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
           : ("acceptable" as const)
         : ("reject" as const),
     })),
+  };
+}
+
+function emptyStateFromAudit(
+  audit: Awaited<ReturnType<typeof buildMatchAudit>>,
+) {
+  const outsideRadiusCount =
+    audit.rejectionReasons.find(({ reason }) => reason === "outside_radius")
+      ?.count ?? 0;
+  return {
+    reason:
+      audit.counts.activityEligible === 0
+        ? ("no_active_jobs" as const)
+        : audit.counts.outsideRadiusRelevant > 0
+          ? ("location" as const)
+          : ("relevance" as const),
+    radiusKm: audit.profile.location.radiusKm,
+    outsideRadiusCount,
   };
 }
 
