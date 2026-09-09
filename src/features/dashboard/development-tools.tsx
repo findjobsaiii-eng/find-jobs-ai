@@ -181,6 +181,7 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                       matchAudit.counts.scoredForRelevance,
                     ],
                     ["aboveThreshold", matchAudit.counts.aboveThreshold],
+                    ["finalExcluded", matchAudit.counts.finalExcluded],
                     ["displayed", matchAudit.counts.displayed],
                   ] as const
                 ).map(([label, value]) => (
@@ -217,6 +218,11 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                     {candidate.exclusionReasons.length ? (
                       <p className="text-destructive/80">
                         {candidate.exclusionReasons.join(" · ")}
+                      </p>
+                    ) : null}
+                    {candidate.finalExclusionReasons.length ? (
+                      <p className="text-destructive/80">
+                        {candidate.finalExclusionReasons.join(" · ")}
                       </p>
                     ) : null}
                   </li>

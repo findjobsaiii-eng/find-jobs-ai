@@ -218,6 +218,7 @@ const matchAuditValidator = v.object({
     professionalEligible: v.number(),
     scoredForRelevance: v.number(),
     aboveThreshold: v.number(),
+    finalExcluded: v.number(),
     displayed: v.number(),
   }),
   rejectionReasons: v.array(
@@ -232,6 +233,7 @@ const matchAuditValidator = v.object({
       relevanceScore: v.number(),
       scoreComponents: auditScoreComponentsValidator,
       exclusionReasons: v.array(v.string()),
+      finalExclusionReasons: v.array(v.string()),
       matchReasons: v.array(v.string()),
       sourceTier: v.union(
         v.literal("employer"),
@@ -1631,6 +1633,9 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
     for (const reason of item.quality.exclusionReasons) {
       reject(reason === "location_conflict" ? "outside_radius" : reason);
     }
+    if (item.accepted && appliedJobIds.has(item.job._id)) {
+      reject("already_applied");
+    }
   }
   const acceptedJobIds = new Set(
     activityEligible
@@ -1673,6 +1678,9 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       aboveThreshold: professionalEligible.filter(
         (item) => item.quality.passesRelevanceThreshold,
       ).length,
+      finalExcluded: activityEligible.filter(
+        (item) => item.accepted && appliedJobIds.has(item.job._id),
+      ).length,
       displayed: materializedMatches.filter((match) =>
         acceptedJobIds.has(match.jobId),
       ).length,
@@ -1688,6 +1696,10 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       relevanceScore: item.quality.relevanceScore,
       scoreComponents: item.quality.scoreComponents,
       exclusionReasons: item.quality.exclusionReasons,
+      finalExclusionReasons:
+        item.accepted && appliedJobIds.has(item.job._id)
+          ? ["already_applied"]
+          : [],
       matchReasons: item.quality.matchReasons,
       sourceTier: item.source?.sourceTier ?? null,
       decision: item.accepted

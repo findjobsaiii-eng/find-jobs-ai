@@ -217,6 +217,7 @@
       "professionalEligible": "Professionally eligible",
       "scoredForRelevance": "Scored for relevance",
       "aboveThreshold": "Passed relevance threshold",
+      "finalExcluded": "Final exclusions",
       "rejectionReasons": "Rejection reasons",
       "displayed": "Displayed",
       "strong": "strong",
