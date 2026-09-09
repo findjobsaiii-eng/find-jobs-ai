@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
+import { isUserFacingJobSource } from "./jobSourceProvenance";
 
 const reviewLanguage = v.union(v.literal("en"), v.literal("he"));
 const reviewVerdict = v.union(
@@ -96,7 +97,8 @@ export const prepare = internalMutation({
     const source = job.bestSourceId
       ? await ctx.db.get("jobSources", job.bestSourceId)
       : null;
-    if (!source?.finalUrl) throw new Error("JOB_SOURCE_NOT_AVAILABLE");
+    if (!source?.finalUrl || !isUserFacingJobSource(source))
+      throw new Error("JOB_SOURCE_NOT_AVAILABLE");
 
     const allResumes = await ctx.db
       .query("resumeDocuments")

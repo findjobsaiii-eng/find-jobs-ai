@@ -209,3 +209,9 @@ logs, screenshots, or documentation.
 The product owner subsequently reported that the replacement Google OAuth client
 completed the live flow successfully. This repository audit did not repeat that
 external account-level smoke test; automated auth coverage remains in place.
+
+## Activity filtering update (2026-09-09)
+
+Implemented: server-side 14-day verification freshness limit, fresh-source selection, cautious canonical/login redirects, matching structured JobPosting expiry, HTTP attempt metadata, and background retry queue lease advancement. Existing saved/application history and English/Hebrew inactive UI are preserved. Browser verification remains for the owner; no live-source crawl was performed during implementation.
+
+Implemented: source provenance distinguishes successful HTTP/structured verification from provider sightings. Future discovery persists all usable cited source URLs, and an idempotent bounded repair can recover missing `jobSources` rows from canonical records, evidence, or stored provider JSON without paid searches.

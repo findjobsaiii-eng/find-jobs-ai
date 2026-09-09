@@ -1,7 +1,11 @@
 import type { Doc } from "./_generated/dataModel";
 import type { NormalizedJob, SearchProfile } from "./jobDiscoveryModel";
 import { distanceKm } from "./jobGeography";
-import { isActiveFeedLifecycle } from "./jobActivityPolicy";
+import {
+  hasFreshJobActivity,
+  isActiveFeedLifecycle,
+} from "./jobActivityPolicy";
+import { isDevelopmentFixtureJob } from "./jobSourceProvenance";
 
 export const MINIMUM_RELEVANCE_SCORE = 58;
 
@@ -600,6 +604,8 @@ export function evaluateJobQuality(
 export function isDisplayEligibleJob(job: Doc<"jobs">) {
   return (
     isActiveFeedLifecycle(job.lifecycleStatus) &&
+    hasFreshJobActivity(job) &&
+    !isDevelopmentFixtureJob(job) &&
     !job.canonicalJobId &&
     Boolean(job.bestSourceId)
   );

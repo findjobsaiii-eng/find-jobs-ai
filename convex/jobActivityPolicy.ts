@@ -17,6 +17,7 @@ type SourceState = {
     | "verification_failed";
   lastSeenAt: number;
   lastVerifiedAt?: number;
+  verificationMethod?: string;
   verificationEvidence?: string;
 };
 
@@ -64,7 +65,7 @@ export function deriveJobLifecycle(args: {
   if (
     active.some(
       (source) =>
-        source.lastSeenAt >=
+        (source.lastVerifiedAt ?? 0) >=
         args.now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs,
     )
   ) {
@@ -85,7 +86,13 @@ export function deriveJobLifecycle(args: {
       closedAt: args.now,
     };
   }
-  if (args.lastSeenAt < args.now - JOB_ACTIVITY_POLICY.staleAfterMs) {
+  if (
+    Math.max(
+      args.lastSeenAt,
+      ...active.map((source) => source.lastVerifiedAt ?? 0),
+    ) <
+    args.now - JOB_ACTIVITY_POLICY.staleAfterMs
+  ) {
     return {
       status: "expired",
       reason: "not_seen_or_verified_within_stale_window",
@@ -97,4 +104,68 @@ export function deriveJobLifecycle(args: {
 
 export function isActiveFeedLifecycle(status: string | undefined) {
   return status === "verified_active" || status === "probably_active";
+}
+
+export function activityReasonForLifecycle(args: {
+  lifecycle: ReturnType<typeof deriveJobLifecycle>;
+  sources: SourceState[];
+  bestSource?: SourceState;
+}) {
+  if (args.lifecycle.status === "verified_active") {
+    if (args.bestSource?.verificationMethod === "development_fixture") {
+      return "development_fixture_active";
+    }
+    if (args.sources.some((source) => source.activityStatus === "inactive")) {
+      return "alternative_source_active";
+    }
+    if (
+      args.bestSource?.verificationEvidence ===
+      "Structured JobPosting valid; HTTP 2xx"
+    ) {
+      return "structured_jobposting_valid";
+    }
+    return "http_verified";
+  }
+  if (args.lifecycle.status === "probably_active") {
+    return "http_verified_within_grace";
+  }
+  if (
+    args.lifecycle.status === "unknown" &&
+    args.sources.some(
+      (source) =>
+        source.activityStatus === "pending_verification" ||
+        source.activityStatus === "verification_failed",
+    )
+  ) {
+    return "provider_recently_seen_unverified";
+  }
+  if (args.lifecycle.status === "unknown" && args.sources.length === 0) {
+    return "unverifiable_source";
+  }
+  return args.lifecycle.reason;
+}
+
+// Discovery currently uses web-search suggestions, not a trusted provider status API.
+// Repeated sightings alone must never extend a successful verification indefinitely.
+export function isFreshActiveSource(source: SourceState, now = Date.now()) {
+  return (
+    source.activityStatus === "verified_active" &&
+    source.lastVerifiedAt !== undefined &&
+    source.lastVerifiedAt >= now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs
+  );
+}
+
+export function hasFreshJobActivity(
+  job: {
+    lastVerifiedAt?: number;
+    applicationDeadline?: string | null;
+  },
+  now = Date.now(),
+) {
+  const deadline = parsedDeadline(job.applicationDeadline);
+  return (
+    (deadline === null || deadline >= now) &&
+    job.lastVerifiedAt !== undefined &&
+    job.lastVerifiedAt >= now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs
+  );
 }

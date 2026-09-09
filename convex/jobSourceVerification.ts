@@ -23,6 +23,7 @@ export type SourceVerification = {
   verificationMethod: "http_content_v1";
   verificationEvidence: string;
   rawSourceText?: string;
+  httpStatus?: number;
 };
 
 export type VerifiableJob = Pick<
@@ -240,6 +241,7 @@ export function isGenericDestination(url: URL) {
   const path = url.pathname
     .replace(/^\/+|\/+$/gu, "")
     .toLocaleLowerCase("en-US");
+  if (externalJobId(url)) return false;
   if (!path) return true;
   const segments = path.split("/");
   if (
@@ -273,7 +275,7 @@ function sourceTier(
 }
 
 function externalJobId(url: URL) {
-  for (const key of ["gh_jid", "jobId", "job_id", "jid", "lever-via"]) {
+  for (const key of ["gh_jid", "jobId", "job_id", "jid"]) {
     const value = url.searchParams.get(key)?.trim();
     if (value && /^[\w-]{4,100}$/u.test(value)) return value;
   }
@@ -341,6 +343,7 @@ export function classifySourceResponse(args: {
     sourceTier: sourceTier(args.job, hostname),
     externalJobId: externalJobId(parsed),
     verifiedAt: args.now ?? Date.now(),
+    httpStatus: args.status,
     verificationMethod: "http_content_v1" as const,
   };
   if (args.status === 404 || args.status === 410) {
@@ -382,7 +385,25 @@ export function classifySourceResponse(args: {
       verificationEvidence: "Unsafe final URL",
     };
   }
-  if (args.redirected && isGenericDestination(parsed)) {
+  const text = visibleText(args.body ?? "");
+  if (
+    /\b(?:sign in|log in|captcha|access denied|verify you are human|just a moment)\b/iu.test(
+      text,
+    ) &&
+    !expectedEntityPresent(text, args.job.title)
+  ) {
+    return {
+      ...common,
+      activityStatus: "verification_failed",
+      verificationEvidence: "Authentication or bot challenge",
+    };
+  }
+  if (
+    args.redirected &&
+    isGenericDestination(parsed) &&
+    !/\/(?:login|signin)(?:\/|$)/iu.test(parsed.pathname) &&
+    !expectedEntityPresent(text, args.job.title)
+  ) {
     return {
       ...common,
       activityStatus: "inactive",
@@ -396,7 +417,50 @@ export function classifySourceResponse(args: {
       verificationEvidence: "Generic destination page",
     };
   }
-  const text = visibleText(args.body ?? "");
+  // Only trust JobPosting data for this specific role/company, never related jobs.
+  let matchingStructuredJobPosting = false;
+  for (const script of (args.body ?? "").matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu,
+  )) {
+    try {
+      const parsedData: unknown = JSON.parse(script[1]);
+      const queue: unknown[] = [parsedData];
+      for (let i = 0; i < queue.length && i < 100; i += 1) {
+        const item = queue[i];
+        if (Array.isArray(item)) {
+          queue.push(...item.slice(0, 100));
+          continue;
+        }
+        if (!item || typeof item !== "object") continue;
+        const data = item as Record<string, unknown>;
+        if (data["@graph"]) queue.push(data["@graph"]);
+        const organization = data.hiringOrganization as
+          Record<string, unknown> | undefined;
+        if (
+          data["@type"] !== "JobPosting" ||
+          typeof data.title !== "string" ||
+          !expectedEntityPresent(data.title, args.job.title) ||
+          typeof organization?.name !== "string" ||
+          !expectedEntityPresent(organization.name, args.job.companyName)
+        )
+          continue;
+        matchingStructuredJobPosting = true;
+        const deadline =
+          typeof data.validThrough === "string"
+            ? Date.parse(data.validThrough)
+            : NaN;
+        if (Number.isFinite(deadline) && deadline < common.verifiedAt) {
+          return {
+            ...common,
+            activityStatus: "inactive",
+            verificationEvidence: "JobPosting validThrough passed",
+          };
+        }
+      }
+    } catch {
+      /* Malformed structured data is not closure evidence. */
+    }
+  }
   if (CLOSED_POSITION_PATTERN.test(text)) {
     return {
       ...common,
@@ -423,14 +487,16 @@ export function classifySourceResponse(args: {
     ...common,
     rawSourceText: text.slice(0, 32000),
     activityStatus: "verified_active",
-    verificationEvidence:
-      "HTTP 2xx; specific posting; expected role and company confirmed; no closure marker",
+    verificationEvidence: matchingStructuredJobPosting
+      ? "Structured JobPosting valid; HTTP 2xx"
+      : "HTTP 2xx; specific posting; expected role and company confirmed; no closure marker",
   };
 }
 
 export async function verifyJobSource(
   job: VerifiableJob,
 ): Promise<SourceVerification> {
+  const startedAt = Date.now();
   let current = normalizePublicUrl(job.sourceUrl);
   if (!current) return failure(job, "verification_failed", "Unsafe source URL");
   try {
@@ -439,7 +505,12 @@ export async function verifyJobSource(
       const url = new URL(current);
       const response = await requestPinned(url);
       if (response.status === 404 || response.status === 410) {
-        return failure(job, "inactive", `HTTP ${response.status}`, current);
+        return classifySourceResponse({
+          job,
+          status: response.status,
+          finalUrl: current,
+          now: startedAt,
+        });
       }
       if (response.status >= 300 && response.status < 400) {
         if (redirect === MAX_REDIRECTS) {
@@ -483,6 +554,7 @@ export async function verifyJobSource(
         contentType: String(response.headers["content-type"] ?? ""),
         body: response.text,
         redirected,
+        now: startedAt,
       });
     }
   } catch (error) {

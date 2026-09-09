@@ -168,6 +168,7 @@ describe("deterministic CV-backed relevance", () => {
       lifecycleStatus: "verified_active" as const,
       canonicalJobId: undefined,
       bestSourceId: "source-id",
+      lastVerifiedAt: Date.now(),
     };
     expect(isDisplayEligibleJob(base as never)).toBe(true);
     expect(
@@ -177,6 +178,12 @@ describe("deterministic CV-backed relevance", () => {
       isDisplayEligibleJob({
         ...base,
         canonicalJobId: "canonical-id",
+      } as never),
+    ).toBe(false);
+    expect(
+      isDisplayEligibleJob({
+        ...base,
+        activityReason: "development_fixture_active",
       } as never),
     ).toBe(false);
   });

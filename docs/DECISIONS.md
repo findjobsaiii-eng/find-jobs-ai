@@ -508,3 +508,13 @@ OAuth receives a sanitized copy of the complete current URL as its return
 destination, so successful authentication reveals the originally requested
 route. Convex ownership checks remain mandatory because a client layout is a UX
 boundary, not an authorization boundary.
+
+## Job activity freshness (2026-09-09)
+
+Reuse canonical lifecycle and per-source verification. A successful deterministic source check is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings but requires successful verification to reopen a closed source.
+
+HTTP 404/410, explicit closure text, a matching JobPosting validThrough deadline, and a generic redirect without the expected role are closure evidence. Login/challenge pages and transient errors preserve prior source status and back off retries. Query-ID canonical redirects remain eligible. Verification remains internal, hourly and incremental (20 sources per action), with no page-load URL checks. Source selection excludes stale sources; one fresh source keeps the canonical job eligible. Saved/application snapshots remain intact with the existing localized unavailable indication. No matching weights change.
+
+Development backfill progress is exposed through the bounded internal `jobActivity:getCatalogActivitySummary` query. It reports catalog lifecycle, verification attempts, queued work, alternative-source preservation, and remaining recent jobs without returning job records.
+
+Activity provenance is stored in `jobs.activityReason`. Normal feed jobs require a fresh successful source verification (`http_verified`, `structured_jobposting_valid`, or `alternative_source_active`). Development fixtures retain `development_fixture_active` and their sources use `development_fixture`; both markers exclude them from feeds, match materialization, deep reviews, and real-catalog diagnostics in every environment. Provider sightings without successful verification use `provider_recently_seen_unverified` and remain outside the normal feed. Records with no recoverable URL use `unverifiable_source` and remain outside the feed. Provider evidence URLs are retained as separate pending source records, with employer and ATS sources preferred after verification.

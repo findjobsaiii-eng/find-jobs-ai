@@ -33,6 +33,19 @@ describe("deterministic source activity classification", () => {
     expect(classify(200).activityStatus).toBe("verified_active");
   });
 
+  it("records matching valid JobPosting evidence", () => {
+    const body = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "JobPosting",
+      title: "Product Manager",
+      hiringOrganization: { name: "Example Company" },
+      validThrough: "2099-01-01T00:00:00Z",
+    })}</script>Example Company Product Manager`;
+    expect(classify(200, { body })).toMatchObject({
+      activityStatus: "verified_active",
+      verificationEvidence: "Structured JobPosting valid; HTTP 2xx",
+    });
+  });
+
   it.each([404, 410])("closes HTTP %s listings", (status) => {
     expect(classify(status)).toMatchObject({
       activityStatus: "inactive",
@@ -53,6 +66,7 @@ describe("deterministic source activity classification", () => {
     expect(
       classify(200, {
         finalUrl: "https://careers.example.com/careers",
+        body: "Browse our current vacancies",
         redirected: true,
       }),
     ).toMatchObject({
@@ -61,7 +75,7 @@ describe("deterministic source activity classification", () => {
     });
   });
 
-  it.each([429, 500, 503])("treats HTTP %s as temporary", (status) => {
+  it.each([403, 429, 500, 503])("treats HTTP %s as temporary", (status) => {
     expect(classify(status).activityStatus).toBe("verification_failed");
   });
 
@@ -71,4 +85,22 @@ describe("deterministic source activity classification", () => {
       verificationEvidence: "Verification failed: request_timeout",
     });
   });
+});
+
+it("preserves a canonical redirect with a query job ID", () => {
+  expect(
+    classify(200, {
+      finalUrl: "https://careers.example.com/?gh_jid=12345",
+      redirected: true,
+    }).activityStatus,
+  ).toBe("verified_active");
+});
+it("does not close a login redirect", () => {
+  expect(
+    classify(200, {
+      finalUrl: "https://careers.example.com/login",
+      body: "Sign in",
+      redirected: true,
+    }).activityStatus,
+  ).toBe("verification_failed");
 });

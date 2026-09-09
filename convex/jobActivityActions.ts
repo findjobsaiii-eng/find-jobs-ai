@@ -19,7 +19,7 @@ export const verifyDueSources = internalAction({
       const verification = await verifyJobSource({
         title: job.title,
         companyName: job.companyName,
-        sourceUrl: source.finalUrl ?? source.normalizedUrl,
+        sourceUrl: source.normalizedUrl,
         sourceType:
           source.sourceTier === "aggregator" ? "other" : source.sourceTier,
       });

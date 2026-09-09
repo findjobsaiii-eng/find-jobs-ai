@@ -547,6 +547,7 @@ const schema = defineSchema({
     lastSeenAt: v.number(),
     lastVerifiedAt: v.optional(v.number()),
     lastVerificationAttemptAt: v.optional(v.number()),
+    lastVerificationHttpStatus: v.optional(v.number()),
     nextVerificationAt: v.optional(v.number()),
     verificationFailureCount: v.optional(v.number()),
     verificationLeaseUntil: v.optional(v.number()),

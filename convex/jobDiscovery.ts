@@ -13,14 +13,20 @@ import {
 } from "./_generated/server";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import {
+  activityReasonForLifecycle,
   deriveJobLifecycle,
+  isFreshActiveSource,
   isActiveFeedLifecycle,
   JOB_ACTIVITY_POLICY,
   retryDelayMs,
 } from "./jobActivityPolicy";
 import type { SearchProfile } from "./jobDiscoveryModel";
-import { normalizedKey } from "./jobDiscoveryModel";
+import { normalizedKey, normalizePublicUrl } from "./jobDiscoveryModel";
 import { locationNamesForGeography } from "./jobGeography";
+import {
+  isDevelopmentFixtureJob,
+  isUserFacingJobSource,
+} from "./jobSourceProvenance";
 import {
   globalDayKey,
   JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS,
@@ -95,6 +101,7 @@ const sourceVerificationValidator = v.object({
   verificationMethod: v.literal("http_content_v1"),
   verificationEvidence: v.string(),
   rawSourceText: v.optional(v.string()),
+  httpStatus: v.optional(v.number()),
 });
 const jobInputValidator = v.object({
   rawProviderJson: v.optional(v.string()),
@@ -581,6 +588,42 @@ function sourcePriority(source: Doc<"jobSources">) {
   ];
 }
 
+const ATS_HOSTS = [
+  "greenhouse.io",
+  "lever.co",
+  "myworkdayjobs.com",
+  "smartrecruiters.com",
+  "ashbyhq.com",
+  "recruitee.com",
+] as const;
+const JOB_BOARD_HOSTS = [
+  "linkedin.com",
+  "indeed.com",
+  "glassdoor.com",
+  "alljobs.co.il",
+  "drushim.co.il",
+] as const;
+
+function hostMatches(hostname: string, domain: string) {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
+function inferredSourceTier(
+  normalizedUrl: string,
+  declared?: "employer" | "ats" | "job_board" | "other",
+): Doc<"jobSources">["sourceTier"] {
+  const hostname = new URL(normalizedUrl).hostname.toLocaleLowerCase("en-US");
+  if (ATS_HOSTS.some((domain) => hostMatches(hostname, domain))) return "ats";
+  if (JOB_BOARD_HOSTS.some((domain) => hostMatches(hostname, domain))) {
+    return "job_board";
+  }
+  if (declared === "ats" || declared === "job_board") return declared;
+  if (declared === "other") return "aggregator";
+  // A public posting on an otherwise unknown company domain is the best
+  // available employer-source candidate; verification still gates display.
+  return "employer";
+}
+
 function compatibleRequirements(
   job: Doc<"jobs">,
   candidate: {
@@ -792,6 +835,7 @@ async function upsertSource(
     providerKey,
     lastSeenAt: args.now,
     lastVerificationAttemptAt: args.verification.verifiedAt,
+    lastVerificationHttpStatus: args.verification.httpStatus,
     nextVerificationAt: temporaryFailure
       ? args.now + retryDelayMs(failureCount)
       : args.now + JOB_ACTIVITY_POLICY.activeVerificationTtlMs,
@@ -831,6 +875,52 @@ async function upsertSource(
   });
 }
 
+async function upsertDiscoveredSource(
+  ctx: MutationCtx,
+  args: {
+    jobId: Id<"jobs">;
+    sourceUrl: string;
+    sourceName: string | null;
+    declaredType?: "employer" | "ats" | "job_board" | "other";
+    now: number;
+  },
+) {
+  const normalizedUrl = normalizePublicUrl(args.sourceUrl);
+  if (!normalizedUrl) return null;
+  const existing = await ctx.db
+    .query("jobSources")
+    .withIndex("by_normalizedUrl", (q) => q.eq("normalizedUrl", normalizedUrl))
+    .first();
+  if (existing) {
+    if (existing.jobId !== args.jobId) return null;
+    await ctx.db.patch("jobSources", existing._id, {
+      sourceUrl: args.sourceUrl,
+      lastSeenAt: args.now,
+      // Rediscovery makes an inconclusive or closed source worth checking
+      // again, without treating the sighting itself as active evidence.
+      ...(!isFreshActiveSource(existing, args.now)
+        ? { nextVerificationAt: args.now }
+        : {}),
+    });
+    return existing._id;
+  }
+  const domain = new URL(normalizedUrl).hostname.toLocaleLowerCase("en-US");
+  return await ctx.db.insert("jobSources", {
+    jobId: args.jobId,
+    sourceName: args.sourceName,
+    sourceUrl: args.sourceUrl,
+    normalizedUrl,
+    domain,
+    sourceTier: inferredSourceTier(normalizedUrl, args.declaredType),
+    firstSeenAt: args.now,
+    lastSeenAt: args.now,
+    nextVerificationAt: args.now,
+    verificationFailureCount: 0,
+    activityStatus: "pending_verification",
+    verificationEvidence: "provider_recently_seen_unverified",
+  });
+}
+
 async function refreshBestSource(
   ctx: MutationCtx,
   jobId: Id<"jobs">,
@@ -842,8 +932,8 @@ async function refreshBestSource(
     .query("jobSources")
     .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
     .take(50);
-  const activeSources = allSources.filter(
-    (source) => source.activityStatus === "verified_active",
+  const activeSources = allSources.filter((source) =>
+    isFreshActiveSource(source, now),
   );
   activeSources.sort((a, b) => sourcePriority(a) - sourcePriority(b));
   const best = activeSources[0];
@@ -863,7 +953,11 @@ async function refreshBestSource(
       : lifecycle.status === "unknown"
         ? "unknown"
         : "inactive",
-    activityReason: lifecycle.reason,
+    activityReason: activityReasonForLifecycle({
+      lifecycle,
+      sources: allSources,
+      bestSource: best,
+    }),
     closedAt: lifecycle.closedAt,
     lastDiscoveredAt: now,
   });
@@ -973,6 +1067,27 @@ export const completeSearch = internalMutation({
         mergeReason: canonical.reason ?? undefined,
         observedAt: now,
       });
+      const observedSourceUrls = new Set([job.normalizedSourceUrl]);
+      for (const evidence of job.sourceEvidence) {
+        if (observedSourceUrls.has(evidence.url)) continue;
+        observedSourceUrls.add(evidence.url);
+        const additionalSourceId = await upsertDiscoveredSource(ctx, {
+          jobId,
+          sourceUrl: evidence.url,
+          sourceName: null,
+          now,
+        });
+        if (!additionalSourceId) continue;
+        await ctx.db.insert("jobIngestionEvents", {
+          jobId,
+          sourceId: additionalSourceId,
+          sourceUrl: evidence.url,
+          contentHash: job.contentHash,
+          rawProviderJson: job.rawProviderJson,
+          mergeReason: canonical.reason ?? undefined,
+          observedAt: now,
+        });
+      }
       const bestSource = await refreshBestSource(ctx, jobId, now);
       centralJob = await ctx.db.get("jobs", jobId);
       if (!centralJob) continue;
@@ -1170,6 +1285,7 @@ async function feedItem(
   const source = await ctx.db.get("jobSources", job.bestSourceId);
   if (
     !source ||
+    !isUserFacingJobSource(source) ||
     source.activityStatus !== "verified_active" ||
     !source.finalUrl ||
     !source.lastVerifiedAt
@@ -1274,6 +1390,16 @@ export const listCurrentUserJobs = query({
       const jobs = await Promise.all(
         applications.map(async (application) => {
           const current = await ctx.db.get("jobs", application.jobId);
+          const currentSource = current?.bestSourceId
+            ? await ctx.db.get("jobSources", current.bestSourceId)
+            : null;
+          if (
+            current &&
+            (isDevelopmentFixtureJob(current) ||
+              (currentSource && !isUserFacingJobSource(currentSource)))
+          ) {
+            return null;
+          }
           const review = current
             ? deepReviewView(
                 reviewsByJob.get(application.jobId),
@@ -1289,7 +1415,7 @@ export const listCurrentUserJobs = query({
           };
         }),
       );
-      return { jobs, plan };
+      return { jobs: jobs.filter((job) => job !== null), plan };
     }
     let profile: SearchProfile;
     try {
@@ -1356,7 +1482,7 @@ export const getCurrentUserMatchAudit = query({
         .take(100),
     ]);
     const appliedJobIds = new Set(applications.map((item) => item.jobId));
-    const evaluated = await Promise.all(
+    const evaluatedWithFixtures = await Promise.all(
       centralJobs.map(async (job) => {
         const quality = evaluateJobQuality(job, profile);
         const source = job.bestSourceId
@@ -1364,6 +1490,7 @@ export const getCurrentUserMatchAudit = query({
           : null;
         const activeAndCanonical = Boolean(
           isDisplayEligibleJob(job) &&
+          isUserFacingJobSource(source) &&
           source?.activityStatus === "verified_active" &&
           source.finalUrl &&
           source.lastVerifiedAt,
@@ -1384,6 +1511,11 @@ export const getCurrentUserMatchAudit = query({
         };
       }),
     );
+    const evaluated = evaluatedWithFixtures.filter(
+      (item) =>
+        !isDevelopmentFixtureJob(item.job) &&
+        isUserFacingJobSource(item.source),
+    );
     evaluated.sort(
       (a, b) =>
         b.quality.relevanceScore - a.quality.relevanceScore ||
@@ -1401,7 +1533,7 @@ export const getCurrentUserMatchAudit = query({
     return {
       profile,
       counts: {
-        centralJobs: centralJobs.length,
+        centralJobs: evaluated.length,
         activeAndCanonical: evaluated.filter((item) => item.activeAndCanonical)
           .length,
         hardEligible: evaluated.filter(

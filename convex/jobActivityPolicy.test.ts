@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activityReasonForLifecycle,
   deriveJobLifecycle,
   JOB_ACTIVITY_POLICY,
   retryDelayMs,
@@ -74,4 +75,64 @@ describe("job activity policy", () => {
     expect(retryDelayMs(2)).toBeGreaterThan(retryDelayMs(1));
     expect(retryDelayMs(99)).toBe(JOB_ACTIVITY_POLICY.maxRetryBackoffMs);
   });
+});
+
+it("does not let repeated discovery extend old verification", () => {
+  expect(
+    deriveJobLifecycle({
+      sources: [
+        {
+          activityStatus: "verified_active",
+          lastSeenAt: now,
+          lastVerifiedAt: 1,
+        },
+      ],
+      lastSeenAt: now,
+      now,
+    }).status,
+  ).toBe("unknown");
+});
+it("keeps another fresh source eligible after one closes", () => {
+  expect(
+    deriveJobLifecycle({
+      sources: [
+        { activityStatus: "inactive", lastSeenAt: now },
+        {
+          activityStatus: "verified_active",
+          lastSeenAt: 1,
+          lastVerifiedAt: now,
+        },
+      ],
+      lastSeenAt: 1,
+      now,
+    }).status,
+  ).toBe("verified_active");
+});
+
+it("records whether active evidence came from HTTP or an alternative source", () => {
+  const best = {
+    activityStatus: "verified_active" as const,
+    lastSeenAt: now,
+    lastVerifiedAt: now,
+    verificationMethod: "http_content_v1",
+  };
+  const lifecycle = deriveJobLifecycle({
+    sources: [best],
+    lastSeenAt: now,
+    now,
+  });
+  expect(
+    activityReasonForLifecycle({
+      lifecycle,
+      sources: [best],
+      bestSource: best,
+    }),
+  ).toBe("http_verified");
+  expect(
+    activityReasonForLifecycle({
+      lifecycle,
+      sources: [best, { activityStatus: "inactive", lastSeenAt: now }],
+      bestSource: best,
+    }),
+  ).toBe("alternative_source_active");
 });

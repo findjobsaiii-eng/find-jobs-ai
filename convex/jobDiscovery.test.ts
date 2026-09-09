@@ -549,7 +549,7 @@ describe("shared job discovery", () => {
     await t.run(async (ctx) => {
       for (let index = 0; index < 33; index += 1) {
         const job = normalizedJob();
-        const now = index + 1;
+        const now = Date.now() + index;
         const jobId = await ctx.db.insert("jobs", {
           ...job,
           normalizedSourceUrl: `${job.normalizedSourceUrl}-${index}`,
@@ -811,6 +811,72 @@ describe("canonical job identity", () => {
 });
 
 describe("stored job activity", () => {
+  it("persists alternate provider evidence URLs as pending sources", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    const alternateUrl = "https://boards.example.net/jobs/role-1";
+    const candidate = {
+      ...rawJob,
+      sourceEvidence: [
+        ...rawJob.sourceEvidence,
+        {
+          url: alternateUrl,
+          title: rawJob.title,
+          excerpt: "Example Company is hiring",
+        },
+      ],
+    };
+    const job = normalizeJob(
+      candidate,
+      new Set([rawJob.sourceUrl, alternateUrl]),
+    );
+    if (!job) throw new Error("Expected normalized job");
+    await ingestCandidates(t, userId, [{ job, verification: verification() }]);
+    await t.run(async (ctx) => {
+      const sources = await ctx.db.query("jobSources").collect();
+      expect(sources).toHaveLength(2);
+      expect(
+        sources.find((source) => source.normalizedUrl === alternateUrl),
+      ).toMatchObject({
+        activityStatus: "pending_verification",
+        verificationEvidence: "provider_recently_seen_unverified",
+      });
+    });
+  });
+
+  it("idempotently recovers a legacy canonical URL without trusting it as verified", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    await t.run(async (ctx) => {
+      const source = await ctx.db.query("jobSources").first();
+      if (!source) throw new Error("Expected source");
+      await ctx.db.delete("jobSources", source._id);
+    });
+    const first = await t.mutation(
+      internal.jobActivity.backfillMissingSourceRecords,
+      { limit: 25 },
+    );
+    const second = await t.mutation(
+      internal.jobActivity.backfillMissingSourceRecords,
+      { limit: 25 },
+    );
+    expect(first).toMatchObject({ recoveredJobs: 1, recoveredSources: 1 });
+    expect(second).toMatchObject({ recoveredJobs: 0, recoveredSources: 0 });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("jobSources").first()).toMatchObject({
+        activityStatus: "pending_verification",
+        verificationEvidence: "recovered_stored_source_unverified",
+      });
+      expect(await ctx.db.query("jobs").first()).toMatchObject({
+        lifecycleStatus: "unknown",
+        activityReason: "provider_recently_seen_unverified",
+      });
+    });
+  });
+
   it("updates lastSeenAt and retains an ingestion event on a fresh provider sighting", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
@@ -920,7 +986,7 @@ describe("stored job activity", () => {
     if (!jobId) throw new Error("Expected job");
     const diagnostics = await asUser(t, userId).query(
       api.jobActivity.getDiagnostics,
-      { jobId },
+      { jobId, now: Date.now() },
     );
     expect(diagnostics).toMatchObject({
       canonicalJobId: jobId,
