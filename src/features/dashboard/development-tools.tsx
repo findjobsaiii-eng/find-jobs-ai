@@ -167,12 +167,19 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
               <dl className="grid grid-cols-2 gap-2 text-xs">
                 {(
                   [
-                    ["centralJobs", matchAudit.counts.centralJobs],
+                    ["canonicalRealJobs", matchAudit.counts.canonicalRealJobs],
+                    ["realSourceJobs", matchAudit.counts.realSourceJobs],
+                    ["activityEligible", matchAudit.counts.activityEligible],
+                    ["afterDedupe", matchAudit.counts.afterDedupe],
+                    ["insideLocation", matchAudit.counts.insideLocation],
                     [
-                      "activeAndCanonical",
-                      matchAudit.counts.activeAndCanonical,
+                      "professionalEligible",
+                      matchAudit.counts.professionalEligible,
                     ],
-                    ["hardEligible", matchAudit.counts.hardEligible],
+                    [
+                      "scoredForRelevance",
+                      matchAudit.counts.scoredForRelevance,
+                    ],
                     ["aboveThreshold", matchAudit.counts.aboveThreshold],
                     ["displayed", matchAudit.counts.displayed],
                   ] as const
@@ -185,6 +192,18 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                   </div>
                 ))}
               </dl>
+              {matchAudit.rejectionReasons.length ? (
+                <div className="border-border mt-3 border-t pt-3 text-xs">
+                  <p className="text-muted-foreground mb-1">
+                    {t("jobDiscovery.audit.rejectionReasons")}
+                  </p>
+                  <p>
+                    {matchAudit.rejectionReasons
+                      .map(({ reason, count }) => `${reason}: ${count}`)
+                      .join(" · ")}
+                  </p>
+                </div>
+              ) : null}
               <ol className="border-border mt-3 space-y-2 border-t pt-3 text-xs">
                 {matchAudit.candidates.map((candidate) => (
                   <li key={candidate.jobId}>

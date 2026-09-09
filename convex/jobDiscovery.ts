@@ -205,12 +205,19 @@ const auditScoreComponentsValidator = v.object({
 const matchAuditValidator = v.object({
   profile: searchProfileValidator,
   counts: v.object({
-    centralJobs: v.number(),
-    activeAndCanonical: v.number(),
-    hardEligible: v.number(),
+    canonicalRealJobs: v.number(),
+    realSourceJobs: v.number(),
+    activityEligible: v.number(),
+    afterDedupe: v.number(),
+    insideLocation: v.number(),
+    professionalEligible: v.number(),
+    scoredForRelevance: v.number(),
     aboveThreshold: v.number(),
     displayed: v.number(),
   }),
+  rejectionReasons: v.array(
+    v.object({ reason: v.string(), count: v.number() }),
+  ),
   candidates: v.array(
     v.object({
       rank: v.number(),
@@ -1501,6 +1508,154 @@ export const listCurrentUserJobs = query({
   },
 });
 
+async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
+  const profile = await loadSearchProfile(ctx, userId);
+  const profileRecord = await getProfile(ctx, userId);
+  if (!profileRecord) profileIncomplete();
+  const [allJobs, allSources, applications, materializedMatches] =
+    await Promise.all([
+      ctx.db
+        .query("jobs")
+        .withIndex("by_lifecycleStatus_and_lastVerifiedAt")
+        .order("desc")
+        .take(500),
+      ctx.db.query("jobSources").withIndex("by_nextVerificationAt").take(1000),
+      ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("jobMatches")
+        .withIndex(
+          "by_userId_profileRevision_displayEligible_relevanceScore",
+          (q) =>
+            q
+              .eq("userId", userId)
+              .eq("profileRevision", profileRecord.updatedAt)
+              .eq("displayEligible", true),
+        )
+        .order("desc")
+        .take(50),
+    ]);
+  const appliedJobIds = new Set(applications.map((item) => item.jobId));
+  const fixtureJobIds = new Set(
+    allSources
+      .filter((source) => !isUserFacingJobSource(source))
+      .map((source) => source.jobId),
+  );
+  const canonicalJobs = allJobs.filter(
+    (job) =>
+      !job.canonicalJobId &&
+      !isDevelopmentFixtureJob(job) &&
+      !fixtureJobIds.has(job._id),
+  );
+  const realSources = allSources.filter(isUserFacingJobSource);
+  const sourceById = new Map(realSources.map((source) => [source._id, source]));
+  const realSourceJobIds = new Set(realSources.map((source) => source.jobId));
+  const evaluated = canonicalJobs.map((job) => {
+    const quality = evaluateJobQuality(job, profile);
+    const source = job.bestSourceId ? sourceById.get(job.bestSourceId) : null;
+    const activityEligible = Boolean(
+      isDisplayEligibleJob(job) &&
+      source &&
+      isFreshActiveSource(source) &&
+      source.finalUrl &&
+      source.lastVerifiedAt,
+    );
+    return {
+      job,
+      source,
+      quality,
+      activityEligible,
+      accepted: activityEligible && quality.outcome === "eligible",
+    };
+  });
+  const activityEligible = evaluated.filter((item) => item.activityEligible);
+  activityEligible.sort(
+    (a, b) =>
+      b.quality.relevanceScore - a.quality.relevanceScore ||
+      jobFreshness({
+        postedAt: b.job.postedAt,
+        discoveredAt: b.job.firstDiscoveredAt,
+      }) -
+        jobFreshness({
+          postedAt: a.job.postedAt,
+          discoveredAt: a.job.firstDiscoveredAt,
+        }) ||
+      feedSourcePriority(b.source?.sourceTier ?? "") -
+        feedSourcePriority(a.source?.sourceTier ?? ""),
+  );
+  const rejectionCounts = new Map<string, number>();
+  const reject = (reason: string) =>
+    rejectionCounts.set(reason, (rejectionCounts.get(reason) ?? 0) + 1);
+  for (const item of evaluated) {
+    if (!item.activityEligible) {
+      const reason =
+        item.job.lifecycleStatus === "closed"
+          ? "activity_closed"
+          : item.job.lifecycleStatus === "expired"
+            ? "activity_expired"
+            : "activity_unknown";
+      reject(reason);
+      continue;
+    }
+    for (const reason of item.quality.exclusionReasons) {
+      reject(reason === "location_conflict" ? "outside_radius" : reason);
+    }
+  }
+  const acceptedJobIds = new Set(
+    activityEligible
+      .filter((item) => item.accepted && !appliedJobIds.has(item.job._id))
+      .map((item) => item.job._id),
+  );
+  const insideLocation = activityEligible.filter(
+    (item) => !item.quality.exclusionReasons.includes("location_conflict"),
+  );
+  const professionalEligible = insideLocation.filter(
+    (item) => item.quality.hardEligibilityPassed,
+  );
+  return {
+    profile,
+    counts: {
+      canonicalRealJobs: canonicalJobs.length,
+      realSourceJobs: canonicalJobs.filter((job) =>
+        realSourceJobIds.has(job._id),
+      ).length,
+      activityEligible: activityEligible.length,
+      afterDedupe: activityEligible.length,
+      insideLocation: insideLocation.length,
+      professionalEligible: professionalEligible.length,
+      scoredForRelevance: professionalEligible.length,
+      aboveThreshold: professionalEligible.filter(
+        (item) => item.quality.passesRelevanceThreshold,
+      ).length,
+      displayed: materializedMatches.filter((match) =>
+        acceptedJobIds.has(match.jobId),
+      ).length,
+    },
+    rejectionReasons: [...rejectionCounts.entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((left, right) => right.count - left.count),
+    candidates: activityEligible.slice(0, 10).map((item, index) => ({
+      rank: index + 1,
+      jobId: item.job._id,
+      title: item.job.title,
+      companyName: item.job.companyName,
+      relevanceScore: item.quality.relevanceScore,
+      scoreComponents: item.quality.scoreComponents,
+      exclusionReasons: item.quality.exclusionReasons,
+      matchReasons: item.quality.matchReasons,
+      sourceTier: item.source?.sourceTier ?? null,
+      decision: item.accepted
+        ? item.quality.relevanceScore >= 78
+          ? ("strong" as const)
+          : ("acceptable" as const)
+        : ("reject" as const),
+    })),
+  };
+}
+
 export const getCurrentUserMatchAudit = query({
   args: {},
   returns: matchAuditValidator,
@@ -1508,102 +1663,15 @@ export const getCurrentUserMatchAudit = query({
     const userId = await requireUserId(ctx);
     if (env.DEV_TOOLS_ENABLED !== "true")
       throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
-    const profile = await loadSearchProfile(ctx, userId);
-    const [centralJobs, applications] = await Promise.all([
-      ctx.db
-        .query("jobs")
-        .withIndex("by_lifecycleStatus_and_lastVerifiedAt")
-        .order("desc")
-        .take(500),
-      ctx.db
-        .query("jobApplications")
-        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
-        .order("desc")
-        .take(100),
-    ]);
-    const appliedJobIds = new Set(applications.map((item) => item.jobId));
-    const evaluatedWithFixtures = await Promise.all(
-      centralJobs.map(async (job) => {
-        const quality = evaluateJobQuality(job, profile);
-        const source = job.bestSourceId
-          ? await ctx.db.get("jobSources", job.bestSourceId)
-          : null;
-        const activeAndCanonical = Boolean(
-          isDisplayEligibleJob(job) &&
-          isUserFacingJobSource(source) &&
-          source !== null &&
-          isFreshActiveSource(source) &&
-          source.finalUrl &&
-          source.lastVerifiedAt,
-        );
-        const exclusionReasons = [
-          ...(!activeAndCanonical ? ["inactive_or_unverified"] : []),
-          ...quality.exclusionReasons,
-        ];
-        const accepted = activeAndCanonical && quality.outcome === "eligible";
-        return {
-          job,
-          source,
-          quality,
-          activeAndCanonical,
-          exclusionReasons,
-          accepted,
-          displayed: accepted && !appliedJobIds.has(job._id),
-        };
-      }),
-    );
-    const evaluated = evaluatedWithFixtures.filter(
-      (item) =>
-        !isDevelopmentFixtureJob(item.job) &&
-        isUserFacingJobSource(item.source),
-    );
-    evaluated.sort(
-      (a, b) =>
-        b.quality.relevanceScore - a.quality.relevanceScore ||
-        jobFreshness({
-          postedAt: b.job.postedAt,
-          discoveredAt: b.job.firstDiscoveredAt,
-        }) -
-          jobFreshness({
-            postedAt: a.job.postedAt,
-            discoveredAt: a.job.firstDiscoveredAt,
-          }) ||
-        feedSourcePriority(b.source?.sourceTier ?? "") -
-          feedSourcePriority(a.source?.sourceTier ?? ""),
-    );
-    return {
-      profile,
-      counts: {
-        centralJobs: evaluated.length,
-        activeAndCanonical: evaluated.filter((item) => item.activeAndCanonical)
-          .length,
-        hardEligible: evaluated.filter(
-          (item) =>
-            item.activeAndCanonical && item.quality.hardEligibilityPassed,
-        ).length,
-        aboveThreshold: evaluated.filter((item) => item.accepted).length,
-        displayed: Math.min(
-          50,
-          evaluated.filter((item) => item.displayed).length,
-        ),
-      },
-      candidates: evaluated.slice(0, 20).map((item, index) => ({
-        rank: index + 1,
-        jobId: item.job._id,
-        title: item.job.title,
-        companyName: item.job.companyName,
-        relevanceScore: item.quality.relevanceScore,
-        scoreComponents: item.quality.scoreComponents,
-        exclusionReasons: item.exclusionReasons,
-        matchReasons: item.quality.matchReasons,
-        sourceTier: item.source?.sourceTier ?? null,
-        decision: item.accepted
-          ? item.quality.relevanceScore >= 78
-            ? ("strong" as const)
-            : ("acceptable" as const)
-          : ("reject" as const),
-      })),
-    };
+    return await buildMatchAudit(ctx, userId);
+  },
+});
+
+export const getUserMatchAuditForDevelopment = internalQuery({
+  args: { userId: v.id("users") },
+  returns: matchAuditValidator,
+  handler: async (ctx, args) => {
+    return await buildMatchAudit(ctx, args.userId);
   },
 });
 

@@ -3,8 +3,33 @@
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { verifyJobSource } from "./jobSourceVerification";
-import type { Doc } from "./_generated/dataModel";
+import {
+  verificationRateLimitKey,
+  verifyJobSource,
+} from "./jobSourceVerification";
+import type { Doc, Id } from "./_generated/dataModel";
+
+function createRateLimitedVerifier() {
+  const providerTails = new Map<string, Promise<void>>();
+  return async (job: Parameters<typeof verifyJobSource>[0]) => {
+    const key = verificationRateLimitKey(job.sourceUrl);
+    const previous = providerTails.get(key) ?? Promise.resolve();
+    let release = () => {};
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    providerTails.set(key, tail);
+    await previous;
+    try {
+      return await verifyJobSource(job);
+    } finally {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      release();
+      if (providerTails.get(key) === tail) providerTails.delete(key);
+    }
+  };
+}
 
 export const verifyDueSources = internalAction({
   args: {},
@@ -20,6 +45,7 @@ export const verifyDueSources = internalAction({
       source: (typeof claimed)[number]["source"];
       verification: Awaited<ReturnType<typeof verifyJobSource>>;
     }> = [];
+    const verifyRateLimited = createRateLimitedVerifier();
     let cursor = 0;
     async function worker() {
       while (cursor < claimed.length) {
@@ -27,7 +53,7 @@ export const verifyDueSources = internalAction({
         const { source, job } = claimed[index];
         verified[index] = {
           source,
-          verification: await verifyJobSource({
+          verification: await verifyRateLimited({
             title: job.title,
             companyName: job.companyName,
             sourceUrl: source.normalizedUrl,
@@ -54,6 +80,55 @@ export const verifyDueSources = internalAction({
       );
     }
     return null;
+  },
+});
+
+export const reverifySpecificSources = internalAction({
+  args: { sourceIds: v.array(v.id("jobSources")) },
+  returns: v.array(
+    v.object({
+      sourceId: v.id("jobSources"),
+      status: v.string(),
+      evidence: v.string(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{ sourceId: Id<"jobSources">; status: string; evidence: string }>
+  > => {
+    const claimed: Array<{
+      source: Doc<"jobSources">;
+      job: Doc<"jobs">;
+    }> = await ctx.runMutation(internal.jobActivity.claimSpecificSources, {
+      sourceIds: args.sourceIds.slice(0, 10),
+    });
+    const verifyRateLimited = createRateLimitedVerifier();
+    const results: Array<{
+      sourceId: Id<"jobSources">;
+      status: string;
+      evidence: string;
+    }> = [];
+    for (const { source, job } of claimed) {
+      const verification = await verifyRateLimited({
+        title: job.title,
+        companyName: job.companyName,
+        sourceUrl: source.normalizedUrl,
+        sourceType:
+          source.sourceTier === "aggregator" ? "other" : source.sourceTier,
+      });
+      await ctx.runMutation(internal.jobActivity.recordVerification, {
+        sourceId: source._id,
+        verification,
+      });
+      results.push({
+        sourceId: source._id,
+        status: verification.activityStatus,
+        evidence: verification.verificationEvidence,
+      });
+    }
+    return results;
   },
 });
 
@@ -90,6 +165,7 @@ export const reverifyVisibleCatalog = internalAction({
       internal.jobActivity.claimVisibleSourcesForEvidenceRecheck,
       { limit: args.limit },
     );
+    const verifyRateLimited = createRateLimitedVerifier();
     let cursor = 0;
     let sourcesChecked = 0;
     async function worker() {
@@ -97,7 +173,7 @@ export const reverifyVisibleCatalog = internalAction({
         const index = cursor++;
         const { job, sources } = batch.claimed[index];
         for (const source of sources) {
-          const verification = await verifyJobSource({
+          const verification = await verifyRateLimited({
             title: job.title,
             companyName: job.companyName,
             sourceUrl: source.normalizedUrl,

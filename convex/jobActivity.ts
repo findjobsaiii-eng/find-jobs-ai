@@ -496,6 +496,30 @@ export const claimDueSources = internalMutation({
   },
 });
 
+/** Bounded internal recheck used to diagnose specific source false negatives. */
+export const claimSpecificSources = internalMutation({
+  args: { sourceIds: v.array(v.id("jobSources")) },
+  returns: v.array(
+    v.object({ source: schema.doc("jobSources"), job: schema.doc("jobs") }),
+  ),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const claimed = [];
+    for (const sourceId of [...new Set(args.sourceIds)].slice(0, 10)) {
+      const source = await ctx.db.get("jobSources", sourceId);
+      if (!source || !isUserFacingJobSource(source)) continue;
+      const job = await ctx.db.get("jobs", source.jobId);
+      if (!job || job.canonicalJobId || isDevelopmentFixtureJob(job)) continue;
+      await ctx.db.patch("jobSources", source._id, {
+        verificationLeaseUntil: now + JOB_ACTIVITY_POLICY.verificationLeaseMs,
+        nextVerificationAt: now + JOB_ACTIVITY_POLICY.verificationLeaseMs,
+      });
+      claimed.push({ source, job });
+    }
+    return claimed;
+  },
+});
+
 export const claimVisibleSourcesForEvidenceRecheck = internalMutation({
   args: { limit: v.number() },
   returns: v.object({

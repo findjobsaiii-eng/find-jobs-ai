@@ -436,9 +436,30 @@ function hasApplicationAction(html: string) {
       return true;
     }
   }
+  const text = visibleText(html);
+  if (
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu.test(text) &&
+    /(?:to\s+apply[\s\S]{0,120}(?:email|send)[\s\S]{0,80}(?:cv|resume|application)|(?:email|send)[\s\S]{0,80}(?:your\s+)?(?:cv|resume|application)[\s\S]{0,120}(?:to|at)|(?:להגשת\s+מועמדות|להגשת\s+המועמדות|שלחו?|נא\s+לשלוח)[\s\S]{0,100}(?:קורות\s+חיים|מועמדות|דוא["״']?ל|מייל))/iu.test(
+      text,
+    )
+  ) {
+    return true;
+  }
   return /<form\b[^>]*(?:action=["'][^"']*(?:apply|application|candidate)[^"']*["']|data-[^>]*(?:apply|application))/iu.test(
     html,
   );
+}
+
+export function verificationRateLimitKey(sourceUrl: string) {
+  try {
+    const hostname = new URL(sourceUrl).hostname.toLocaleLowerCase("en-US");
+    const sharedDomain = [...ATS_DOMAINS, ...JOB_BOARD_DOMAINS].find((domain) =>
+      domainMatches(hostname, domain),
+    );
+    return sharedDomain ?? hostname;
+  } catch {
+    return sourceUrl;
+  }
 }
 
 type StructuredPosting = {
@@ -799,19 +820,32 @@ export async function verifyJobSources(jobs: NormalizedJob[], concurrency = 3) {
     job: NormalizedJob;
     verification: SourceVerification;
   }> = [];
+  const queues = new Map<string, number[]>();
+  jobs.forEach((job, index) => {
+    const key = verificationRateLimitKey(job.sourceUrl);
+    queues.set(key, [...(queues.get(key) ?? []), index]);
+  });
+  const providerQueues = [...queues.values()];
   let cursor = 0;
   async function worker() {
-    while (cursor < jobs.length) {
-      const index = cursor;
+    while (cursor < providerQueues.length) {
+      const queue = providerQueues[cursor];
       cursor += 1;
-      output[index] = {
-        job: jobs[index],
-        verification: await verifyJobSource(jobs[index]),
-      };
+      for (const [position, index] of queue.entries()) {
+        output[index] = {
+          job: jobs[index],
+          verification: await verifyJobSource(jobs[index]),
+        };
+        if (position < queue.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 750));
+        }
+      }
     }
   }
   await Promise.all(
-    Array.from({ length: Math.min(concurrency, jobs.length) }, () => worker()),
+    Array.from({ length: Math.min(concurrency, providerQueues.length) }, () =>
+      worker(),
+    ),
   );
   return output;
 }

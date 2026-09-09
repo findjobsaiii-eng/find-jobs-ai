@@ -38,6 +38,19 @@ describe("deterministic source activity classification", () => {
     });
   });
 
+  it("accepts an employer listing with an explicit email application path", () => {
+    expect(
+      classify(200, {
+        body: "Example Company Product Manager. To apply for this position please email your CV to careers@example.com.",
+      }),
+    ).toMatchObject({
+      activityStatus: "verified_active",
+      activeEvidenceType: "active_application_flow",
+      identityMatched: true,
+      applicationAvailable: true,
+    });
+  });
+
   it("does not treat HTTP 200 and matching identity alone as active", () => {
     expect(
       classify(200, {
