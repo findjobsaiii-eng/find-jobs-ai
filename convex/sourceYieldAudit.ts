@@ -134,18 +134,18 @@ function classifyYield(args: {
     return "High value" as const;
   }
   if (
-    args.candidateObservations >= 2 &&
-    args.verifiedActiveNewYieldPct < 10 &&
-    args.unknownRatioPct + args.closedOrExpiredRatioPct >= 70
-  ) {
-    return "Poor/unstable for verification" as const;
-  }
-  if (
     args.verifiedActive >= 2 ||
     args.becameNewSuggestions > 0 ||
     args.verifiedActiveNewYieldPct >= 8
   ) {
     return "Useful secondary" as const;
+  }
+  if (
+    args.candidateObservations >= 2 &&
+    args.verifiedActiveNewYieldPct < 10 &&
+    args.unknownRatioPct + args.closedOrExpiredRatioPct >= 70
+  ) {
+    return "Poor/unstable for verification" as const;
   }
   return "Low yield" as const;
 }
