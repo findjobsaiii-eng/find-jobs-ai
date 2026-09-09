@@ -39,6 +39,7 @@ const metricValidator = v.object({
   uniqueSources: v.number(),
   candidateObservations: v.number(),
   newCanonicalJobs: v.number(),
+  verifiedActiveNewCanonicalJobs: v.number(),
   duplicates: v.number(),
   verifiedActive: v.number(),
   probablyActive: v.number(),
@@ -351,6 +352,8 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
         uniqueSources: bucket.sourceUrls.size,
         candidateObservations: bucket.candidateObservations,
         newCanonicalJobs: bucket.newCanonicalJobIds.size,
+        verifiedActiveNewCanonicalJobs:
+          bucket.verifiedActiveNewJobIds.size,
         duplicates: bucket.duplicates,
         verifiedActive,
         probablyActive,
