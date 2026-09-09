@@ -4,13 +4,13 @@ This log contains decisions that can be verified from committed files. Unresolve
 
 ## Verified decisions
 
-### D-001: React, Vite, TypeScript, and Convex form the application stack
+### D-001: Next.js App Router, React, TypeScript, and Convex form the application stack
 
 Status: Accepted
 
-Evidence: `package.json`, `vite.config.ts`, `src/`, and `convex/`.
+Evidence: `package.json`, `next.config.ts`, `src/app/`, and `convex/`.
 
-The frontend uses React with TypeScript and Vite. Convex provides the backend and generated client API.
+The frontend uses Next.js App Router with React and TypeScript. Convex provides the backend, authentication session, reactive data, and generated client API. Vitest still uses Vite internally as its supported test transform; Vite is no longer the application server, router, or production bundler.
 
 ### D-002: npm is the package manager
 
@@ -42,13 +42,13 @@ Evidence: `AGENTS.md` and the current `src/` structure.
 
 Application providers live under `src/app/`, shared primitives under `src/components/ui/`, product code under `src/features/`, translations under `src/i18n/`, and shared utilities under `src/lib/`.
 
-### D-006: Local validation uses TypeScript, ESLint, Prettier, and Vite
+### D-006: Local validation uses TypeScript, Next.js ESLint, Prettier, Vitest, and the Next production build
 
 Status: Accepted
 
 Evidence: scripts in `package.json`.
 
-`npm run check` is the normal static-quality gate. `npm run build` is also required before handing off substantial frontend work.
+`npm run check` is the normal static-quality gate. `npm test` covers focused behavior, and `npm run build` is also required before handing off substantial frontend work.
 
 ### D-007: Authentication tests use Vitest and React Testing Library
 
@@ -84,7 +84,7 @@ Evidence: `convex/convex.config.ts`, `convex/auth.ts`, and
 The Google provider reads `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` from the
 Convex server environment. Required auth configuration fails closed when missing
 or blank, and `SITE_URL` must be a safe origin. Credential values must not be
-exposed through `VITE_` variables, client code, logs, or repository
+exposed through `NEXT_PUBLIC_` variables, client code, logs, or repository
 documentation.
 
 ### D-010: Candidate profiles are one-to-one with server-derived auth users
@@ -127,7 +127,7 @@ Evidence: `src/lib/google-maps.ts`,
 `src/features/profile/google-places-multi-select.tsx`, and `README.md`.
 
 The Places widget loads lazily only on the location step using
-`VITE_GOOGLE_MAPS_API_KEY`. The value is necessarily public in the browser and
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. The value is necessarily public in the browser and
 must be protected with exact HTTP-referrer and API restrictions in Google Cloud.
 The official widget owns autocomplete sessions, accessibility behavior, and
 Google attribution. Google Places is the single source of location options; the
@@ -368,24 +368,7 @@ and every job on an hourly cron.
 Shared provider-query identity follows D-024. Canonical GeoNames locality labels
 keep Hebrew and English profiles on the same city-scoped search criteria.
 
-## URL-based workspace navigation
-
-Status: Accepted
-
-Use React Router browser history for page paths and query parameters for jobs
-views: `/profile` and `/?tab=in-progress`. Keep transient form, pending, and
-feedback state in React. Preserve the tab in the profile query for deterministic
-Save/Cancel destinations across refreshes. The router mounts inside the profile
-gate, after OAuth callback processing, so callback-code cleanup cannot leave
-stale router search parameters. Static production hosting requires SPA fallback.
-
 ## Pending decisions
-
-### P-003: Node.js version enforcement
-
-Status: Pending
-
-The README requires Node.js 22 or newer, but the repository does not enforce that requirement through an engine constraint or version-manager file.
 
 ### P-004: Deployment and release model
 
@@ -487,12 +470,12 @@ closed jobs and jobs that conflict with mandatory location or work preferences
 never receive a visible score. Historical application snapshots keep the score
 optional so existing saved records remain readable.
 
-### D-027: Job views live in the header and profile sections use URL hashes
+### D-027: Job views live in the header and profile topics use App Router paths
 
 Status: Accepted
 
-Evidence: `src/features/dashboard/authenticated-shell.tsx`,
-`src/features/dashboard/job-discovery-panel.tsx`, and
+Evidence: `src/app/page.tsx`, `src/app/(app)/profile/`,
+`src/features/dashboard/authenticated-shell.tsx`, and
 `src/features/profile/profile-overview.tsx`.
 
 The authenticated header presents the two primary job views, Suggestions and
@@ -502,9 +485,26 @@ language, and sign-out actions live in one accessible account popover anchored
 to the candidate avatar; the display name is hidden below the desktop
 breakpoint.
 
-The profile route presents one section at a time. Overview, professional
-details, preferences, languages, and resumes use `/profile` hashes so a refresh
-or direct link preserves context. Editable sections open directly with their
-own Save and Cancel controls. The section navigation becomes a horizontally
-scrollable control on narrow screens, and unsaved edits require confirmation
-before changing sections.
+The profile route presents one topic at a time. Professional details use
+`/profile`; preferences, languages, and resumes use nested paths beneath it so a
+refresh, direct link, or browser history entry preserves context. Editable
+sections open directly with their own Save and Cancel controls. The section
+navigation becomes a horizontally scrollable control on narrow screens, and
+unsaved edits require confirmation before changing sections.
+
+### D-028: Public and authenticated experiences have separate App Router layouts
+
+Status: Accepted (2026-09-09)
+
+Evidence: `src/app/layout.tsx`, `src/app/page.tsx`,
+`src/app/(app)/layout.tsx`, and `src/features/dashboard/app-routes.tsx`.
+
+The root layout contains only global providers and metadata. `/` chooses between
+the standalone landing page and the authenticated job workspace after the
+Convex Auth session resolves, preventing a signed-out landing-page flash for
+returning users. Protected routes share the `(app)` layout and show a sign-in
+prompt in place when signed out, without replacing the requested URL. Google
+OAuth receives a sanitized copy of the complete current URL as its return
+destination, so successful authentication reveals the originally requested
+route. Convex ownership checks remain mandatory because a client layout is a UX
+boundary, not an authorization boundary.

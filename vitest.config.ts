@@ -13,7 +13,7 @@ export default defineConfig({
     environment: "jsdom",
     environmentOptions: {
       jsdom: {
-        url: "http://localhost:5173/",
+        url: "http://localhost:3000/",
       },
     },
     setupFiles: ["./src/test/setup.ts"],

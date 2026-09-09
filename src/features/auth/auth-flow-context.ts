@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 export type AuthCallbackStatus =
-  "idle" | "exchanging" | "awaiting-session" | "error";
+  "initializing" | "idle" | "exchanging" | "awaiting-session" | "error";
 
 export type AuthFlowContextValue = {
   status: AuthCallbackStatus;

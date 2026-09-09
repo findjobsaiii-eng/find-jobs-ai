@@ -3,27 +3,40 @@ import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
 import { ProfileGate } from "@/features/profile/profile-gate";
+import { ProfileOverview } from "@/features/profile/profile-overview";
 import type { CurrentProfile } from "@/features/profile/profile-types";
 import type { FunctionArgs } from "convex/server";
 import type { api } from "../../../convex/_generated/api";
+import { AuthenticatedShell } from "./authenticated-shell";
+import { DashboardScreen } from "./dashboard-screen";
 
 const hooks = vi.hoisted(() => ({
   data: null as CurrentProfile | null,
+  push: vi.fn(),
+  replace: vi.fn(),
   save: vi.fn<
     (
       args: FunctionArgs<typeof api.candidateProfiles.saveCurrent>,
     ) => Promise<void>
   >(),
 }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/profile",
+  useRouter: () => ({ push: hooks.push, replace: hooks.replace }),
+}));
+
 vi.mock("convex/react", () => ({
   useQuery: (_ref: unknown, args?: { kind?: string }) =>
     args?.kind ? [] : args ? { jobs: [] } : hooks.data,
   useMutation: () => hooks.save,
   useAction: () => vi.fn(),
 }));
+
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => ({ signOut: vi.fn() }),
 }));
+
 vi.mock("@/lib/google-maps", () => ({
   hasGoogleMapsApiKey: () => false,
   loadGooglePlaces: vi.fn(),
@@ -92,170 +105,139 @@ function completedProfile(): CurrentProfile {
   } as unknown as CurrentProfile;
 }
 
-async function openProfile(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "User menu" }));
-  await user.click(screen.getByRole("link", { name: "Profile" }));
+function renderProfile(
+  section: "professional" | "preferences" = "professional",
+) {
+  return render(
+    <ProfileOverview data={completedProfile()} activeSection={section} />,
+  );
 }
 
 describe("dashboard and completed profile editing", () => {
   beforeAll(async () => {
     await initializeI18n();
   });
+
   beforeEach(async () => {
-    window.history.replaceState(null, "", "/");
     hooks.data = completedProfile();
+    hooks.push.mockReset();
+    hooks.replace.mockReset();
     hooks.save.mockReset();
     await i18n.changeLanguage("en");
   });
 
-  it("routes completed profiles to the dashboard and opens the prefilled editor in RTL", async () => {
-    await i18n.changeLanguage("he");
-    const user = userEvent.setup();
-    const view = render(<ProfileGate />);
-    expect(
-      screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
-    ).toBeInTheDocument();
-    expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
-    await user.click(screen.getByRole("link", { name: "פרופיל" }));
-    expect(window.location.pathname).toBe("/profile");
-    expect(
-      screen.queryByRole("link", { name: "סקירה" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "תפקידים וניסיון" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.queryByRole("button", { name: "שמירת פרופיל" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/שלב 1 מתוך 4/)).not.toBeInTheDocument();
-    expect(await screen.findByDisplayValue("Matan")).toBeInTheDocument();
-    expect(screen.getByText("candidate@example.com")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("textbox", { name: /email/i }),
-    ).not.toBeInTheDocument();
-    expect(hooks.save).not.toHaveBeenCalled();
+  it("gates completed and incomplete profiles before rendering app content", () => {
+    const view = render(
+      <ProfileGate>
+        {(data) => <p>{data.profile?.preferredDisplayName}</p>}
+      </ProfileGate>,
+    );
+    expect(screen.getByText("Matan")).toBeInTheDocument();
+
     view.unmount();
     hooks.data = { ...completedProfile(), profile: null };
-    render(<ProfileGate />);
-    expect(
-      screen.queryByRole("heading", { name: "משרות מומלצות עבורך" }),
-    ).not.toBeInTheDocument();
+    render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "גרור קורות חיים לכאן או לחץ לבחירת קובץ",
+        name: "Drop a resume here or click to browse",
       }),
     ).toBeInTheDocument();
   });
 
-  it("restores URL tabs with history and remounting, and returns from profile", async () => {
-    window.history.replaceState(null, "", "/?tab=in-progress");
+  it("renders the shared app shell with URL-backed job tabs and profile link", async () => {
+    await i18n.changeLanguage("he");
     const user = userEvent.setup();
-    const view = render(<ProfileGate />);
-    const savedLink = () => screen.getByRole("link", { name: "Saved" });
-    expect(savedLink()).toHaveAttribute("aria-current", "page");
-    await user.click(screen.getByRole("link", { name: "Suggestions" }));
-    expect(window.location.search).toBe("");
-    act(() => window.history.back());
-    await waitFor(() =>
-      expect(savedLink()).toHaveAttribute("aria-current", "page"),
+    const data = completedProfile();
+    render(
+      <AuthenticatedShell data={data} currentPage="jobs" jobView="suggestions">
+        <DashboardScreen view="suggestions" onEdit={vi.fn()} />
+      </AuthenticatedShell>,
     );
-    act(() => window.history.forward());
-    await waitFor(() =>
-      expect(savedLink()).not.toHaveAttribute("aria-current"),
-    );
-    await user.click(savedLink());
-    view.unmount();
-    render(<ProfileGate />);
-    expect(savedLink()).toHaveAttribute("aria-current", "page");
-    await openProfile(user);
-    expect(window.location.pathname).toBe("/profile");
-    expect(window.location.search).toBe("?tab=in-progress");
+
+    expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(
-      screen.getByRole("link", { name: "Roles and experience" }),
-    ).toHaveAttribute("aria-current", "page");
+      screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "הצעות" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(screen.getByRole("link", { name: "שמורות" })).toHaveAttribute(
+      "href",
+      "/?tab=in-progress",
+    );
+
+    await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
+    expect(screen.getByRole("link", { name: "פרופיל" })).toHaveAttribute(
+      "href",
+      "/profile",
+    );
   });
 
-  it("opens direct profile links and falls back for unknown URLs", async () => {
-    window.history.replaceState(null, "", "/profile");
-    const view = render(<ProfileGate />);
-    expect(
-      await screen.findByRole("heading", { name: "Professional profile" }),
-    ).toBeInTheDocument();
-    view.unmount();
-    window.history.replaceState(null, "", "/missing");
-    const fallback = render(<ProfileGate />);
-    await waitFor(() => expect(window.location.pathname).toBe("/"));
-    fallback.unmount();
-    window.history.replaceState(null, "", "/?tab=invalid");
-    render(<ProfileGate />);
-    expect(screen.getByRole("link", { name: "Suggestions" })).toHaveAttribute(
+  it("uses the server-selected jobs view instead of client URL parsing", () => {
+    render(
+      <AuthenticatedShell
+        data={completedProfile()}
+        currentPage="jobs"
+        jobView="inProgress"
+      >
+        <DashboardScreen view="inProgress" onEdit={vi.fn()} />
+      </AuthenticatedShell>,
+    );
+
+    expect(screen.getByRole("link", { name: "Saved" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+    expect(
+      screen.getByRole("heading", { name: "Saved jobs" }),
+    ).toBeInTheDocument();
   });
 
-  it("keeps topic navigation and editing in one stable profile state", async () => {
+  it("links every profile topic to a real route and guards dirty navigation", async () => {
     const user = userEvent.setup();
-    render(<ProfileGate />);
-    await openProfile(user);
+    renderProfile();
 
-    await user.click(screen.getByRole("link", { name: "Preferences" }));
-    expect(window.location.hash).toBe("#preferences");
-    expect(
-      screen.queryByRole("button", { name: "Save profile" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("link", { name: "Roles and experience" }),
+    expect(screen.getByRole("link", { name: "Preferences" })).toHaveAttribute(
+      "href",
+      "/profile/preferences",
     );
+    expect(screen.getByRole("link", { name: "Languages" })).toHaveAttribute(
+      "href",
+      "/profile/languages",
+    );
+    expect(screen.getByRole("link", { name: "Resumes" })).toHaveAttribute(
+      "href",
+      "/profile/resumes",
+    );
+
     const name = screen.getByRole("textbox", {
       name: "Preferred display name",
     });
     await user.clear(name);
     await user.type(name, "Unsaved Name");
-    expect(
-      screen.getByRole("button", { name: "Save profile" }),
-    ).toBeInTheDocument();
-
     await user.click(screen.getByRole("link", { name: "Preferences" }));
-    expect(
-      screen.getByRole("alertdialog", {
-        name: "Discard your unsaved profile changes?",
-      }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(window.location.hash).toBe("#professional");
-    expect(screen.getByDisplayValue("Unsaved Name")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(
       screen.getByRole("alertdialog", {
         name: "Discard your unsaved profile changes?",
       }),
     ).toBeInTheDocument();
+    expect(hooks.push).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(screen.getByDisplayValue("Matan")).toBeInTheDocument();
-    expect(window.location.hash).toBe("#professional");
-    expect(
-      screen.queryByRole("button", { name: "Save profile" }),
-    ).not.toBeInTheDocument();
+    expect(hooks.push).toHaveBeenCalledWith("/profile/preferences");
   });
 
-  it("saves prefilled edits once with completion intact on the profile page", async () => {
+  it("saves a profile edit once and keeps completion intact", async () => {
     const user = userEvent.setup();
-    const view = render(<ProfileGate />);
-    await openProfile(user);
-    expect(window.location.pathname).toBe("/profile");
-    expect(
-      screen.queryByRole("button", { name: "Save profile" }),
-    ).not.toBeInTheDocument();
-    const name = await screen.findByRole("textbox", {
+    const view = renderProfile();
+    const name = screen.getByRole("textbox", {
       name: "Preferred display name",
     });
     await user.clear(name);
     await user.type(name, "Updated Name");
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+
     let finish!: () => void;
     hooks.save.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -270,59 +252,25 @@ describe("dashboard and completed profile editing", () => {
     expect(hooks.save.mock.calls[0][0]).toMatchObject({
       complete: true,
       onboardingStep: 4,
-      values: {
-        preferredDisplayName: "Updated Name",
-        locationRadiusKm: 40,
-        preferredPlaceIds: ["place-one"],
-      },
+      values: { preferredDisplayName: "Updated Name" },
     });
-    expect(hooks.save.mock.calls[0][0].values).not.toHaveProperty("email");
-    expect(hooks.save.mock.calls[0][0].values).not.toHaveProperty("userId");
-    hooks.data = {
-      ...completedProfile(),
-      profile: {
-        ...completedProfile().profile!,
-        preferredDisplayName: "Updated Name",
-        updatedAt: 20,
-      },
-    };
-    await act(async () => {
-      finish();
-    });
-    view.rerender(<ProfileGate />);
-    await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "Professional profile" }),
-      ).toBeInTheDocument(),
+
+    await act(async () => finish());
+    view.rerender(
+      <ProfileOverview
+        data={{
+          ...completedProfile(),
+          profile: {
+            ...completedProfile().profile!,
+            preferredDisplayName: "Updated Name",
+            updatedAt: 20,
+          },
+        }}
+        activeSection="professional"
+      />,
     );
-    expect(screen.getByDisplayValue("Updated Name")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Save profile" }),
-    ).not.toBeInTheDocument();
-    expect(window.location.pathname).toBe("/profile");
-  });
-
-  it("redirects the legacy edit URL to the profile page", async () => {
-    window.history.replaceState(null, "", "/profile/edit");
-    render(<ProfileGate />);
-    await waitFor(() => expect(window.location.pathname).toBe("/profile"));
-    expect(
-      screen.getByRole("heading", { name: "Professional profile" }),
-    ).toBeInTheDocument();
-  });
-
-  it("supports keyboard navigation and language switching in the shared shell", async () => {
-    const user = userEvent.setup();
-    render(<ProfileGate />);
-    const trigger = screen.getByRole("button", { name: "User menu" });
-    trigger.focus();
-    await user.keyboard("{Enter}");
-    expect(await screen.findByRole("link", { name: "Profile" })).toBeVisible();
-    await user.click(await screen.findByRole("button", { name: "עברית" }));
-    expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    expect(
-      screen.queryByRole("button", { name: "כלי פיתוח" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "הצעות" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Updated Name")).toBeInTheDocument(),
+    );
   });
 });

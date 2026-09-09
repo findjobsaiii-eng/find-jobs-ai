@@ -1,9 +1,12 @@
+"use client";
+
 import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -16,26 +19,35 @@ import {
   removeOAuthCallbackCode,
 } from "./oauth-callback";
 
-function getInitialCallbackState() {
-  if (getOAuthCallbackCode(window.location.search)) {
-    return "exchanging";
-  }
+const subscribeToBrowserAvailability = () => () => undefined;
 
-  return hasOAuthAttemptPending(window.sessionStorage) ? "error" : "idle";
+function useBrowserAvailable() {
+  return useSyncExternalStore(
+    subscribeToBrowserAvailability,
+    () => true,
+    () => false,
+  );
 }
 
 export function AuthFlowProvider({ children }: { children: ReactNode }) {
   const { signIn } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
-  const callbackCode = useRef(getOAuthCallbackCode(window.location.search));
+  const browserAvailable = useBrowserAvailable();
   const exchangeStarted = useRef(false);
-  const [status, setStatus] = useState<AuthCallbackStatus>(
-    getInitialCallbackState,
-  );
+  const [status, setStatus] =
+    useState<Exclude<AuthCallbackStatus, "initializing" | "exchanging">>(
+      "idle",
+    );
+  const [dismissedPendingAttempt, setDismissedPendingAttempt] = useState(false);
+  const code = browserAvailable
+    ? getOAuthCallbackCode(window.location.search)
+    : null;
+  const hasUnresolvedAttempt =
+    browserAvailable &&
+    !dismissedPendingAttempt &&
+    hasOAuthAttemptPending(window.sessionStorage);
 
   useEffect(() => {
-    const code = callbackCode.current;
-
     if (!code || exchangeStarted.current) {
       return;
     }
@@ -57,15 +69,24 @@ export function AuthFlowProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         setStatus("error");
       });
-  }, [signIn]);
+  }, [code, signIn]);
 
   const dismissCallbackError = useCallback(() => {
     clearOAuthAttemptPending(window.sessionStorage);
+    setDismissedPendingAttempt(true);
     setStatus("idle");
   }, []);
 
-  const visibleStatus =
-    status === "awaiting-session" && isAuthenticated ? "idle" : status;
+  let visibleStatus: AuthCallbackStatus = status;
+  if (!browserAvailable) {
+    visibleStatus = "initializing";
+  } else if (code && status === "idle") {
+    visibleStatus = "exchanging";
+  } else if (hasUnresolvedAttempt && status === "idle") {
+    visibleStatus = "error";
+  } else if (status === "awaiting-session" && isAuthenticated) {
+    visibleStatus = "idle";
+  }
   const value = useMemo(
     () => ({ status: visibleStatus, dismissCallbackError }),
     [dismissCallbackError, visibleStatus],

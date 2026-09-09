@@ -9,6 +9,36 @@
     "switchLabel": "Switch language to Hebrew",
     "otherLanguage": "עברית"
   },
+  "landing": {
+    "eyebrow": "A simpler job search starts with your resume",
+    "title": "Your experience, turned into better job matches.",
+    "description": "Upload your resume once. We build your professional profile and keep your job search focused on roles that genuinely fit.",
+    "signIn": "Get started with Google",
+    "privacy": "Your resume stays private and in your control.",
+    "howItWorks": "From resume to relevant roles",
+    "steps": {
+      "upload": {
+        "title": "Upload your resume",
+        "description": "PDF or DOCX is enough to begin."
+      },
+      "profile": {
+        "title": "Review your profile",
+        "description": "We organize your experience, skills, and preferences."
+      },
+      "jobs": {
+        "title": "Discover fitting jobs",
+        "description": "See focused recommendations in one calm workspace."
+      }
+    },
+    "preview": {
+      "resume": "Resume uploaded",
+      "profile": "Profile ready",
+      "matches": "Relevant jobs",
+      "role": "Frontend Engineer",
+      "company": "Product company · Tel Aviv",
+      "match": "Strong match"
+    }
+  },
   "auth": {
     "eyebrow": "Welcome",
     "title": "Your next opportunity starts here.",
@@ -406,7 +436,7 @@
       "placeSelection": "We couldn't add that location. Please choose it again.",
       "selectPlaceSuggestion": "Choose a Google suggestion to confirm this location.",
       "placesUnavailable": "Location search is unavailable right now. Check the connection and try again.",
-      "placesConfiguration": "Location search is not configured. Add VITE_GOOGLE_MAPS_API_KEY and restart the app.",
+      "placesConfiguration": "Location search is not configured. Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY and restart the app.",
       "reviewFields": "Some profile details need attention. Review the highlighted field.",
       "authentication": "Your session has expired. Sign in again and retry.",
       "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",

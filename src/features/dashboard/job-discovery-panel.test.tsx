@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { formatDistanceToNow } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
-import { MemoryRouter } from "react-router";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
 import { JobDiscoveryPanel } from "./job-discovery-panel";
@@ -21,12 +20,13 @@ vi.mock("convex/react", () => ({
 }));
 
 function renderPanel(path = "/") {
+  const view = path.includes("tab=in-progress")
+    ? ("inProgress" as const)
+    : ("suggestions" as const);
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <DirectionProvider direction={i18n.dir()}>
-        <JobDiscoveryPanel />
-      </DirectionProvider>
-    </MemoryRouter>,
+    <DirectionProvider direction={i18n.dir()}>
+      <JobDiscoveryPanel view={view} />
+    </DirectionProvider>,
   );
 }
 

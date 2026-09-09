@@ -1,4 +1,8 @@
+"use client";
+
 import { useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { Popover } from "@base-ui/react/popover";
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -9,7 +13,6 @@ import {
   LogOut,
   UserRound,
 } from "lucide-react";
-import { Link, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Brand } from "@/features/auth/brand";
 import { PageContainer } from "@/components/ui/product-layout";
@@ -19,13 +22,16 @@ import type { CurrentProfile } from "@/features/profile/profile-types";
 export function AuthenticatedShell({
   data,
   children,
+  currentPage,
+  jobView,
 }: {
   data: CurrentProfile;
   children: ReactNode;
+  currentPage: "jobs" | "profile";
+  jobView?: "suggestions" | "inProgress";
 }) {
   const { t, i18n } = useTranslation();
   const { signOut } = useAuthActions();
-  const location = useLocation();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,8 +41,8 @@ export function AuthenticatedShell({
     data.identity.googleDisplayName ||
     t("dashboard.nav.profile");
   const initials = displayName.trim().slice(0, 1).toLocaleUpperCase();
-  const isJobsPage = location.pathname === "/";
-  const isSaved = isJobsPage && location.search.includes("tab=in-progress");
+  const isJobsPage = currentPage === "jobs";
+  const isSaved = isJobsPage && jobView === "inProgress";
 
   const handleSignOut = async () => {
     if (signingOutRef.current) return;
@@ -54,7 +60,7 @@ export function AuthenticatedShell({
 
   const jobLink = (to: string, label: string, active: boolean) => (
     <Link
-      to={to}
+      href={to}
       aria-current={active ? "page" : undefined}
       className={cn(
         "focus-visible:ring-ring/40 min-h-9 rounded-lg px-3 py-2 text-sm font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-3 motion-reduce:transition-none sm:px-4",
@@ -73,7 +79,7 @@ export function AuthenticatedShell({
         <header className="bg-background/95 border-border sticky top-0 z-30 border-b backdrop-blur">
           <PageContainer className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-2">
             <Link
-              to="/"
+              href="/"
               className="justify-self-start"
               aria-label={t("brand.name")}
             >
@@ -105,9 +111,11 @@ export function AuthenticatedShell({
               >
                 <span className="bg-primary/10 text-primary grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold">
                   {data.identity.profileImage ? (
-                    <img
+                    <Image
                       src={data.identity.profileImage}
                       alt=""
+                      width={32}
+                      height={32}
                       className="size-full object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -141,7 +149,7 @@ export function AuthenticatedShell({
                       </p>
                     </div>
                     <Link
-                      to={`/profile${location.search}`}
+                      href="/profile"
                       onClick={() => setMenuOpen(false)}
                       className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm outline-none focus-visible:ring-3"
                     >

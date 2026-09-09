@@ -1,6 +1,6 @@
 # Project status
 
-Last repository audit: 2026-09-07
+Last repository audit: 2026-09-09
 
 This document reports what is present in the repository. It does not confirm external service configuration unless that configuration is represented and testable from the repository.
 
@@ -8,27 +8,30 @@ This document reports what is present in the repository. It does not confirm ext
 
 | Area                   | Verified implementation                                                |
 | ---------------------- | ---------------------------------------------------------------------- |
-| Frontend               | React 19, TypeScript, Vite 8                                           |
+| Frontend               | Next.js 16 App Router, React 19, TypeScript                            |
 | Backend                | Convex 1.44                                                            |
 | Authentication         | Convex Auth with the Auth.js Google provider                           |
 | Styling                | Tailwind CSS 4, shadcn conventions, Base UI primitives                 |
 | Interaction            | Motion with user reduced-motion preferences enabled                    |
 | Localization           | i18next and react-i18next with English and Hebrew resources            |
 | Package management     | npm with a committed `package-lock.json`                               |
-| Static validation      | TypeScript, ESLint, Prettier, Vitest, and the Vite production build    |
+| Static validation      | TypeScript, Next ESLint, Prettier, Vitest, and `next build`            |
 | Continuous integration | GitHub Actions on pull requests and pushes to `main`, using Node.js 22 |
 
-The README requires Node.js 22 or newer. The repository does not currently contain a Node version manager file or a `package.json` engine constraint.
+Node.js 22 or newer is documented and enforced through `package.json` engines; CI uses Node.js 22.
 
 ## URL navigation
 
-- Implemented: profile path, URL-backed jobs tabs, native profile links, browser
-  history navigation, and direct-link rendering behind authentication/onboarding.
-- Unknown: production host SPA fallback; configure before deploying page URLs.
+- Implemented: App Router page ownership, URL-backed jobs tabs, nested profile
+  topic paths, browser history navigation, and in-place authentication for deep
+  links.
+- `/` shows a standalone landing page when signed out and the job workspace when
+  signed in. Protected routes keep their URL while showing the sign-in prompt.
 
 ## Verified implemented features
 
-- A Vite/React application shell with Convex and Motion providers.
+- A Next.js App Router application with a neutral root layout, a separate public
+  landing experience, a protected route-group layout, Convex providers, and Motion.
 - Google-only OAuth wiring through Convex Auth, including HTTP callback routes and auth tables in the Convex schema.
 - Server-only Google provider credentials with required environment validation for `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
 - A validated public Convex client URL that rejects credentials, unexpected paths, queries, fragments, and insecure non-local origins.
@@ -40,7 +43,7 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 - A shared button primitive, semantic theme tokens, local font packages, responsive layout, focus styles, and reduced-motion handling.
 - Resume-first onboarding after sign-in: one PDF/DOCX upload, private Convex Storage, actual text extraction, structured career parsing, at least five seconds of analysis feedback, a compact role/strength/seniority/location review, and direct entry to personalized jobs. The full four-step form remains the profile editor.
 - Completed profiles use one shared authenticated shell across Jobs and Profile, with common page width, gutters, headers, surfaces, controls, empty states, and responsive RTL/LTR behavior.
-- The profile contains an owner-scoped resume library with multiple independently parsed PDF/DOCX versions, labels, notes, active-resume selection, safe replacement/deletion, and keyboard-accessible click or drag-and-drop upload. The first CV remains required to create the initial profile.
+- The profile contains an owner-scoped resume library with multiple independently parsed PDF/DOCX versions, labels, notes, safe deletion, and keyboard-accessible click or drag-and-drop upload. The first CV remains required to create the initial profile; uploaded files do not act as a persistent matching selector.
 - Versioned CV-derived career profiles include factual role history, responsibilities and explicit achievements, normalized skills by group, education, explicit languages, overlap-safe experience totals, domains, seniority, confidence, target-role candidates, and normalized Israeli location when supported.
 - Effective candidate profiles preserve field-level manual overrides across CV replacement. Existing pre-CV profiles are treated as manually chosen on first import. Raw CV text and structured detail stay server-side.
 - One indexed candidate profile per Convex Auth user, with server-derived ownership and Google identity fields, bounded server normalization, draft resume state, and created/updated/completed timestamps.
@@ -79,10 +82,9 @@ The README requires Node.js 22 or newer. The repository does not currently conta
 ## Current risks
 
 - `@convex-dev/auth` is on a `0.0.x` release and should be treated as a dependency that may introduce breaking changes during upgrades.
-- The documented Node.js requirement is not machine-enforced, which can lead to local and CI version drift.
 - Convex Auth stores browser session and refresh tokens in `localStorage` by default. This provides reload and browser-restart persistence but makes application XSS prevention a security boundary; the product owner should explicitly accept this persistence model or request a different storage policy.
 - Runtime authentication readiness still depends on untracked deployment configuration and cannot be inferred from a successful build or mocked tests.
-- Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `VITE_GOOGLE_MAPS_API_KEY`.
+- Runtime location search depends on Google Cloud billing, Maps JavaScript API, Places API (New), and correct browser/API restrictions for `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.
 - Runtime job discovery depends on server-only `OPENAI_API_KEY` and `OPENAI_JOB_SEARCH_MODEL` configuration and on the selected model continuing to support Responses API Web Search plus Structured Outputs.
 - Source verification intentionally favors precision and can hide legitimate client-rendered or bot-protected job pages. Temporary access failures preserve prior state, but jobs eventually leave suggestions when recent activity cannot be established.
 - DNS resolution is checked and the selected public address is pinned for the HTTP request, but source verification still depends on the correctness of public DNS and TLS infrastructure.
@@ -129,34 +131,27 @@ Backend tests cover owner isolation, idempotent application marking, undo,
 snapshot retention after expiry, bounded daily sweep continuation, duplicate
 claims, and the server-side development-tools gate. Provider calls are mocked.
 
-The authenticated Hebrew/RTL development app was checked in the in-app browser.
+The authenticated Hebrew/RTL Vite app was previously checked in the in-app browser.
 Free mode refreshed the central feed twice without a cooldown, subscribed mode
 showed the enabled manual-search control without quota copy, and the account was
-restored to free. `/?tab=in-progress` and `/profile?tab=in-progress` survived
-navigation and Cancel returned to the selected tab. No console errors or live
+restored to free. The current migration replaces profile hashes and inherited job
+queries with `/profile/*` topic routes. No console errors or live
 OpenAI provider calls occurred. Backend functions pushed successfully to the
 existing development deployment; its development-tools flag is enabled.
 
 ## Local development and validation
 
-Install dependencies and start Convex with the Vite development server:
+Install dependencies and start Convex with the Next.js development server:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Local authentication uses the exact frontend origin
-`http://localhost:5173`. Vite is configured with port `5173` and strict port
-handling, so it exits with a clear error instead of switching to another port
-when `5173` is occupied. The Convex development deployment's `SITE_URL` must
-remain `http://localhost:5173`, and local testing must use the `localhost`
-hostname rather than a different hostname or port.
-
-If startup reports that port `5173` is already in use, return to the terminal
-running the existing local app and stop it with `Ctrl+C`. Then restart with
-`npm run dev`. Do not start a second local instance on `5174`, because that
-origin is intentionally rejected by Convex Auth.
+Local authentication uses the exact frontend origin `http://localhost:3000`.
+The personal Convex development deployment `glorious-mallard-885` has its
+`SITE_URL` set to that origin. Production and preview deployments must configure
+their own exact public origin before OAuth is used there.
 
 Run the available checks:
 
@@ -170,8 +165,8 @@ npm run build
 ```
 
 `npm run check` combines type checking, linting, and formatting verification.
-`npm test` runs the focused unit/component suite. `npm run build` repeats type
-checking and creates the production frontend bundle.
+`npm test` runs the focused unit/component suite. `npm run build` performs the
+Next.js production compilation and framework type validation.
 
 ## Manual Google OAuth smoke test
 
@@ -182,7 +177,7 @@ logs, screenshots, or documentation.
 1. Confirm the Convex deployment defines `AUTH_GOOGLE_ID`,
    `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
 2. Set `SITE_URL` to the exact frontend origin. For local development, use
-   `http://localhost:5173` and open that same hostname in the browser.
+   `http://localhost:3000` and open that same hostname in the browser.
 3. In Google Cloud, register
    `https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google` as an authorized
    redirect URI and the frontend origin as an authorized JavaScript origin.

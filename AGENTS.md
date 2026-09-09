@@ -13,11 +13,12 @@
 
 # Project direction
 
-This is an AI-powered job-search assistant built with React, TypeScript, Vite, and Convex. Keep architecture proportional to the feature being built: prefer a clear feature folder over speculative abstractions, and record durable decisions in the README or a focused document under `docs/`.
+This is an AI-powered job-search assistant built with Next.js App Router, React, TypeScript, and Convex. Keep architecture proportional to the feature being built: prefer a clear feature folder over speculative abstractions, and record durable decisions in the README or a focused document under `docs/`.
 
 # Frontend conventions
 
-- Put application-wide providers and initialization in `src/app/`, reusable primitives in `src/components/ui/`, feature code in `src/features/<feature>/`, shared utilities in `src/lib/`, and translations in `src/i18n/locales/`.
+- Keep `src/app/` focused on App Router routes, layouts, metadata, and application-wide providers. Put reusable primitives in `src/components/ui/`, feature code in `src/features/<feature>/`, shared utilities in `src/lib/`, and translations in `src/i18n/locales/`.
+- Use route groups to keep public and authenticated layouts separate. Authentication UX may hide client content, but Convex functions remain the authorization boundary.
 - All user-facing copy belongs in translation resources. English and Hebrew are first-class. Use semantic HTML, logical CSS/Tailwind utilities (`start`/`end`, `ps`/`pe`, `ms`/`me`), and verify both `ltr` and `rtl` layouts.
 - Use semantic design tokens rather than one-off colors. Extend the shared UI primitives when a pattern repeats; do not create a generic abstraction before it has a real second use.
 - Use Motion for purposeful transitions and micro-interactions. Respect reduced-motion preferences, avoid motion that delays interaction, and favor transform/opacity animations.
@@ -54,3 +55,12 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

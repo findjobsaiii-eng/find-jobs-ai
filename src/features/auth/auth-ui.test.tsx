@@ -16,6 +16,31 @@ const convexHooks = vi.hoisted(() => ({
   useQuery: vi.fn(),
 }));
 
+function TestAuthGate({
+  isAuthenticated,
+  isLoading,
+  callbackStatus,
+  onDismissCallbackError,
+}: {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  callbackStatus:
+    "initializing" | "idle" | "exchanging" | "awaiting-session" | "error";
+  onDismissCallbackError: () => void;
+}) {
+  return (
+    <AuthGate
+      isAuthenticated={isAuthenticated}
+      isLoading={isLoading}
+      callbackStatus={callbackStatus}
+      onDismissCallbackError={onDismissCallbackError}
+      unauthenticated={<SignInScreen />}
+    >
+      <AuthenticatedHome />
+    </AuthGate>
+  );
+}
+
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => authActions,
 }));
@@ -56,7 +81,7 @@ describe("authentication UI", () => {
     await user.click(button);
 
     expect(authActions.signIn).toHaveBeenCalledWith("google", {
-      redirectTo: "http://localhost:5173/",
+      redirectTo: "http://localhost:3000/",
     });
     expect(button).toBeDisabled();
     expect(hasOAuthAttemptPending(window.sessionStorage)).toBe(true);
@@ -69,7 +94,7 @@ describe("authentication UI", () => {
     window.history.replaceState(
       null,
       "",
-      "/profile?tab=in-progress&code=old&redirectTo=https://example.com",
+      "/profile/languages?source=email&code=old&redirectTo=https://example.com#spoken",
     );
     authActions.signIn.mockReturnValue(new Promise(() => undefined));
     const user = userEvent.setup();
@@ -78,8 +103,25 @@ describe("authentication UI", () => {
       screen.getByRole("button", { name: "Continue with Google" }),
     );
     expect(authActions.signIn).toHaveBeenCalledWith("google", {
-      redirectTo: "http://localhost:5173/profile?tab=in-progress",
+      redirectTo: "http://localhost:3000/profile/languages?source=email#spoken",
     });
+  });
+
+  it("lets each route choose its signed-out experience", () => {
+    render(
+      <AuthGate
+        isAuthenticated={false}
+        isLoading={false}
+        callbackStatus="idle"
+        onDismissCallbackError={vi.fn()}
+        unauthenticated={<p>Public landing</p>}
+      >
+        <p>Private app</p>
+      </AuthGate>,
+    );
+
+    expect(screen.getByText("Public landing")).toBeVisible();
+    expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });
 
   it("recovers when the initial OAuth request fails", async () => {
@@ -100,10 +142,9 @@ describe("authentication UI", () => {
   });
 
   it("exposes the correct access boundary for each auth state", async () => {
-    const user = userEvent.setup();
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <AuthGate
+      <TestAuthGate
         isAuthenticated={false}
         isLoading={true}
         callbackStatus="idle"
@@ -116,7 +157,7 @@ describe("authentication UI", () => {
     );
 
     rerender(
-      <AuthGate
+      <TestAuthGate
         isAuthenticated={false}
         isLoading={false}
         callbackStatus="idle"
@@ -128,20 +169,19 @@ describe("authentication UI", () => {
     ).toBeInTheDocument();
 
     rerender(
-      <AuthGate
+      <TestAuthGate
         isAuthenticated={true}
         isLoading={false}
         callbackStatus="idle"
         onDismissCallbackError={onDismiss}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "User menu" }));
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
 
     rerender(
-      <AuthGate
+      <TestAuthGate
         isAuthenticated={true}
         isLoading={false}
         callbackStatus="exchanging"
@@ -157,7 +197,7 @@ describe("authentication UI", () => {
     const user = userEvent.setup();
     const onDismiss = vi.fn();
     render(
-      <AuthGate
+      <TestAuthGate
         isAuthenticated={false}
         isLoading={false}
         callbackStatus="error"

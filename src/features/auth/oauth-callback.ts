@@ -8,7 +8,15 @@ export function getOAuthCallbackCode(search: string) {
 export function removeOAuthCallbackCode(location: Location) {
   const url = new URL(location.href);
   url.searchParams.delete("code");
+  url.searchParams.delete("redirectTo");
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function getOAuthReturnUrl(location: Location) {
+  const url = new URL(location.href);
+  url.searchParams.delete("code");
+  url.searchParams.delete("redirectTo");
+  return url.href;
 }
 
 export function markOAuthAttemptPending(storage: Storage) {

@@ -1,5 +1,8 @@
+"use client";
+
 import { useCallback, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
   Check,
@@ -11,18 +14,10 @@ import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
 import type { CurrentProfile } from "./profile-types";
-import { ProfileEditor, type EditableProfileSection } from "./profile-editor";
+import { ProfileEditor } from "./profile-editor";
 import { ResumeLibrary } from "./resume-library";
 import { DiscardProfileChangesDialog } from "./discard-profile-changes-dialog";
-
-type ProfileSection = EditableProfileSection | "resumes";
-
-const SECTION_IDS = new Set<ProfileSection>([
-  "professional",
-  "preferences",
-  "languages",
-  "resumes",
-]);
+import { profileSectionHref, type ProfileSection } from "./profile-section";
 
 const PROFILE_SECTIONS = [
   { id: "professional", icon: BriefcaseBusiness },
@@ -31,14 +26,15 @@ const PROFILE_SECTIONS = [
   { id: "resumes", icon: FileText },
 ] as const;
 
-export function ProfileOverview({ data }: { data: CurrentProfile }) {
+export function ProfileOverview({
+  data,
+  activeSection,
+}: {
+  data: CurrentProfile;
+  activeSection: ProfileSection;
+}) {
   const { t } = useTranslation();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const hashSection = location.hash.slice(1) as ProfileSection;
-  const activeSection = SECTION_IDS.has(hashSection)
-    ? hashSection
-    : "professional";
+  const router = useRouter();
   const [saved, setSaved] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
   const [pendingSection, setPendingSection] = useState<ProfileSection | null>(
@@ -49,12 +45,6 @@ export function ProfileOverview({ data }: { data: CurrentProfile }) {
     setEditorDirty(dirty);
     if (dirty) setSaved(false);
   }, []);
-
-  const sectionUrl = (section: ProfileSection) => ({
-    pathname: "/profile",
-    search: location.search,
-    hash: section,
-  });
 
   return (
     <div>
@@ -80,7 +70,7 @@ export function ProfileOverview({ data }: { data: CurrentProfile }) {
           {PROFILE_SECTIONS.map(({ id, icon: Icon }) => (
             <Link
               key={id}
-              to={sectionUrl(id)}
+              href={profileSectionHref(id)}
               aria-current={activeSection === id ? "page" : undefined}
               onClick={(event) => {
                 if (editorDirty) {
@@ -132,7 +122,7 @@ export function ProfileOverview({ data }: { data: CurrentProfile }) {
           if (!pendingSection) return;
           setEditorDirty(false);
           setSaved(false);
-          void navigate(sectionUrl(pendingSection));
+          router.push(profileSectionHref(pendingSection));
           setPendingSection(null);
         }}
       />

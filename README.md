@@ -4,8 +4,7 @@ An AI-powered job-search assistant with bilingual UI, Google OAuth through Conve
 
 ## Stack
 
-- React 19 and TypeScript
-- Vite
+- Next.js 16 App Router, React 19, and TypeScript
 - Convex
 - Tailwind CSS v4 and shadcn/Base UI primitives
 - Motion for transitions and micro-interactions
@@ -20,14 +19,15 @@ npm install
 npm run dev
 ```
 
-The Convex setup creates the local environment configuration used by `VITE_CONVEX_URL`. Do not commit local environment files.
+The Convex setup creates the local environment configuration used by `NEXT_PUBLIC_CONVEX_URL`. Do not commit local environment files.
 
 Current implementation status, known gaps, and the recommended next milestone are tracked in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md). Durable technical choices and pending decisions are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Commands
 
 ```sh
-npm run dev          # Start Convex and Vite
+npm run dev          # Start Convex and Next.js together
+npm run dev:web      # Start only the Next.js development server
 npm run typecheck    # Check TypeScript
 npm run lint         # Run ESLint, including accessibility rules
 npm run format       # Format supported files
@@ -35,8 +35,8 @@ npm run format:check # Verify formatting without changing files
 npm test             # Run the focused Vitest suite once
 npm run test:watch   # Run Vitest in watch mode
 npm run check        # Run typecheck, lint, and format checks
-npm run build        # Typecheck and create a production build
-npm run preview      # Preview the production build
+npm run build        # Typecheck and create a production Next.js build
+npm start            # Serve the completed production build
 npm run catalog:seed # Idempotently seed curated job titles and skills
 ```
 
@@ -44,7 +44,7 @@ npm run catalog:seed # Idempotently seed curated job titles and skills
 
 ```text
 src/
-  app/           Application-wide providers and initialization
+  app/           App Router pages, route groups, layouts, and providers
   components/ui/ Reusable, accessible UI primitives
   features/      Product features, grouped by domain as they are built
   i18n/          i18next configuration and locale resources
@@ -62,7 +62,7 @@ Use logical direction utilities such as `text-start`, `ps-*`, `pe-*`, `ms-*`, an
 
 ## UI foundation
 
-Theme values are semantic CSS variables in `src/index.css`. Reusable primitives live in `src/components/ui`; prefer extending them over repeating interaction and accessibility behavior. Motion is configured globally to respect the user's reduced-motion setting.
+Theme values are semantic CSS variables in `src/app/globals.css`. Reusable primitives live in `src/components/ui`; prefer extending them over repeating interaction and accessibility behavior. Motion is configured globally to respect the user's reduced-motion setting.
 
 The screenshots supplied during setup are product-direction references, not a specification. The visual system should stay clean, responsive, calm, and content-led as real workflows are designed.
 
@@ -70,7 +70,7 @@ The screenshots supplied during setup are product-direction references, not a sp
 
 Authentication uses Convex Auth with Google OAuth. The Convex deployment needs
 `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and
-`SITE_URL`. For local development, set `SITE_URL` to `http://localhost:5173`.
+`SITE_URL`. For local development, set `SITE_URL` to `http://localhost:3000`.
 Only the variable names belong in documentation and source control; their values
 must remain in the Convex deployment environment.
 
@@ -82,8 +82,8 @@ https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google
 
 Deployment-specific URLs and credential values are intentionally not stored in repository documentation.
 
-The browser receives only the public `VITE_CONVEX_URL`. OAuth credentials are
-read by Convex server code and are never passed through a `VITE_` variable. The
+The browser receives only the public `NEXT_PUBLIC_CONVEX_URL`. OAuth credentials are
+read by Convex server code and are never passed through a `NEXT_PUBLIC_` variable. The
 client removes the one-time OAuth callback code from the address bar before
 exchanging it, presents a recoverable callback-error state, and delegates session
 storage and invalidation to Convex Auth.
@@ -94,17 +94,17 @@ status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 ### Google Places location search
 
 Candidate location search uses Google's new Place Autocomplete widget. Put the
-public browser key in the ignored `.env.local` file and restart Vite after any
+public browser key in the ignored `.env.local` file and restart Next.js after any
 change:
 
 ```text
-VITE_GOOGLE_MAPS_API_KEY=your-browser-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-browser-key
 ```
 
 In the Google Cloud project, enable billing, **Maps JavaScript API**, and
 **Places API (New)**. Restrict the key to websites, including
-`http://localhost:5173/*` for local development and the exact production origin
-before deployment. Also apply API restrictions for those two APIs. A `VITE_`
+`http://localhost:3000/*` for local development and the exact production origin
+before deployment. Also apply API restrictions for those two APIs. A `NEXT_PUBLIC_`
 key is intentionally visible to the browser, so HTTP-referrer and API
 restrictions are the security boundary; never reuse a server-side secret here.
 
@@ -310,16 +310,17 @@ session is required. Failures are recorded in
 `dailyDiscoveryAttempts.lastOutcome`; a failed shared-query claim may be retried
 by another eligible user.
 
-## Page URLs
+## Page URLs and layouts
 
-The completed-profile workspace uses React Router: `/` shows suggested jobs,
-`/?tab=in-progress` shows tracked applications, and `/profile` edits the profile.
-The profile URL carries the current tab query so Save/Cancel return to that view,
-even after refresh. Browser Back/Forward restores page and tab selection.
-Unknown paths return to `/`; unknown tab values show suggestions. Authentication
-and onboarding remain gates before these pages. Unsaved form edits are local and
-are discarded when leaving the editor.
+Next.js App Router owns navigation. `/` is intentionally session-aware: signed-out
+visitors see the standalone landing page, while signed-in users see suggested jobs.
+`/?tab=in-progress` shows saved jobs. The landing page does not inherit the app
+header or content layout.
 
-Production static hosting must serve `index.html` for application paths such as
-`/profile` (while serving assets normally). Vite development and preview provide
-this SPA fallback; production hosting has not yet been selected or verified.
+Authenticated routes live under the `(app)` route group. Profile topics have
+stable URLs: `/profile`, `/profile/preferences`, `/profile/languages`, and
+`/profile/resumes`. Opening one while signed out keeps that exact URL visible and
+shows the sign-in prompt; after Google sign-in, the requested page is revealed.
+This client-side presentation gate complements the owner checks in Convex, which
+remain the authorization boundary. Unsaved profile edits require confirmation
+before topic navigation.

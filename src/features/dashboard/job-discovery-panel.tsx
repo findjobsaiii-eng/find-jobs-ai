@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { LocalizedDate } from "@/components/ui/localized-date";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -19,11 +18,12 @@ import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
 import { JobMatchScore } from "./job-match-score";
 
-export function JobDiscoveryPanel() {
+export function JobDiscoveryPanel({
+  view,
+}: {
+  view: "suggestions" | "inProgress";
+}) {
   const { i18n, t } = useTranslation();
-  const [searchParams] = useSearchParams();
-  const view =
-    searchParams.get("tab") === "in-progress" ? "inProgress" : "suggestions";
   const [pending, setPending] = useState<Id<"jobs"> | null>(null);
   const pendingRef = useRef(false);
   const [error, setError] = useState(false);

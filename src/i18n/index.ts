@@ -10,6 +10,8 @@ const resources = {
 } as const;
 
 function syncDocumentLanguage(language: string) {
+  if (typeof document === "undefined") return;
+
   const resolvedLanguage = language.startsWith("he") ? "he" : "en";
 
   document.documentElement.lang = resolvedLanguage;

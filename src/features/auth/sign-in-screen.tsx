@@ -1,42 +1,15 @@
-import { useState } from "react";
-import { useAuthActions } from "@convex-dev/auth/react";
+"use client";
+
 import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./auth-shell";
 import { GoogleMark } from "./google-mark";
-import {
-  clearOAuthAttemptPending,
-  markOAuthAttemptPending,
-} from "./oauth-callback";
+import { useGoogleSignIn } from "./use-google-sign-in";
 
 export function SignInScreen() {
   const { t } = useTranslation();
-  const { signIn } = useAuthActions();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const signInWithGoogle = async () => {
-    setIsSubmitting(true);
-    setError(null);
-    markOAuthAttemptPending(window.sessionStorage);
-
-    try {
-      const destination = new URL(window.location.origin);
-      if (window.location.pathname === "/profile")
-        destination.pathname = "/profile";
-      if (
-        new URLSearchParams(window.location.search).get("tab") === "in-progress"
-      ) {
-        destination.searchParams.set("tab", "in-progress");
-      }
-      await signIn("google", { redirectTo: destination.href });
-    } catch {
-      clearOAuthAttemptPending(window.sessionStorage);
-      setError(t("auth.error"));
-      setIsSubmitting(false);
-    }
-  };
+  const { error, isSubmitting, signInWithGoogle } = useGoogleSignIn();
 
   return (
     <AuthShell>

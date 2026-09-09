@@ -1,5 +1,7 @@
+"use client";
+
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
-import { BrowserRouter, useNavigate } from "react-router";
+import { useRouter } from "next/navigation";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
@@ -7,8 +9,8 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { AuthShell } from "@/features/auth/auth-shell";
-import { DashboardWorkspace } from "@/features/dashboard/dashboard-screen";
 import { ResumeOnboarding } from "./resume-onboarding";
+import type { CurrentProfile } from "./profile-types";
 
 type ErrorBoundaryProps = {
   children: ReactNode;
@@ -34,8 +36,12 @@ class ProfileErrorBoundary extends Component<
   }
 }
 
-function ProfileRoute() {
-  const navigate = useNavigate();
+function ProfileRoute({
+  children,
+}: {
+  children: (data: CurrentProfile) => ReactNode;
+}) {
+  const router = useRouter();
   const profileState = useQuery(api.candidateProfiles.getCurrent);
   const resume = useQuery(api.resumes.getCurrent);
   if (profileState === undefined || resume === undefined) {
@@ -43,17 +49,21 @@ function ProfileRoute() {
   }
   return profileState.profile?.onboardingCompleted &&
     !profileState.profile.cvReviewPending ? (
-    <DashboardWorkspace data={profileState} />
+    children(profileState)
   ) : (
     <ResumeOnboarding
       resume={resume}
-      onEdit={() => void navigate("/profile")}
-      onComplete={() => void navigate("/")}
+      onEdit={() => router.replace("/profile")}
+      onComplete={() => router.replace("/")}
     />
   );
 }
 
-export function ProfileGate() {
+export function ProfileGate({
+  children,
+}: {
+  children: (data: CurrentProfile) => ReactNode;
+}) {
   const { t } = useTranslation();
   const [attempt, setAttempt] = useState(0);
   const fallback = (
@@ -85,9 +95,7 @@ export function ProfileGate() {
 
   return (
     <ProfileErrorBoundary key={attempt} fallback={fallback}>
-      <BrowserRouter>
-        <ProfileRoute />
-      </BrowserRouter>
+      <ProfileRoute>{children}</ProfileRoute>
     </ProfileErrorBoundary>
   );
 }

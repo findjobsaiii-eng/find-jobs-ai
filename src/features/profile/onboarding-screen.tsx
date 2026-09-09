@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
+import Image from "next/image";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
@@ -76,9 +77,11 @@ export function StepOne({
     <div className="space-y-6">
       <div className="bg-muted/60 flex items-center gap-4 rounded-2xl p-4">
         {identity.profileImage ? (
-          <img
+          <Image
             src={identity.profileImage}
             alt=""
+            width={48}
+            height={48}
             referrerPolicy="no-referrer"
             className="size-12 rounded-full object-cover"
           />

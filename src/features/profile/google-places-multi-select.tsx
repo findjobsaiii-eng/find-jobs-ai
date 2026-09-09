@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, LocateFixed, MapPin, PencilLine, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { hasGoogleMapsApiKey, loadGooglePlaces } from "@/lib/google-maps";
+import {
+  hasGoogleMapsApiKey,
+  loadGooglePlaces,
+  type GooglePlace,
+  type GooglePlaceAutocompleteElement,
+  type GooglePlacePredictionSelectEvent,
+  type GooglePlacesLibrary,
+} from "@/lib/google-maps";
 import type { SelectedPlace } from "./profile-types";
 
 type LoadState = "loading" | "ready" | "error" | "missing-key";
@@ -17,17 +24,13 @@ type Props = {
   error?: string;
 };
 
-function placeLabel(place: google.maps.places.Place, fallback: string) {
+function placeLabel(place: GooglePlace, fallback: string) {
   return (
     place.displayName?.trim() || place.formattedAddress?.trim() || fallback
   );
 }
 
-function addressComponent(
-  place: google.maps.places.Place,
-  type: string,
-  short = false,
-) {
+function addressComponent(place: GooglePlace, type: string, short = false) {
   const component = place.addressComponents?.find((candidate) =>
     candidate.types.includes(type),
   );
@@ -35,7 +38,7 @@ function addressComponent(
 }
 
 function selectedPlaceFromGoogle(
-  place: google.maps.places.Place,
+  place: GooglePlace,
   fallback: string,
 ): SelectedPlace {
   const placeId = place.id?.trim();
@@ -87,13 +90,12 @@ export function GooglePlacesMultiSelect({
   const { i18n, t } = useTranslation();
   const language = i18n.resolvedLanguage === "he" ? "he" : "en";
   const hostRef = useRef<HTMLDivElement>(null);
-  const autocompleteRef =
-    useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  const autocompleteRef = useRef<GooglePlaceAutocompleteElement | null>(null);
   const valuesRef = useRef(values);
   const onChangeRef = useRef(onChange);
   const labelCacheRef = useRef(new Map<string, string>());
   const [placesLibrary, setPlacesLibrary] =
-    useState<google.maps.PlacesLibrary | null>(null);
+    useState<GooglePlacesLibrary | null>(null);
   const [loadState, setLoadState] = useState<LoadState>(() =>
     hasGoogleMapsApiKey() ? "loading" : "missing-key",
   );
@@ -103,8 +105,10 @@ export function GooglePlacesMultiSelect({
   const [isLocating, setIsLocating] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
   const [isChanging, setIsChanging] = useState(false);
-  const [searchCenter, setSearchCenter] =
-    useState<google.maps.LatLngLiteral | null>(null);
+  const [searchCenter, setSearchCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const selectedPlace = values[0];
   const showSearch = !selectedPlace || isChanging;
 
@@ -155,9 +159,7 @@ export function GooglePlacesMultiSelect({
       };
     }
 
-    const selectPlace = async (
-      event: google.maps.places.PlacePredictionSelectEvent,
-    ) => {
+    const selectPlace = async (event: GooglePlacePredictionSelectEvent) => {
       setSelectionError(null);
 
       setIsSelecting(true);
@@ -194,9 +196,7 @@ export function GooglePlacesMultiSelect({
     const handleGoogleError = () => {
       setSelectionError(t("onboarding.errors.placesUnavailable"));
     };
-    const handleSelect = (
-      event: google.maps.places.PlacePredictionSelectEvent,
-    ) => {
+    const handleSelect = (event: GooglePlacePredictionSelectEvent) => {
       void selectPlace(event);
     };
     const handleInput = () => {
@@ -208,7 +208,7 @@ export function GooglePlacesMultiSelect({
       }
     };
 
-    autocomplete.addEventListener("gmp-select", handleSelect);
+    autocomplete.addEventListener("gmp-select", handleSelect as EventListener);
     autocomplete.addEventListener("gmp-error", handleGoogleError);
     autocomplete.addEventListener("input", handleInput);
     autocomplete.addEventListener("blur", handleBlur);
@@ -216,7 +216,10 @@ export function GooglePlacesMultiSelect({
     autocompleteRef.current = autocomplete;
 
     return () => {
-      autocomplete.removeEventListener("gmp-select", handleSelect);
+      autocomplete.removeEventListener(
+        "gmp-select",
+        handleSelect as EventListener,
+      );
       autocomplete.removeEventListener("gmp-error", handleGoogleError);
       autocomplete.removeEventListener("input", handleInput);
       autocomplete.removeEventListener("blur", handleBlur);

@@ -60,7 +60,7 @@ describe("AuthFlowProvider", () => {
       });
     });
     expect(window.location.href).toBe(
-      "http://localhost:5173/?next=jobs#details",
+      "http://localhost:3000/?next=jobs#details",
     );
     expect(window.sessionStorage.length).toBe(0);
     await waitFor(() => {

@@ -3,23 +3,26 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
+import type {
+  GoogleLocationBias,
+  GooglePlaceAutocompleteElement,
+} from "@/lib/google-maps";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
 import type { SelectedPlace } from "./profile-types";
 
 const places = vi.hoisted(() => ({
-  autocomplete: null as google.maps.places.PlaceAutocompleteElement | null,
+  autocomplete: null as GooglePlaceAutocompleteElement | null,
 }));
 
 vi.mock("@/lib/google-maps", () => {
   class FakeAutocomplete extends HTMLElement {
     value = "";
     disabled = false;
-    locationBias?: google.maps.LatLngLiteral | google.maps.CircleLiteral;
+    locationBias?: GoogleLocationBias;
 
     constructor() {
       super();
-      places.autocomplete =
-        this as unknown as google.maps.places.PlaceAutocompleteElement;
+      places.autocomplete = this as unknown as GooglePlaceAutocompleteElement;
     }
   }
 
