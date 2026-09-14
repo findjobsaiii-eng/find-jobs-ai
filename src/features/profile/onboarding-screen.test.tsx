@@ -76,7 +76,7 @@ describe("candidate profile onboarding", () => {
       screen.queryByRole("textbox", { name: /email/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("textbox", { name: "Preferred display name" }),
+      screen.getByRole("textbox", { name: "What should we call you?" }),
     ).toHaveValue("Google Candidate");
   });
 
@@ -85,7 +85,7 @@ describe("candidate profile onboarding", () => {
     render(<OnboardingScreen initialData={emptyProfile} />);
 
     await user.clear(
-      screen.getByRole("textbox", { name: "Preferred display name" }),
+      screen.getByRole("textbox", { name: "What should we call you?" }),
     );
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -104,7 +104,9 @@ describe("candidate profile onboarding", () => {
     render(<OnboardingScreen initialData={emptyProfile} />);
 
     await user.click(
-      screen.getByRole("combobox", { name: "Target job titles" }),
+      screen.getByRole("combobox", {
+        name: "Which roles would you like to work in?",
+      }),
     );
     await user.click(screen.getByRole("option", { name: "Frontend Engineer" }));
     await user.keyboard("{Escape}");
@@ -156,7 +158,9 @@ describe("candidate profile onboarding", () => {
 
     render(<OnboardingScreen initialData={resumed} />);
     expect(
-      screen.getByRole("heading", { name: "Define your ideal role" }),
+      screen.getByRole("heading", {
+        name: "What does the right job look like?",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
   });

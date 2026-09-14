@@ -172,7 +172,7 @@ describe("dashboard and completed profile editing", () => {
     render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
 
     expect(
-      screen.getByRole("heading", { name: "Review your profile" }),
+      screen.getByRole("heading", { name: "Let's review your profile" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Engineer")).toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
@@ -180,7 +180,9 @@ describe("dashboard and completed profile editing", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      await screen.findByRole("combobox", { name: "Skills" }),
+      await screen.findByRole("combobox", {
+        name: "Which skills and tools do you know?",
+      }),
     ).toBeInTheDocument();
     expect(await screen.findByText("React")).toBeInTheDocument();
   });
@@ -197,7 +199,7 @@ describe("dashboard and completed profile editing", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Let's shape your candidate profile",
+        name: "Let's build your profile",
       }),
     ).toBeInTheDocument();
   });
@@ -270,7 +272,7 @@ describe("dashboard and completed profile editing", () => {
     );
 
     const name = screen.getByRole("textbox", {
-      name: "Preferred display name",
+      name: "What should we call you?",
     });
     await user.clear(name);
     await user.type(name, "Unsaved Name");
@@ -290,7 +292,7 @@ describe("dashboard and completed profile editing", () => {
     const user = userEvent.setup();
     const view = renderProfile();
     const name = screen.getByRole("textbox", {
-      name: "Preferred display name",
+      name: "What should we call you?",
     });
     await user.clear(name);
     await user.type(name, "Updated Name");

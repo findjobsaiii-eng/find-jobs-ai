@@ -143,7 +143,7 @@ describe("single Google Places location", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Use my current location to prioritize nearby suggestions",
+        name: "Use my current location to find my city",
       }),
     );
 
@@ -205,7 +205,7 @@ describe("single Google Places location", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "שימוש במיקום הנוכחי כדי להציג קודם הצעות קרובות",
+        name: "השתמש במיקום הנוכחי כדי למצוא את העיר שלך",
       }),
     );
 

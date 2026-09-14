@@ -369,51 +369,51 @@
     "finish": "Save & finish",
     "saved": "Progress saved",
     "readyTitle": "Ready to finish?",
-    "readyDescription": "We'll use these preferences to personalize the job-search tools added in future milestones. You can update your profile later.",
+    "readyDescription": "We'll use these preferences to personalize your job search. You can update your profile at any time.",
     "resumeReview": {
       "eyebrow": "CV imported",
-      "title": "Review your profile",
-      "description": "We filled in what we could from your CV. Check every detail, edit anything that needs changing, and complete the missing fields."
+      "title": "Let's review your profile",
+      "description": "We filled in what we could from your CV. Check that everything is right and complete anything that's missing."
     },
     "steps": {
       "1": {
         "eyebrow": "About you",
-        "title": "Let's shape your candidate profile",
+        "title": "Let's build your profile",
         "description": "Start with how you'd like to be known and the roles you're targeting."
       },
       "2": {
         "eyebrow": "Experience",
         "title": "Tell us what you bring",
-        "description": "A concise overview helps keep future opportunities relevant."
+        "description": "A few short answers will help us understand which opportunities suit you."
       },
       "3": {
         "eyebrow": "Preferences",
-        "title": "Define your ideal role",
-        "description": "Choose where and how you'd like to work."
+        "title": "What does the right job look like?",
+        "description": "Tell us where, how, and under which conditions you'd like to work."
       },
       "4": {
         "eyebrow": "Languages",
-        "title": "One last detail",
-        "description": "Add the languages you use and your proficiency in each."
+        "title": "One last question",
+        "description": "Which languages do you use at work, and how well do you know each one?"
       }
     },
     "fields": {
-      "displayName": "Preferred display name",
-      "targetJobTitles": "Target job titles",
-      "summary": "Professional summary",
-      "years": "Years of experience",
-      "skills": "Skills",
-      "locations": "Job-search location",
-      "locationRadius": "Search radius",
-      "workArrangement": "Work arrangement",
-      "employmentTypes": "Employment types",
-      "salary": "Minimum monthly gross salary (ILS)",
-      "proficiency": "Proficiency"
+      "displayName": "What should we call you?",
+      "targetJobTitles": "Which roles would you like to work in?",
+      "summary": "How would you describe yourself professionally?",
+      "years": "How many years of experience do you have?",
+      "skills": "Which skills and tools do you know?",
+      "locations": "Where would you like to work?",
+      "locationRadius": "How far are you willing to commute?",
+      "workArrangement": "Where are you willing to work from?",
+      "employmentTypes": "What kind of employment are you looking for?",
+      "salary": "What's the minimum monthly salary that works for you?",
+      "proficiency": "How well do you know this language?"
     },
     "hints": {
-      "targetJobTitles": "Search and choose 1–5 roles. If one is missing, add it for yourself.",
-      "summary": "At least {{min}} characters. Focus on your experience and strengths.",
-      "skills": "Search the shared list. You can add a missing skill for yourself.",
+      "targetJobTitles": "Search and choose 1–5 roles. If one is missing, you can add it.",
+      "summary": "Write at least {{min}} characters and focus on your experience and strengths.",
+      "skills": "Search for skills and tools, then add everything that's relevant to you.",
       "locations": "Choose one city or address from the Google suggestions.",
       "locationRadius": "Choose how far from this location to search.",
       "multipleChoice": "Choose all that apply.",
@@ -430,7 +430,7 @@
     "location": {
       "loading": "Loading location search…",
       "loadingSaved": "Loading saved location…",
-      "useCurrent": "Use my current location to prioritize nearby suggestions",
+      "useCurrent": "Use my current location to find my city",
       "nearMe": "Near me",
       "currentSelected": "Location set to {{location}}.",
       "ready": "Nearby suggestions are now prioritized. Your coordinates are not saved.",
