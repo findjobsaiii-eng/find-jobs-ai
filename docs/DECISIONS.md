@@ -161,9 +161,10 @@ Status: Accepted (updated 2026-09-07)
 
 The authenticated homepage is a Suggestions / In progress feed. The floating
 logical-start profile panel contains CV replacement, profile editing, language,
-and sign-out. New users enter through CV-first onboarding; the existing detailed
-form remains available for later corrections through the owner-scoped save
-mutation. Temporary search filters, completion cards, placeholder tools, and
+and sign-out. New users may upload a CV or continue manually, then review the
+same detailed four-step form with extracted values prefilled and editable before
+job discovery begins. The owner-scoped save mutation persists progress and later
+corrections. Temporary search filters, completion cards, placeholder tools, and
 mobile navigation have been removed.
 
 ### D-015: Job discovery uses bounded Responses API Web Search with strict output

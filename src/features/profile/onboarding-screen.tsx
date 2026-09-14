@@ -454,8 +454,10 @@ export function StepFour({
 export function OnboardingScreen({
   initialData,
   editing,
+  resumeReview = false,
 }: {
   initialData: CurrentProfile;
+  resumeReview?: boolean;
   editing?: {
     onCancel: () => void;
     onSaved: () => void;
@@ -644,7 +646,11 @@ export function OnboardingScreen({
         >
           <div className="mb-7">
             <p className="text-primary text-sm font-medium">
-              {t(`onboarding.steps.${step}.eyebrow`)}
+              {t(
+                resumeReview && step === 1
+                  ? "onboarding.resumeReview.eyebrow"
+                  : `onboarding.steps.${step}.eyebrow`,
+              )}
             </p>
             <h1
               ref={headingRef}
@@ -654,10 +660,18 @@ export function OnboardingScreen({
             >
               {editing
                 ? t("dashboard.editProfile")
-                : t(`onboarding.steps.${step}.title`)}
+                : t(
+                    resumeReview && step === 1
+                      ? "onboarding.resumeReview.title"
+                      : `onboarding.steps.${step}.title`,
+                  )}
             </h1>
             <p className="text-muted-foreground mt-2 leading-6">
-              {t(`onboarding.steps.${step}.description`)}
+              {t(
+                resumeReview && step === 1
+                  ? "onboarding.resumeReview.description"
+                  : `onboarding.steps.${step}.description`,
+              )}
             </p>
           </div>
 

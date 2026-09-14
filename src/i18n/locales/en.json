@@ -302,6 +302,7 @@
     "uploadTitle": "Upload your CV",
     "uploadDescription": "We’ll turn your experience into a focused career profile and use it to find relevant jobs.",
     "uploadAction": "Upload CV",
+    "fillManually": "Fill in my profile manually",
     "fileHint": "PDF or DOCX · up to 10 MB",
     "analyzingTitle": "We’re analyzing your experience",
     "analyzingDescription": "Finding your strongest roles, skills and career direction…",
@@ -369,6 +370,11 @@
     "saved": "Progress saved",
     "readyTitle": "Ready to finish?",
     "readyDescription": "We'll use these preferences to personalize the job-search tools added in future milestones. You can update your profile later.",
+    "resumeReview": {
+      "eyebrow": "CV imported",
+      "title": "Review your profile",
+      "description": "We filled in what we could from your CV. Check every detail, edit anything that needs changing, and complete the missing fields."
+    },
     "steps": {
       "1": {
         "eyebrow": "About you",

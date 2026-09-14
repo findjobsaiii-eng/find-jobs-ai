@@ -1,7 +1,6 @@
 "use client";
 
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
@@ -9,6 +8,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { AuthShell } from "@/features/auth/auth-shell";
+import { OnboardingScreen } from "./onboarding-screen";
 import { ResumeOnboarding } from "./resume-onboarding";
 import type { CurrentProfile } from "./profile-types";
 
@@ -41,20 +41,29 @@ function ProfileRoute({
 }: {
   children: (data: CurrentProfile) => ReactNode;
 }) {
-  const router = useRouter();
+  const [manualEntry, setManualEntry] = useState(false);
   const profileState = useQuery(api.candidateProfiles.getCurrent);
   const resume = useQuery(api.resumes.getCurrent);
   if (profileState === undefined || resume === undefined) {
     return <AuthLoadingScreen variant="profile" />;
   }
-  return profileState.profile?.onboardingCompleted &&
-    !profileState.profile.cvReviewPending ? (
-    children(profileState)
+  if (
+    profileState.profile?.onboardingCompleted &&
+    !profileState.profile.cvReviewPending
+  ) {
+    return children(profileState);
+  }
+
+  const resumeReady =
+    resume?.status === "ready" || resume?.status === "needs_confirmation";
+
+  return manualEntry || resumeReady ? (
+    <OnboardingScreen initialData={profileState} resumeReview={resumeReady} />
   ) : (
     <ResumeOnboarding
       resume={resume}
-      onEdit={() => router.replace("/profile")}
-      onComplete={() => router.replace("/")}
+      onEdit={() => setManualEntry(true)}
+      onManualEntry={() => setManualEntry(true)}
     />
   );
 }

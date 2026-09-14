@@ -561,10 +561,8 @@ export const completeProcessing = internalMutation({
         manualOverrideFields: [
           ...overrides,
         ] as Doc<"candidateProfiles">["manualOverrideFields"],
-        onboardingCompleted: existing.onboardingCompleted || usable,
-        onboardingStep:
-          existing.onboardingCompleted || usable ? 4 : existing.onboardingStep,
-        completedAt: existing.completedAt ?? (usable ? now : undefined),
+        onboardingCompleted: existing.onboardingCompleted,
+        onboardingStep: 1,
         updatedAt: now,
       });
     } else if (!existing) {
@@ -578,11 +576,10 @@ export const completeProcessing = internalMutation({
         cvReviewPending: true,
         profileSourceVersion: 1,
         manualOverrideFields: [],
-        onboardingStep: usable ? 4 : 1,
-        onboardingCompleted: usable,
+        onboardingStep: 1,
+        onboardingCompleted: false,
         createdAt: now,
         updatedAt: now,
-        completedAt: usable ? now : undefined,
       });
     }
     await ctx.db.patch("resumeDocuments", resume._id, {
@@ -611,17 +608,6 @@ export const completeProcessing = internalMutation({
     if (replacement && replacement.userId === args.userId) {
       await ctx.storage.delete(replacement.storageId);
       await ctx.db.delete("resumeDocuments", replacement._id);
-    }
-    if (shouldActivate && (existing?.onboardingCompleted || usable)) {
-      await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
-        userId: args.userId,
-      });
-      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
-        userId: args.userId,
-        lifecycleStatus: "verified_active",
-        cursor: null,
-        expectedProfileRevision: now,
-      });
     }
     return null;
   },

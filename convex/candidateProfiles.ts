@@ -652,7 +652,7 @@ export const saveCurrent = mutation({
       });
       const updated = await ctx.db.get("candidateProfiles", existing._id);
       if (!updated) throw new Error("Candidate profile update failed");
-      if (updated.onboardingCompleted) {
+      if (updated.onboardingCompleted && !updated.cvReviewPending) {
         await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
           userId,
         });

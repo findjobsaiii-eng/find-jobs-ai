@@ -121,6 +121,13 @@ describe("CV-derived effective profiles", () => {
     expect(resume?.skills.map((skill) => skill.labelEn)).toEqual(
       expect.arrayContaining(["Shopify", "WooCommerce"]),
     );
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile,
+    ).toMatchObject({
+      onboardingCompleted: false,
+      onboardingStep: 1,
+      cvReviewPending: true,
+    });
     await user.mutation(api.resumes.finishReview, {
       targetJobTitleIds: resume!.targetRoles.map((role) => role.id),
       location: {

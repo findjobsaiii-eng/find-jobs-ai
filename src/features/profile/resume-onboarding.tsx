@@ -30,11 +30,13 @@ function resumeLocation(state: ResumeState): SelectedPlace[] {
 export function ResumeOnboarding({
   resume,
   onEdit,
+  onManualEntry,
   onComplete,
   replaceMode = false,
 }: {
   resume: ResumeState;
   onEdit: () => void;
+  onManualEntry?: () => void;
   onComplete?: () => void;
   replaceMode?: boolean;
 }) {
@@ -380,6 +382,16 @@ export function ResumeOnboarding({
               <p role="alert" className="text-destructive mt-4 text-sm">
                 {t(`resume.errors.${visibleError}`)}
               </p>
+            ) : null}
+            {onManualEntry ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4 min-h-11 w-full"
+                onClick={onManualEntry}
+              >
+                {t("resume.fillManually")}
+              </Button>
             ) : null}
           </section>
         )}

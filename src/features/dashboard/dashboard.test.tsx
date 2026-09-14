@@ -12,6 +12,7 @@ import { DashboardScreen } from "./dashboard-screen";
 
 const hooks = vi.hoisted(() => ({
   data: null as CurrentProfile | null,
+  resume: null as { status: string } | null,
   push: vi.fn(),
   replace: vi.fn(),
   save: vi.fn<
@@ -26,12 +27,20 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: hooks.push, replace: hooks.replace }),
 }));
 
-vi.mock("convex/react", () => ({
-  useQuery: (_ref: unknown, args?: { kind?: string }) =>
-    args?.kind ? [] : args ? { jobs: [] } : hooks.data,
-  useMutation: () => hooks.save,
-  useAction: () => vi.fn(),
-}));
+vi.mock("convex/react", async () => {
+  const { getFunctionName } = await import("convex/server");
+  return {
+    useQuery: (ref: unknown, args?: { kind?: string }) => {
+      if (args?.kind) return [];
+      const name = getFunctionName(ref as never);
+      if (name === "candidateProfiles:getCurrent") return hooks.data;
+      if (name === "resumes:getCurrent") return hooks.resume;
+      return args ? { jobs: [] } : null;
+    },
+    useMutation: () => hooks.save,
+    useAction: () => vi.fn(),
+  };
+});
 
 vi.mock("@convex-dev/auth/react", () => ({
   useAuthActions: () => ({ signOut: vi.fn() }),
@@ -120,6 +129,7 @@ describe("dashboard and completed profile editing", () => {
 
   beforeEach(async () => {
     hooks.data = completedProfile();
+    hooks.resume = null;
     hooks.push.mockReset();
     hooks.replace.mockReset();
     hooks.save.mockReset();
@@ -141,6 +151,53 @@ describe("dashboard and completed profile editing", () => {
     expect(
       screen.getByRole("button", {
         name: "Drop a resume here or click to browse",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the full editable onboarding review after CV extraction", async () => {
+    const user = userEvent.setup();
+    const data = completedProfile();
+    hooks.data = {
+      ...data,
+      profile: {
+        ...data.profile!,
+        onboardingCompleted: false,
+        onboardingStep: 1,
+        cvReviewPending: true,
+      },
+    } as CurrentProfile;
+    hooks.resume = { status: "ready" };
+
+    render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+
+    expect(
+      screen.getByRole("heading", { name: "Review your profile" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Engineer")).toBeInTheDocument();
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      await screen.findByRole("combobox", { name: "Skills" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("React")).toBeInTheDocument();
+  });
+
+  it("moves from the upload gate into manual profile onboarding", async () => {
+    const user = userEvent.setup();
+    hooks.data = { ...completedProfile(), profile: null };
+
+    render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+
+    await user.click(
+      screen.getByRole("button", { name: "Fill in my profile manually" }),
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Let's shape your candidate profile",
       }),
     ).toBeInTheDocument();
   });

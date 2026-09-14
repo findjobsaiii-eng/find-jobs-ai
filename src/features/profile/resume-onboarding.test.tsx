@@ -101,6 +101,24 @@ describe("resume-first onboarding", () => {
     expect(input).toHaveAttribute("accept", expect.stringContaining(".docx"));
   });
 
+  it("lets the user skip CV upload and fill the profile manually", async () => {
+    const user = userEvent.setup();
+    const onManualEntry = vi.fn();
+    render(
+      <ResumeOnboarding
+        resume={null}
+        onEdit={vi.fn()}
+        onManualEntry={onManualEntry}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Fill in my profile manually" }),
+    );
+
+    expect(onManualEntry).toHaveBeenCalledOnce();
+  });
+
   it("uploads the actual file before starting structured processing", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
@@ -177,10 +195,14 @@ describe("resume-first onboarding", () => {
           } as never
         }
         onEdit={vi.fn()}
+        onManualEntry={vi.fn()}
       />,
     );
     expect(
       await screen.findByText(/scanned PDF without selectable text/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Fill in my profile manually" }),
     ).toBeInTheDocument();
   });
 
