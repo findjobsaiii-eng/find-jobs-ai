@@ -412,13 +412,8 @@
     },
     "hints": {
       "targetJobTitles": "Search and choose 1–5 roles. If one is missing, you can add it.",
-      "summary": "Write at least {{min}} characters and focus on your experience and strengths.",
-      "skills": "Search for skills and tools, then add everything that's relevant to you.",
       "locations": "Choose one city or address from the Google suggestions.",
-      "locationRadius": "Drag the slider or use the arrow keys to set your search radius.",
-      "multipleChoice": "Choose all that apply.",
-      "salary": "Optional. If you have a minimum, enter the gross monthly amount before tax.",
-      "languages": "Choose the level that best reflects your professional working ability."
+      "multipleChoice": "Choose all that apply."
     },
     "placeholders": {
       "targetJobTitle": "e.g. Product Manager",
@@ -427,6 +422,10 @@
       "location": "e.g. Tel Aviv",
       "salary": "e.g. 15,000",
       "proficiency": "Select a level"
+    },
+    "experience": {
+      "decrease": "Decrease years of experience",
+      "increase": "Increase years of experience"
     },
     "location": {
       "loading": "Loading location search…",
@@ -480,7 +479,7 @@
     "errors": {
       "displayName": "Enter a display name between 2 and 80 characters.",
       "targetJobTitles": "Add between 1 and 5 target job titles.",
-      "summary": "Enter a professional summary between 40 and 1,200 characters.",
+      "summary": "Keep your professional introduction under 1,200 characters.",
       "years": "Enter a whole number from 0 to 60.",
       "skills": "Add at least one skill (up to 30).",
       "locations": "Choose one location from the Google suggestions.",

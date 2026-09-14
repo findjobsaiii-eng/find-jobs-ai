@@ -192,8 +192,6 @@ describe("candidate profiles", () => {
       values: {
         preferredDisplayName: "Candidate",
         targetJobTitleIds: [titleId],
-        professionalSummary:
-          "Frontend engineer focused on accessible, responsive product experiences.",
         yearsOfExperience: 7,
         skillIds: [skillId],
         preferredPlaceIds: ["ChIJH3w7GaZMHRURkD-WwKJy-8E"],
@@ -227,6 +225,7 @@ describe("candidate profiles", () => {
       "ChIJH3w7GaZMHRURkD-WwKJy-8E",
     ]);
     expect(completed.locationRadiusKm).toBe(40);
+    expect(completed.professionalSummary).toBeUndefined();
     expect(completed.minimumMonthlySalaryIls).toBeUndefined();
     expect(completed.primaryLocation).toMatchObject({
       city: "Tel Aviv-Yafo",

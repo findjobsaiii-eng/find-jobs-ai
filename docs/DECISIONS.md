@@ -144,8 +144,8 @@ in 5 km increments, defaulting to 25 km. A selection also stores bounded
 formatted address, city, administrative area, country/code, coordinates, and
 radius for server-side search. Older profiles without this normalized contract
 must reconfirm location before discovery; the server never silently broadens
-their search to the whole country. Minimum monthly salary is optional; when it
-is absent, matching applies no salary floor.
+their search to the whole country. The professional introduction and minimum
+monthly salary are optional; an absent salary applies no matching floor.
 
 ### D-012: Development data may be reset instead of migrated
 

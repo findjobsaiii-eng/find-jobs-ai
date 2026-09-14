@@ -124,7 +124,7 @@ Editable profile data is normalized and bounded on the server:
 | ---------------------------- | -------------------------------------------------------------------- |
 | Preferred display name       | 2–80 characters to complete                                          |
 | Target job titles            | 1–5 validated catalog references                                     |
-| Professional summary         | 40–1,200 characters to complete                                      |
+| Professional summary         | Optional, up to 1,200 characters                                     |
 | Years of experience          | Whole number from 0–60                                               |
 | Skills                       | 1–30 validated catalog references                                    |
 | Preferred location           | One Google Place with normalized city/region/country and coordinates |

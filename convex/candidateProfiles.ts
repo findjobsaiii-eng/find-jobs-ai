@@ -31,7 +31,7 @@ const SUPPORTED_LANGUAGE_CODES = [
 export const PROFILE_LIMITS = {
   preferredDisplayName: { min: 2, max: 80 },
   targetJobTitles: { min: 1, max: 5 },
-  professionalSummary: { min: 40, max: 1_200 },
+  professionalSummary: { max: 1_200 },
   yearsOfExperience: { min: 0, max: 60 },
   skills: { min: 1, max: 30 },
   preferredLocations: { min: 1, max: 10 },
@@ -225,7 +225,7 @@ function normalizeEditableFields(
             values.professionalSummary,
             "professionalSummary",
             PROFILE_LIMITS.professionalSummary.max,
-          );
+          ) || undefined;
   }
   if (values.yearsOfExperience !== undefined) {
     normalized.yearsOfExperience =
@@ -433,12 +433,6 @@ function assertComplete(profile: EditableProfilePatch) {
     PROFILE_LIMITS.targetJobTitles.min
   ) {
     validationError("targetJobTitles", "list_size");
-  }
-  if (
-    !profile.professionalSummary ||
-    profile.professionalSummary.length < PROFILE_LIMITS.professionalSummary.min
-  ) {
-    validationError("professionalSummary", "length");
   }
   if (profile.yearsOfExperience === undefined) {
     validationError("yearsOfExperience", "required");

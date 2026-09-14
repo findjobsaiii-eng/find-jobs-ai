@@ -126,6 +126,62 @@ describe("candidate profile onboarding", () => {
     expect(hooks.saveProfile).toHaveBeenCalledTimes(1);
   });
 
+  it("uses a compact experience stepper and leaves the summary optional", async () => {
+    const user = userEvent.setup();
+    const resumed = {
+      ...emptyProfile,
+      profile: {
+        _id: "candidateProfiles:profile-1",
+        _creationTime: 1,
+        userId: "users:user-1",
+        email: "candidate@example.com",
+        preferredDisplayName: "Candidate",
+        targetJobTitleIds: ["catalogItems:title-1"],
+        onboardingStep: 2,
+        onboardingCompleted: false,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+      selections: {
+        targetJobTitles: [
+          {
+            id: "catalogItems:title-1",
+            labelEn: "Frontend Engineer",
+            labelHe: "מפתח Frontend",
+            isCustom: false,
+          },
+        ],
+        skills: [],
+      },
+    } as unknown as CurrentProfile;
+
+    render(<OnboardingScreen initialData={resumed} />);
+
+    const experience = screen.getByRole("spinbutton", {
+      name: "How many years of experience do you have?",
+    });
+    expect(experience).toHaveValue(0);
+
+    await user.click(
+      screen.getByRole("button", { name: "Increase years of experience" }),
+    );
+    expect(experience).toHaveValue(1);
+    await user.click(
+      screen.getByRole("button", { name: "Decrease years of experience" }),
+    );
+    expect(experience).toHaveValue(0);
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.queryByText(
+        "Keep your professional introduction under 1,200 characters.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Add at least one skill (up to 30)."),
+    ).toBeVisible();
+  });
+
   it("resumes at the last saved step", () => {
     const resumed = {
       ...emptyProfile,

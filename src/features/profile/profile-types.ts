@@ -29,7 +29,7 @@ export const LOCATION_RADIUS_STEP_KM = 5;
 export const PROFILE_LIMITS = {
   preferredDisplayName: { min: 2, max: 80 },
   targetJobTitles: { min: 1, max: 5 },
-  professionalSummary: { min: 40, max: 1_200 },
+  professionalSummary: { max: 1_200 },
   yearsOfExperience: { min: 0, max: 60 },
   skills: { min: 1, max: 30 },
   preferredLocations: { min: 1, max: 10 },
@@ -120,7 +120,7 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
     professionalSummary: profile?.professionalSummary ?? "",
     yearsOfExperience:
       profile?.yearsOfExperience === undefined
-        ? ""
+        ? "0"
         : String(profile.yearsOfExperience),
     skills: data.selections.skills,
     preferredLocations: profile?.primaryLocation
@@ -235,10 +235,7 @@ export function validateProfileStep(
   }
   if (step === 2) {
     const summaryLength = draft.professionalSummary.trim().length;
-    if (
-      summaryLength < PROFILE_LIMITS.professionalSummary.min ||
-      summaryLength > PROFILE_LIMITS.professionalSummary.max
-    ) {
+    if (summaryLength > PROFILE_LIMITS.professionalSummary.max) {
       errors.professionalSummary = "onboarding.errors.summary";
     }
     const years = Number(draft.yearsOfExperience);

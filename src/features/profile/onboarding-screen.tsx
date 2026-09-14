@@ -17,6 +17,8 @@ import {
   Check,
   LoaderCircle,
   LogOut,
+  Minus,
+  Plus,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -143,13 +145,23 @@ export function StepOne({
 
 export function StepTwo({ draft, setDraft, errors }: StepProps) {
   const { t } = useTranslation();
+  const experienceInputId = useId();
+  const experienceErrorId = `${experienceInputId}-error`;
+  const yearsOfExperience = Number(draft.yearsOfExperience || 0);
+  const changeYearsOfExperience = (change: number) => {
+    setDraft((current) => {
+      const currentValue = Number(current.yearsOfExperience || 0);
+      const nextValue = Math.min(
+        PROFILE_LIMITS.yearsOfExperience.max,
+        Math.max(PROFILE_LIMITS.yearsOfExperience.min, currentValue + change),
+      );
+      return { ...current, yearsOfExperience: String(nextValue) };
+    });
+  };
   return (
     <div className="space-y-6">
       <TextareaField
         label={t("onboarding.fields.summary")}
-        hint={t("onboarding.hints.summary", {
-          min: PROFILE_LIMITS.professionalSummary.min,
-        })}
         placeholder={t("onboarding.placeholders.summary")}
         value={draft.professionalSummary}
         onChange={(professionalSummary) =>
@@ -158,25 +170,70 @@ export function StepTwo({ draft, setDraft, errors }: StepProps) {
         maxLength={PROFILE_LIMITS.professionalSummary.max}
         error={errors.professionalSummary && t(errors.professionalSummary)}
       />
-      <TextField
-        label={t("onboarding.fields.years")}
-        type="number"
-        inputMode="numeric"
-        min={PROFILE_LIMITS.yearsOfExperience.min}
-        max={PROFILE_LIMITS.yearsOfExperience.max}
-        value={draft.yearsOfExperience}
-        onChange={(event) =>
-          setDraft((current) => ({
-            ...current,
-            yearsOfExperience: event.target.value,
-          }))
-        }
-        error={errors.yearsOfExperience && t(errors.yearsOfExperience)}
-      />
+      <div>
+        <label
+          htmlFor={experienceInputId}
+          className="mb-2 block text-sm font-medium"
+        >
+          {t("onboarding.fields.years")}
+        </label>
+        <div className="border-input bg-background focus-within:border-ring focus-within:ring-ring/30 inline-flex h-11 items-center rounded-xl border p-1 transition-shadow focus-within:ring-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-lg"
+            aria-label={t("onboarding.experience.decrease")}
+            disabled={yearsOfExperience <= PROFILE_LIMITS.yearsOfExperience.min}
+            onClick={() => changeYearsOfExperience(-1)}
+          >
+            <Minus aria-hidden="true" />
+          </Button>
+          <input
+            id={experienceInputId}
+            type="number"
+            inputMode="numeric"
+            min={PROFILE_LIMITS.yearsOfExperience.min}
+            max={PROFILE_LIMITS.yearsOfExperience.max}
+            step={1}
+            value={draft.yearsOfExperience}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                yearsOfExperience: event.target.value,
+              }))
+            }
+            aria-invalid={Boolean(errors.yearsOfExperience)}
+            aria-describedby={
+              errors.yearsOfExperience ? experienceErrorId : undefined
+            }
+            className="h-8 w-14 appearance-none bg-transparent text-center text-base font-semibold tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-lg"
+            aria-label={t("onboarding.experience.increase")}
+            disabled={yearsOfExperience >= PROFILE_LIMITS.yearsOfExperience.max}
+            onClick={() => changeYearsOfExperience(1)}
+          >
+            <Plus aria-hidden="true" />
+          </Button>
+        </div>
+        {errors.yearsOfExperience ? (
+          <p
+            id={experienceErrorId}
+            className="text-destructive mt-1 text-sm"
+            role="alert"
+          >
+            {t(errors.yearsOfExperience)}
+          </p>
+        ) : null}
+      </div>
       <CatalogMultiSelect
         kind="skill"
         label={t("onboarding.fields.skills")}
-        hint={t("onboarding.hints.skills")}
         placeholder={t("onboarding.placeholders.skill")}
         values={draft.skills}
         onChange={(skills) => setDraft((current) => ({ ...current, skills }))}
@@ -190,7 +247,6 @@ export function StepTwo({ draft, setDraft, errors }: StepProps) {
 export function StepThree({ draft, setDraft, errors }: StepProps) {
   const { i18n, t } = useTranslation();
   const radiusInputId = useId();
-  const radiusHintId = `${radiusInputId}-hint`;
   const primaryLocation = draft.preferredLocations[0];
   const radiusProgress =
     ((draft.locationRadiusKm - LOCATION_RADIUS_MIN_KM) /
@@ -247,12 +303,6 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
               </output>
             </span>
           </legend>
-          <p
-            id={radiusHintId}
-            className="text-muted-foreground mt-1 text-sm leading-6"
-          >
-            {t("onboarding.hints.locationRadius")}
-          </p>
           <div className="mt-4 px-1">
             <input
               id={radiusInputId}
@@ -271,7 +321,6 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
               aria-valuetext={t("onboarding.location.radiusOption", {
                 radius: draft.locationRadiusKm,
               })}
-              aria-describedby={radiusHintId}
               aria-invalid={Boolean(errors.locationRadiusKm)}
               style={{
                 background: `linear-gradient(to ${i18n.dir() === "rtl" ? "left" : "right"}, var(--color-primary) 0%, var(--color-primary) ${radiusProgress}%, var(--color-muted) ${radiusProgress}%, var(--color-muted) 100%)`,
@@ -349,7 +398,6 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
       </ChoiceGroup>
       <TextField
         label={t("onboarding.fields.salary")}
-        hint={t("onboarding.hints.salary")}
         type="text"
         inputMode="numeric"
         autoComplete="off"
@@ -385,9 +433,6 @@ export function StepFour({
   );
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground text-sm leading-6">
-        {t("onboarding.hints.languages")}
-      </p>
       <div className="space-y-3">
         {draft.languages.map((language) => {
           const id = `proficiency-${language.languageCode}`;

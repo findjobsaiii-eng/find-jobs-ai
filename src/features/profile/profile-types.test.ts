@@ -65,4 +65,18 @@ describe("profile location draft", () => {
     });
     expect(errors).not.toHaveProperty("minimumMonthlySalaryIls");
   });
+
+  it("defaults experience to zero and allows an empty professional summary", () => {
+    const draft = createProfileDraft({ ...profileData(), profile: null });
+
+    expect(draft.yearsOfExperience).toBe("0");
+    expect(validateProfileStep(2, draft)).not.toHaveProperty(
+      "professionalSummary",
+    );
+
+    draft.professionalSummary = "x".repeat(1_201);
+    expect(validateProfileStep(2, draft)).toMatchObject({
+      professionalSummary: "onboarding.errors.summary",
+    });
+  });
 });
