@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     template: "%s · Find Jobs AI",
   },
   description:
-    "Turn your resume into a focused professional profile and discover jobs that fit.",
+    "הופכים את קורות החיים לפרופיל מקצועי ממוקד ומוצאים משרות שמתאימות לך.",
   icons: {
     icon: "/favicon.svg",
   },
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html lang="he" dir="rtl" suppressHydrationWarning>
       <body>
         <AppProviders convexUrl={process.env.NEXT_PUBLIC_CONVEX_URL}>
           {children}

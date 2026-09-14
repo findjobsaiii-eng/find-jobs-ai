@@ -1,8 +1,10 @@
-import i18n from "i18next";
+import { createInstance } from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import he from "./locales/he.json";
+
+const i18n = createInstance();
 
 const resources = {
   en: { translation: en },
@@ -26,10 +28,10 @@ export async function initializeI18n() {
       .use(initReactI18next)
       .init({
         resources,
-        fallbackLng: "en",
+        fallbackLng: "he",
         supportedLngs: ["en", "he"],
         detection: {
-          order: ["localStorage", "navigator"],
+          order: ["localStorage"],
           caches: ["localStorage"],
         },
         interpolation: { escapeValue: false },
