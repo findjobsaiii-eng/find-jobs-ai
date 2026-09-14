@@ -111,7 +111,10 @@ function asPct(numerator: number, denominator: number) {
 function finitePostedAgeDays(postedAt: string | null, now: number) {
   if (!postedAt) return null;
   const timestamp = Date.parse(postedAt);
-  if (!Number.isFinite(timestamp) || timestamp > now + 2 * 24 * 60 * 60 * 1_000) {
+  if (
+    !Number.isFinite(timestamp) ||
+    timestamp > now + 2 * 24 * 60 * 60 * 1_000
+  ) {
     return null;
   }
   return Math.max(0, (now - timestamp) / (24 * 60 * 60 * 1_000));
@@ -236,7 +239,9 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
     const realSources = boundedSources.filter(
       (source) => jobsById.has(source.jobId) && isUserFacingJobSource(source),
     );
-    const sourcesById = new Map(realSources.map((source) => [source._id, source]));
+    const sourcesById = new Map(
+      realSources.map((source) => [source._id, source]),
+    );
     const sourcesByJob = new Map<Id<"jobs">, Doc<"jobSources">[]>();
     for (const source of realSources) {
       const list = sourcesByJob.get(source.jobId) ?? [];
@@ -257,7 +262,9 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
     const domainBuckets = new Map<string, MetricBucket>();
     const bucketsForSource = (source: Doc<"jobSources">) => {
       const family = sourceYieldGroup(source.domain, source.sourceTier);
-      const domain = source.domain.toLocaleLowerCase("en-US").replace(/^www\./u, "");
+      const domain = source.domain
+        .toLocaleLowerCase("en-US")
+        .replace(/^www\./u, "");
       const familyBucket = familyBuckets.get(family)!;
       const domainBucket = domainBuckets.get(domain) ?? newBucket();
       domainBuckets.set(domain, domainBucket);
@@ -268,7 +275,8 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
       for (const bucket of bucketsForSource(source)) {
         bucket.jobIds.add(source.jobId);
         bucket.sourceUrls.add(source.normalizedUrl);
-        if (source.applicationUrl) bucket.directApplicationJobIds.add(source.jobId);
+        if (source.applicationUrl)
+          bucket.directApplicationJobIds.add(source.jobId);
       }
     }
     for (const event of boundedEvents) {
@@ -315,7 +323,8 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
         .map((job) => finitePostedAgeDays(job.postedAt, now))
         .filter((age): age is number => age !== null)
         .sort((left, right) => left - right);
-      const matchesForJob = (jobId: Id<"jobs">) => matchesByJob.get(jobId) ?? [];
+      const matchesForJob = (jobId: Id<"jobs">) =>
+        matchesByJob.get(jobId) ?? [];
       const insideAtLeastOneUserLocation = bucketJobs.filter((job) =>
         matchesForJob(job._id).some(
           (match) => !match.exclusionReasons.includes("location_conflict"),
@@ -343,7 +352,10 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
         bucket.verifiedActiveNewJobIds.size,
         bucket.candidateObservations,
       );
-      const closedOrExpiredRatioPct = asPct(closed + expired, bucketJobs.length);
+      const closedOrExpiredRatioPct = asPct(
+        closed + expired,
+        bucketJobs.length,
+      );
       const unknownRatioPct = asPct(unknown, bucketJobs.length);
       const result = {
         name,
@@ -351,8 +363,7 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
         uniqueSources: bucket.sourceUrls.size,
         candidateObservations: bucket.candidateObservations,
         newCanonicalJobs: bucket.newCanonicalJobIds.size,
-        verifiedActiveNewCanonicalJobs:
-          bucket.verifiedActiveNewJobIds.size,
+        verifiedActiveNewCanonicalJobs: bucket.verifiedActiveNewJobIds.size,
         duplicates: bucket.duplicates,
         verifiedActive,
         probablyActive,
@@ -368,19 +379,24 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
         averageAgeDays:
           ages.length === 0
             ? null
-            : Math.round((ages.reduce((sum, age) => sum + age, 0) / ages.length) * 10) /
-              10,
+            : Math.round(
+                (ages.reduce((sum, age) => sum + age, 0) / ages.length) * 10,
+              ) / 10,
         medianAgeDays:
           ages.length === 0
             ? null
             : Math.round(
                 (ages.length % 2 === 1
                   ? ages[Math.floor(ages.length / 2)]
-                  : (ages[ages.length / 2 - 1] + ages[ages.length / 2]) / 2) * 10,
+                  : (ages[ages.length / 2 - 1] + ages[ages.length / 2]) / 2) *
+                  10,
               ) / 10,
         verifiedActiveNewYieldPct,
         directSourceRatioPct,
-        duplicateRatioPct: asPct(bucket.duplicates, bucket.candidateObservations),
+        duplicateRatioPct: asPct(
+          bucket.duplicates,
+          bucket.candidateObservations,
+        ),
         unknownRatioPct,
         closedOrExpiredRatioPct,
         directApplicationRatioPct: asPct(
@@ -405,7 +421,7 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
     const recentRunResults = await Promise.all(
       recentRuns.map(async (run) => {
         const [query, discoveries] = await Promise.all([
-          ctx.db.get(run.queryId),
+          ctx.db.get("jobSearchQueries", run.queryId),
           ctx.db
             .query("jobDiscoveries")
             .withIndex("by_searchRunId", (q) => q.eq("searchRunId", run._id))
@@ -433,7 +449,9 @@ export const getSourceYieldAuditForDevelopment = internalQuery({
           runId: run._id,
           startedAt: run.startedAt,
           completedAt: run.completedAt ?? null,
-          role: query ? roleFromCriteria(query.normalizedCriteria) : "Unknown role",
+          role: query
+            ? roleFromCriteria(query.normalizedCriteria)
+            : "Unknown role",
           sourceFamilies: [...sourceFamilies].sort(),
           candidatesReturned: run.returnedCandidateCount,
           persistedCandidates: runJobs.length,
