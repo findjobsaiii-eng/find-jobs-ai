@@ -7,12 +7,17 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
+  discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
   setApplication: vi.fn(),
   runReview: vi.fn(),
 }));
 
 vi.mock("convex/react", () => ({
-  useQuery: () => ({ jobs: hooks.jobs, plan: "pro" }),
+  useQuery: () => ({
+    jobs: hooks.jobs,
+    plan: "pro",
+    discoveryState: hooks.discoveryState,
+  }),
   useMutation: () => hooks.setApplication,
   useAction: () => hooks.runReview,
 }));
@@ -86,9 +91,30 @@ describe("job result cards", () => {
 
   beforeEach(async () => {
     hooks.jobs = [job()];
+    hooks.discoveryState = "complete";
     hooks.setApplication.mockReset().mockResolvedValue(null);
     hooks.runReview.mockReset().mockResolvedValue(null);
     await i18n.changeLanguage("en");
+  });
+
+  it("shows a warm Hebrew search-in-progress state before discovery completes", async () => {
+    await i18n.changeLanguage("he");
+    hooks.jobs = [];
+    hooks.discoveryState = "pending";
+
+    renderPanel();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "אנחנו כבר מחפשים לך את המשרה הבאה",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/חזור בקרוב כדי לראות את ההמלצות הכי טובות/),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("לא נמצאו כרגע משרות שמתאימות לפרופיל שלך."),
+    ).not.toBeInTheDocument();
   });
 
   it("presents one scannable card with useful job information", () => {

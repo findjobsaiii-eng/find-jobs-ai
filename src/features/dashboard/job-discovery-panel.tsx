@@ -12,6 +12,8 @@ import {
   ExternalLink,
   LoaderCircle,
   MapPin,
+  Search,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
@@ -54,6 +56,10 @@ export function JobDiscoveryPanel({
   const plan = result?.plan ?? "free";
   const emptyReason =
     view === "suggestions" ? result?.emptyState?.reason : undefined;
+  const discoveryPending =
+    view === "suggestions" &&
+    (result?.discoveryState === "pending" ||
+      result?.discoveryState === "running");
   return (
     <section aria-label={t("dashboard.jobsTitle")} className="min-w-0">
       <div>
@@ -77,29 +83,43 @@ export function JobDiscoveryPanel({
           </div>
         ) : jobs.length === 0 ? (
           <div className="bg-card border-border flex min-h-80 flex-col items-center justify-center rounded-2xl border px-6 py-12 text-center shadow-sm">
-            <span className="bg-primary/10 text-primary mb-5 grid size-16 place-items-center rounded-3xl">
-              <BriefcaseBusiness aria-hidden="true" className="size-7" />
+            <span className="bg-primary/10 text-primary relative mb-5 grid size-16 place-items-center rounded-3xl">
+              {discoveryPending ? (
+                <>
+                  <Search aria-hidden="true" className="size-7" />
+                  <Sparkles
+                    aria-hidden="true"
+                    className="absolute end-2 top-2 size-4 motion-safe:animate-pulse"
+                  />
+                </>
+              ) : (
+                <BriefcaseBusiness aria-hidden="true" className="size-7" />
+              )}
             </span>
             <h2 className="text-xl font-semibold">
               {t(
                 view === "inProgress"
                   ? "applications.emptyTitle"
-                  : emptyReason === "location"
-                    ? "jobDiscovery.locationEmptyTitle"
-                    : emptyReason === "no_active_jobs"
-                      ? "jobDiscovery.noActiveEmptyTitle"
-                      : "jobDiscovery.emptyTitle",
+                  : discoveryPending
+                    ? "jobDiscovery.pendingTitle"
+                    : emptyReason === "location"
+                      ? "jobDiscovery.locationEmptyTitle"
+                      : emptyReason === "no_active_jobs"
+                        ? "jobDiscovery.noActiveEmptyTitle"
+                        : "jobDiscovery.emptyTitle",
               )}
             </h2>
             <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
               {t(
                 view === "inProgress"
                   ? "applications.emptyDescription"
-                  : emptyReason === "location"
-                    ? "jobDiscovery.locationEmptyDescription"
-                    : emptyReason === "no_active_jobs"
-                      ? "jobDiscovery.noActiveEmptyDescription"
-                      : "jobDiscovery.emptyDescription",
+                  : discoveryPending
+                    ? "jobDiscovery.pendingDescription"
+                    : emptyReason === "location"
+                      ? "jobDiscovery.locationEmptyDescription"
+                      : emptyReason === "no_active_jobs"
+                        ? "jobDiscovery.noActiveEmptyDescription"
+                        : "jobDiscovery.emptyDescription",
                 emptyReason === "location"
                   ? { radius: result?.emptyState?.radiusKm }
                   : undefined,

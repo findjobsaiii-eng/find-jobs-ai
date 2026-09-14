@@ -378,6 +378,12 @@ const feedEmptyStateValidator = v.union(
     outsideRadiusCount: v.number(),
   }),
 );
+const discoveryStateValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("complete"),
+  v.literal("failed"),
+);
 
 async function requireUserId(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -1678,6 +1684,7 @@ export const listCurrentUserJobs = query({
     jobs: v.array(jobFeedItem),
     plan: planValidator,
     emptyState: feedEmptyStateValidator,
+    discoveryState: v.union(v.null(), discoveryStateValidator),
   }),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -1732,15 +1739,29 @@ export const listCurrentUserJobs = query({
         jobs: jobs.filter((job) => job !== null),
         plan,
         emptyState: null,
+        discoveryState: null,
       };
     }
     let profile: SearchProfile;
     try {
       profile = await loadSearchProfile(ctx, userId);
     } catch {
-      return { jobs: [], plan, emptyState: null };
+      return { jobs: [], plan, emptyState: null, discoveryState: null };
     }
-    if (!profileRecord) return { jobs: [], plan, emptyState: null };
+    if (!profileRecord)
+      return { jobs: [], plan, emptyState: null, discoveryState: null };
+    const [attempt, recentRuns] = await Promise.all([
+      ctx.db
+        .query("dailyDiscoveryAttempts")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique(),
+      ctx.db
+        .query("jobSearchRuns")
+        .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(20),
+    ]);
+    const discoveryState = currentDiscoveryState(attempt, recentRuns, now);
     const jobs = await suggestionFeedForUser(
       ctx,
       userId,
@@ -1751,9 +1772,39 @@ export const listCurrentUserJobs = query({
     const emptyState = jobs.length
       ? null
       : emptyStateFromAudit(await buildMatchAudit(ctx, userId));
-    return { jobs, plan, emptyState };
+    return { jobs, plan, emptyState, discoveryState };
   },
 });
+
+function currentDiscoveryState(
+  attempt: Doc<"dailyDiscoveryAttempts"> | null,
+  recentRuns: Doc<"jobSearchRuns">[],
+  now: number,
+) {
+  const dayKey = globalDayKey(now);
+  const todaysAttempt = attempt?.dayKey === dayKey ? attempt : null;
+  const todaysRuns = recentRuns.filter(
+    (run) => globalDayKey(run.startedAt) === dayKey,
+  );
+  if (
+    todaysAttempt?.lastOutcome === "queued" ||
+    todaysRuns.some((run) => run.status === "running")
+  ) {
+    return "running" as const;
+  }
+  if (
+    todaysAttempt?.lastOutcome === "completed" ||
+    todaysRuns.some(
+      (run) => run.status === "completed" || run.status === "reused",
+    )
+  ) {
+    return "complete" as const;
+  }
+  if (todaysRuns.some((run) => run.status === "failed")) {
+    return "failed" as const;
+  }
+  return "pending" as const;
+}
 
 async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
   const profile = await loadSearchProfile(ctx, userId);

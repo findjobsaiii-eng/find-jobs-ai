@@ -127,6 +127,8 @@
       "central": "Jobs refreshed from the shared database."
     },
     "retry": "Try again",
+    "pendingTitle": "We’re already finding your next job",
+    "pendingDescription": "We’re searching across the web for roles that best match you. Check back soon to see today’s best finds.",
     "emptyTitle": "No jobs currently match your profile.",
     "emptyDescription": "Only jobs that pass your profile and location relevance threshold appear here.",
     "locationEmptyTitle": "No active jobs are currently within your search area.",

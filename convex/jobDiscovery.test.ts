@@ -17,6 +17,7 @@ import {
   MINIMUM_RELEVANCE_SCORE,
   PARTIAL_MATCH_MINIMUM_SCORE,
 } from "./jobQuality";
+import { globalDayKey } from "./jobSearchPolicy";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -1064,6 +1065,35 @@ describe("stored job activity", () => {
         activityReason: "HTTP 410",
       });
     });
+  });
+
+  it("distinguishes discovery that has not run from a completed empty search", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+
+    const pendingFeed = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(pendingFeed.jobs).toHaveLength(0);
+    expect(pendingFeed.discoveryState).toBe("pending");
+
+    await t.run((ctx) =>
+      ctx.db.insert("dailyDiscoveryAttempts", {
+        userId,
+        dayKey: globalDayKey(Date.now()),
+        lastAttemptAt: Date.now(),
+        lastOutcome: "completed",
+      }),
+    );
+    const completedFeed = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(completedFeed.jobs).toHaveLength(0);
+    expect(completedFeed.discoveryState).toBe("complete");
+    expect(completedFeed.emptyState?.reason).toBe("no_active_jobs");
   });
 
   it("exposes authenticated development diagnostics", async () => {
