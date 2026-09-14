@@ -119,8 +119,10 @@ brand and an avatar account menu. Profile, language, and sign-out actions are
 grouped in that menu. The profile page uses a focused five-section navigation
 with URL-backed selection and section-level editing instead of one long page.
 
-Suggested-job cards display the deterministic relevance percentage used for
-ordering. Hovering or focusing the score shows the exact points earned across
+Suggested-job cards display the deterministic relevance score out of 100 used
+for ordering, together with a strong, partial, or possible match band. A score
+below 58 no longer hides an otherwise eligible professional opportunity.
+Hovering or focusing the score shows the exact points earned across
 role, skills, domain, experience, seniority, location, and preferences, plus
 the strongest matched profile evidence. The explanation is localized in
 English and Hebrew and remains separate from the optional AI deep-review score.

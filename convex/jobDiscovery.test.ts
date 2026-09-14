@@ -13,7 +13,10 @@ import {
 } from "./jobDiscoveryModel";
 import type { OpenAIJob } from "./jobDiscoveryModel";
 import type { SourceVerification } from "./jobSourceVerification";
-import { MINIMUM_RELEVANCE_SCORE } from "./jobQuality";
+import {
+  MINIMUM_RELEVANCE_SCORE,
+  PARTIAL_MATCH_MINIMUM_SCORE,
+} from "./jobQuality";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -410,19 +413,34 @@ describe("shared job discovery", () => {
     });
   });
 
-  it("shows matching central jobs to free users and excludes unresolved locations", async () => {
+  it("returns strong and partial matches in score order while preserving hard location exclusions", async () => {
     const t = convexTest(schema, modules);
+    vi.stubEnv("DEV_TOOLS_ENABLED", "true");
     const userId = await createUser(t);
     await setPlan(t, userId, "free");
     await addCompletedProfile(t, userId);
     await t.run(async (ctx) => {
       const now = Date.now();
-      for (const [index, geo] of [normalizedJob().geo, undefined].entries()) {
+      const baseJob = normalizedJob();
+      const variants = [
+        { title: "Frontend Engineer", geo: baseJob.geo },
+        { title: "Frontend Content Specialist", geo: baseJob.geo },
+        { title: "Frontend Engineer", geo: undefined },
+      ];
+      for (const [index, variant] of variants.entries()) {
         const job = normalizedJob();
         const { geo: _storedGeo, ...jobWithoutGeo } = job;
         const jobId = await ctx.db.insert("jobs", {
           ...jobWithoutGeo,
-          ...(geo ? { geo } : {}),
+          title: variant.title,
+          ...(variant.title === "Frontend Content Specialist"
+            ? {
+                descriptionText: "Maintain content in a React website",
+                requiredSkills: ["CMS"],
+                preferredSkills: [],
+              }
+            : {}),
+          ...(variant.geo ? { geo: variant.geo } : {}),
           normalizedSourceUrl: `${job.normalizedSourceUrl}-${index}`,
           sourceUrl: `${job.sourceUrl}-${index}`,
           jobFingerprint: `${job.jobFingerprint}-${index}`,
@@ -458,7 +476,15 @@ describe("shared job discovery", () => {
       api.jobDiscovery.listCurrentUserJobs,
       { view: "suggestions" },
     );
-    expect(feed.jobs).toHaveLength(1);
+    const audit = await asUser(t, userId).query(
+      api.jobDiscovery.getCurrentUserMatchAudit,
+      {},
+    );
+    const developmentFeed = await t.query(
+      internal.jobDiscovery.listUserJobsForDevelopment,
+      { userId },
+    );
+    expect(feed.jobs).toHaveLength(2);
     expect(feed.jobs[0].title).toBe("Frontend Engineer");
     expect(feed.jobs[0].locationNames).toEqual({
       en: "Tel Aviv",
@@ -467,6 +493,22 @@ describe("shared job discovery", () => {
     expect(feed.jobs[0].relevanceScore).toBeGreaterThanOrEqual(
       MINIMUM_RELEVANCE_SCORE,
     );
+    expect(feed.jobs[0].matchQuality).toBe("strong");
+    expect(feed.jobs[1].title).toBe("Frontend Content Specialist");
+    expect(feed.jobs[1].relevanceScore).toBeGreaterThanOrEqual(
+      PARTIAL_MATCH_MINIMUM_SCORE,
+    );
+    expect(feed.jobs[1].relevanceScore).toBeLessThan(MINIMUM_RELEVANCE_SCORE);
+    expect(feed.jobs[1].matchQuality).toBe("partial");
+    expect(feed.jobs[0].relevanceScore).toBeGreaterThan(
+      feed.jobs[1].relevanceScore,
+    );
+    expect(audit.counts.displayed).toBe(feed.jobs.length);
+    expect(developmentFeed.map((item) => item.id)).toEqual(
+      feed.jobs.map((item) => item.id),
+    );
+    expect(audit.counts.strongMatches).toBe(1);
+    expect(audit.counts.partialMatches).toBe(1);
     expect(feed.jobs[0].scoreComponents?.role).toBeGreaterThan(0);
     expect(feed.jobs[0].scoreComponents?.requiredSkills).toBeGreaterThan(0);
     expect(feed.jobs[0].scoreComponents?.location).toBe(5);

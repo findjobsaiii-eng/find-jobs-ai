@@ -1,8 +1,6 @@
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { formatDistanceToNow } from "date-fns";
-import { enUS } from "date-fns/locale/en-US";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
 import { JobDiscoveryPanel } from "./job-discovery-panel";
@@ -53,6 +51,7 @@ function job(overrides: Record<string, unknown> = {}) {
     discoveredAt: Date.UTC(2026, 8, 6),
     lastVerifiedAt: Date.UTC(2026, 8, 7),
     relevanceScore: 82,
+    matchQuality: "strong",
     scoreComponents: {
       role: 30,
       requiredSkills: 14,
@@ -102,14 +101,6 @@ describe("job result cards", () => {
     expect(screen.getByText("Tel Aviv")).toBeVisible();
     expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(screen.getByText("Hybrid")).toBeVisible();
-    expect(
-      screen.getByText(
-        `Posted ${formatDistanceToNow(new Date("2026-09-05T09:00:00.000Z"), {
-          addSuffix: true,
-          locale: enUS,
-        })}`,
-      ),
-    ).toBeVisible();
     expect(screen.getByText(/^Posted /)).toHaveAttribute(
       "datetime",
       "2026-09-05T09:00:00.000Z",
@@ -131,7 +122,7 @@ describe("job result cards", () => {
     renderPanel();
 
     const score = screen.getByRole("button", {
-      name: "82% match — show calculation",
+      name: "High match, match score 82 out of 100 — show calculation",
     });
     expect(score).toBeVisible();
     await user.hover(score);
@@ -141,6 +132,30 @@ describe("job result cards", () => {
     expect(screen.getByText("+18/25")).toBeVisible();
     expect(
       screen.getByText("Matched skills: Product strategy · Analytics"),
+    ).toBeVisible();
+  });
+
+  it("labels a sub-58 eligible job as a partial match without hiding it", () => {
+    hooks.jobs = [
+      job({
+        title: "E-commerce Operations Coordinator",
+        relevanceScore: 52,
+        matchQuality: "partial",
+      }),
+    ];
+
+    renderPanel();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "E-commerce Operations Coordinator",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Partial match · 52/100")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Relevant professional overlap, with some requirements less closely aligned",
+      ),
     ).toBeVisible();
   });
 

@@ -11,11 +11,7 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
-import {
-  evaluateJobQuality,
-  isDisplayEligibleJob,
-  MINIMUM_RELEVANCE_SCORE,
-} from "./jobQuality";
+import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import {
   activityReasonForLifecycle,
   deriveJobLifecycle,
@@ -246,6 +242,10 @@ const matchAuditValidator = v.object({
     professionalEligible: v.number(),
     scoredForRelevance: v.number(),
     aboveThreshold: v.number(),
+    strongMatches: v.number(),
+    partialMatches: v.number(),
+    lowConfidenceEligible: v.number(),
+    historyExclusions: v.number(),
     finalExcluded: v.number(),
     displayed: v.number(),
   }),
@@ -259,6 +259,11 @@ const matchAuditValidator = v.object({
       title: v.string(),
       companyName: v.string(),
       relevanceScore: v.number(),
+      matchQuality: v.union(
+        v.literal("strong"),
+        v.literal("partial"),
+        v.literal("possible"),
+      ),
       scoreComponents: auditScoreComponentsValidator,
       exclusionReasons: v.array(v.string()),
       finalExclusionReasons: v.array(v.string()),
@@ -286,7 +291,8 @@ const matchAuditValidator = v.object({
       suggestionsEligible: v.boolean(),
       decision: v.union(
         v.literal("strong"),
-        v.literal("acceptable"),
+        v.literal("partial"),
+        v.literal("possible"),
         v.literal("reject"),
       ),
     }),
@@ -1577,6 +1583,7 @@ async function feedItem(
     discoveredAt: job.firstDiscoveredAt,
     lastVerifiedAt: source.lastVerifiedAt,
     relevanceScore: quality.relevanceScore,
+    matchQuality: quality.matchQuality,
     scoreComponents: quality.scoreComponents,
     matchReasons: quality.matchReasons,
     matchHighlights: quality.matchDetails,
@@ -1616,6 +1623,49 @@ function deepReviewView(
     updatedAt: review.updatedAt,
     errorCode: review.errorCode,
   };
+}
+
+async function suggestionFeedForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  profile: SearchProfile,
+  profileRevision: number,
+  reviewsByJob: Map<Id<"jobs">, Doc<"jobDeepReviews">>,
+) {
+  const matches = await ctx.db
+    .query("jobMatches")
+    .withIndex(
+      "by_userId_profileRevision_displayEligible_relevanceScore",
+      (q) =>
+        q
+          .eq("userId", userId)
+          .eq("profileRevision", profileRevision)
+          .eq("displayEligible", true),
+    )
+    .order("desc")
+    .take(50);
+  const jobs = [];
+  for (const match of matches) {
+    const job = await ctx.db.get("jobs", match.jobId);
+    if (!job) continue;
+    const item = await feedItem(ctx, job, profile);
+    if (!item) continue;
+    jobs.push({
+      ...item,
+      deepReview: deepReviewView(
+        reviewsByJob.get(job._id),
+        job,
+        profileRevision,
+      ),
+    });
+  }
+  jobs.sort(
+    (a, b) =>
+      b.relevanceScore - a.relevanceScore ||
+      freshnessSortValue(b.postedAt) - freshnessSortValue(a.postedAt) ||
+      feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
+  );
+  return jobs;
 }
 
 export const listCurrentUserJobs = query({
@@ -1691,38 +1741,12 @@ export const listCurrentUserJobs = query({
       return { jobs: [], plan, emptyState: null };
     }
     if (!profileRecord) return { jobs: [], plan, emptyState: null };
-    const matches = await ctx.db
-      .query("jobMatches")
-      .withIndex(
-        "by_userId_profileRevision_displayEligible_relevanceScore",
-        (q) =>
-          q
-            .eq("userId", userId)
-            .eq("profileRevision", profileRecord.updatedAt)
-            .eq("displayEligible", true),
-      )
-      .order("desc")
-      .take(50);
-    const jobs = [];
-    for (const match of matches) {
-      const job = await ctx.db.get("jobs", match.jobId);
-      if (!job) continue;
-      const item = await feedItem(ctx, job, profile);
-      if (!item) continue;
-      jobs.push({
-        ...item,
-        deepReview: deepReviewView(
-          reviewsByJob.get(job._id),
-          job,
-          profileRecord.updatedAt,
-        ),
-      });
-    }
-    jobs.sort(
-      (a, b) =>
-        b.relevanceScore - a.relevanceScore ||
-        freshnessSortValue(b.postedAt) - freshnessSortValue(a.postedAt) ||
-        feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
+    const jobs = await suggestionFeedForUser(
+      ctx,
+      userId,
+      profile,
+      profileRecord.updatedAt,
+      reviewsByJob,
     );
     const emptyState = jobs.length
       ? null
@@ -1852,14 +1876,9 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       return false;
     }
     const otherBlockingReasons = item.quality.exclusionReasons.filter(
-      (reason) =>
-        reason !== "location_conflict" &&
-        reason !== "below_relevance_threshold",
+      (reason) => reason !== "location_conflict",
     );
-    return (
-      otherBlockingReasons.length === 0 &&
-      item.quality.relevanceScore + 5 >= MINIMUM_RELEVANCE_SCORE
-    );
+    return otherBlockingReasons.length === 0;
   });
   const professionalEligible = insideLocation.filter(
     (item) => item.quality.hardEligibilityPassed,
@@ -1884,6 +1903,18 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       aboveThreshold: professionalEligible.filter(
         (item) => item.quality.passesRelevanceThreshold,
       ).length,
+      strongMatches: professionalEligible.filter(
+        (item) => item.quality.matchQuality === "strong",
+      ).length,
+      partialMatches: professionalEligible.filter(
+        (item) => item.quality.matchQuality === "partial",
+      ).length,
+      lowConfidenceEligible: professionalEligible.filter(
+        (item) => item.quality.matchQuality === "possible",
+      ).length,
+      historyExclusions: freshnessEligible.filter(
+        (item) => item.accepted && appliedJobIds.has(item.job._id),
+      ).length,
       finalExcluded: freshnessEligible.filter(
         (item) => item.accepted && appliedJobIds.has(item.job._id),
       ).length,
@@ -1900,6 +1931,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       title: item.job.title,
       companyName: item.job.companyName,
       relevanceScore: item.quality.relevanceScore,
+      matchQuality: item.quality.matchQuality,
       scoreComponents: item.quality.scoreComponents,
       exclusionReasons: item.quality.exclusionReasons,
       finalExclusionReasons: [
@@ -1925,17 +1957,11 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       locationEligible:
         !item.quality.exclusionReasons.includes("location_conflict"),
       professionalEligible: item.quality.exclusionReasons.every(
-        (reason) =>
-          reason === "location_conflict" ||
-          reason === "below_relevance_threshold",
+        (reason) => reason === "location_conflict",
       ),
       freshnessEligible: item.freshness.eligible,
       suggestionsEligible: item.accepted && !appliedJobIds.has(item.job._id),
-      decision: item.accepted
-        ? item.quality.relevanceScore >= 78
-          ? ("strong" as const)
-          : ("acceptable" as const)
-        : ("reject" as const),
+      decision: item.accepted ? item.quality.matchQuality : ("reject" as const),
     })),
   };
 }
@@ -2256,16 +2282,15 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
           activityEligible &&
           freshness.eligible &&
           quality.exclusionReasons.every(
-            (reason) =>
-              reason === "location_conflict" ||
-              reason === "below_relevance_threshold",
+            (reason) => reason === "location_conflict",
           ),
       ).length,
       aboveThreshold: evaluatedRunJobs.filter(
         ({ activityEligible, freshness, quality }) =>
           activityEligible &&
           freshness.eligible &&
-          quality.outcome === "eligible",
+          quality.hardEligibilityPassed &&
+          quality.passesRelevanceThreshold,
       ).length,
       stalePostingExclusions: evaluatedRunJobs.filter(
         ({ freshness }) => freshness.reason === "stale_posting",
@@ -2364,6 +2389,35 @@ export const getUserMatchAuditForDevelopment = internalQuery({
   returns: matchAuditValidator,
   handler: async (ctx, args) => {
     return await buildMatchAudit(ctx, args.userId);
+  },
+});
+
+export const listUserJobsForDevelopment = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.array(jobFeedItem),
+  handler: async (ctx, args) => {
+    if (env.DEV_TOOLS_ENABLED !== "true") {
+      throw new ConvexError({ code: "DEV_TOOLS_DISABLED" });
+    }
+    const [profile, profileRecord, reviews] = await Promise.all([
+      loadSearchProfile(ctx, args.userId),
+      getProfile(ctx, args.userId),
+      ctx.db
+        .query("jobDeepReviews")
+        .withIndex("by_userId_and_updatedAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .order("desc")
+        .take(100),
+    ]);
+    if (!profileRecord) profileIncomplete();
+    return await suggestionFeedForUser(
+      ctx,
+      args.userId,
+      profile,
+      profileRecord.updatedAt,
+      new Map(reviews.map((review) => [review.jobId, review])),
+    );
   },
 });
 

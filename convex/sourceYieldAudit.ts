@@ -152,8 +152,7 @@ function classifyYield(args: {
 
 function professionallyEligible(match: Doc<"jobMatches">) {
   return match.exclusionReasons.every(
-    (reason) =>
-      reason === "location_conflict" || reason === "below_relevance_threshold",
+    (reason) => reason === "location_conflict",
   );
 }
 

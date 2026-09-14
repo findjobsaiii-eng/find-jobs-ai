@@ -190,6 +190,13 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                       matchAudit.counts.scoredForRelevance,
                     ],
                     ["aboveThreshold", matchAudit.counts.aboveThreshold],
+                    ["strongMatches", matchAudit.counts.strongMatches],
+                    ["partialMatches", matchAudit.counts.partialMatches],
+                    [
+                      "lowConfidenceEligible",
+                      matchAudit.counts.lowConfidenceEligible,
+                    ],
+                    ["historyExclusions", matchAudit.counts.historyExclusions],
                     ["finalExcluded", matchAudit.counts.finalExcluded],
                     ["displayed", matchAudit.counts.displayed],
                   ] as const
@@ -222,7 +229,8 @@ export function DevelopmentTools({ onEdit }: { onEdit: () => void }) {
                     </p>
                     <p className="text-muted-foreground">
                       {candidate.companyName} · {candidate.relevanceScore} ·{" "}
-                      {t(`jobDiscovery.audit.${candidate.decision}`)}
+                      {t(`jobDiscovery.audit.${candidate.decision}`)} ·{" "}
+                      {t(`jobDiscovery.matchQuality.${candidate.matchQuality}`)}
                     </p>
                     <p className="text-muted-foreground">
                       {candidate.sourceFamily ?? "unknown"} ·{" "}

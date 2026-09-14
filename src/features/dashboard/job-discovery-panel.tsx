@@ -163,7 +163,17 @@ export function JobDiscoveryPanel({
               })();
               const skills = (job.requiredSkills ?? []).slice(0, 5);
               const highlights = job.matchHighlights;
+              const matchQuality =
+                job.matchQuality ??
+                (job.relevanceScore >= 58
+                  ? "strong"
+                  : job.relevanceScore >= 45
+                    ? "partial"
+                    : "possible");
               const explanations = [
+                ...(view === "suggestions" && matchQuality !== "strong"
+                  ? [t(`jobDiscovery.match.${matchQuality}Context`)]
+                  : []),
                 ...(highlights?.skills.length
                   ? [
                       t("jobDiscovery.match.skills", {
@@ -228,6 +238,7 @@ export function JobDiscoveryPanel({
                       {view === "suggestions" ? (
                         <JobMatchScore
                           score={job.relevanceScore}
+                          quality={matchQuality}
                           components={job.scoreComponents}
                           highlights={job.matchHighlights}
                         />

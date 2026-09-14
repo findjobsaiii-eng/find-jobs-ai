@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyMatchQuality,
   evaluateJobQuality,
   isDisplayEligibleJob,
   MINIMUM_RELEVANCE_SCORE,
+  PARTIAL_MATCH_MINIMUM_SCORE,
 } from "./jobQuality";
 
 const profile = {
@@ -73,6 +75,29 @@ describe("deterministic CV-backed relevance", () => {
     );
   });
 
+  it("uses score bands without turning a sub-58 score into a hard exclusion", () => {
+    const result = evaluateJobQuality(
+      job({
+        title: "Frontend Content Specialist",
+        descriptionText: "Maintain content in a React website",
+        responsibilities: ["Maintain website content"],
+        requiredSkills: ["CMS"],
+        preferredSkills: [],
+      }),
+      profile,
+    );
+    expect(result.hardEligibilityPassed).toBe(true);
+    expect(result.outcome).toBe("eligible");
+    expect(result.relevanceScore).toBeLessThan(MINIMUM_RELEVANCE_SCORE);
+    expect(result.matchQuality).toBe("possible");
+    expect(result.exclusionReasons).not.toContain("below_relevance_threshold");
+    expect(classifyMatchQuality(MINIMUM_RELEVANCE_SCORE)).toBe("strong");
+    expect(classifyMatchQuality(PARTIAL_MATCH_MINIMUM_SCORE)).toBe("partial");
+    expect(classifyMatchQuality(PARTIAL_MATCH_MINIMUM_SCORE - 1)).toBe(
+      "possible",
+    );
+  });
+
   it("ranks strong role and skills above generic title overlap", () => {
     const strong = evaluateJobQuality(job(), profile);
     const generic = evaluateJobQuality(
@@ -85,7 +110,9 @@ describe("deterministic CV-backed relevance", () => {
       profile,
     );
     expect(strong.relevanceScore).toBeGreaterThan(generic.relevanceScore);
-    expect(generic.outcome).toBe("excluded");
+    expect(generic.hardEligibilityPassed).toBe(true);
+    expect(generic.outcome).toBe("eligible");
+    expect(generic.matchQuality).not.toBe("strong");
   });
 
   it("does not let a generic manager token make a wrong domain relevant", () => {
@@ -100,6 +127,72 @@ describe("deterministic CV-backed relevance", () => {
     );
     expect(result.outcome).toBe("excluded");
     expect(result.exclusionReasons).toContain("professional_mismatch");
+  });
+
+  it("does not give unrecognized professional domains a neutral pass", () => {
+    const programProfile = {
+      ...profile,
+      targetJobTitles: ["Academic Program Manager", "Program Coordinator"],
+      currentRole: "Instructional Designer",
+      normalizedPastRoles: ["Research Project Coordinator"],
+      professionalDomains: ["Higher education", "Instructional design"],
+      skills: ["Program management", "Instructional design", "Research"],
+    };
+    const result = evaluateJobQuality(
+      job({
+        title: "Software Engineer",
+        descriptionText: "Build distributed services and production APIs",
+        responsibilities: ["Develop backend systems"],
+        requiredSkills: ["Go", "Kubernetes"],
+      }),
+      programProfile,
+    );
+    expect(result.hardEligibilityPassed).toBe(false);
+    expect(result.exclusionReasons).toContain("professional_mismatch");
+  });
+
+  it("does not treat incidental department names as the job's profession", () => {
+    const result = evaluateJobQuality(
+      job({
+        title: "Technical Product Manager - Video Surveillance",
+        descriptionText:
+          "Lead a video-surveillance portfolio and work with R&D, sales, marketing, manufacturing, service teams, and global customers.",
+        responsibilities: ["Own the CCTV and IoT product roadmap"],
+        requiredSkills: [
+          "Technical product management",
+          "Video surveillance",
+          "CCTV",
+          "Networking",
+          "IoT",
+        ],
+      }),
+      profile,
+    );
+    expect(result.hardEligibilityPassed).toBe(false);
+    expect(result.exclusionReasons).toContain("professional_mismatch");
+  });
+
+  it("recognizes CRM and business automation as a primary professional family", () => {
+    const crmProfile = {
+      ...profile,
+      targetJobTitles: ["CRM Automation / Implementation"],
+      currentRole: "CRM Implementer",
+      normalizedPastRoles: ["CRM Systems Specialist"],
+      professionalDomains: ["CRM implementation and business automation"],
+      skills: ["CRM", "Salesforce", "Workflow automation"],
+    };
+    const result = evaluateJobQuality(
+      job({
+        title: "CRM and Automation Manager",
+        descriptionText:
+          "Implement CRM workflows and automate customer operations.",
+        responsibilities: ["Own workflow automation"],
+        requiredSkills: ["CRM", "Workflow automation"],
+      }),
+      crmProfile,
+    );
+    expect(result.hardEligibilityPassed).toBe(true);
+    expect(result.outcome).toBe("eligible");
   });
 
   it("uses previous substantial roles without accepting unrelated roles", () => {

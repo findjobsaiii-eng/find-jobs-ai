@@ -177,12 +177,19 @@
       "targetRole": "מתאים לתפקיד היעד {{role}}",
       "pastRole": "מתאים לניסיון המקצועי הקודם שלך",
       "domain": "מתאים לניסיון שלך בתחום {{domain}}",
-      "location": "נמצא בטווח המיקום שהגדרת"
+      "location": "נמצא בטווח המיקום שהגדרת",
+      "partialContext": "יש חפיפה מקצועית רלוונטית, אך חלק מהדרישות פחות תואמות",
+      "possibleContext": "זו אפשרות מקצועית סבירה עם חפיפה נמוכה יותר לפרופיל"
+    },
+    "matchQuality": {
+      "strong": "התאמה גבוהה",
+      "partial": "התאמה חלקית",
+      "possible": "התאמה אפשרית"
     },
     "score": {
-      "badge": "{{percentage}}% התאמה",
-      "triggerLabel": "{{percentage}}% התאמה — הצגת החישוב",
-      "heading": "{{percentage}}% התאמה לפרופיל",
+      "badge": "{{quality}} · {{score}}/100",
+      "triggerLabel": "{{quality}}, ציון התאמה {{score}} מתוך 100 — הצגת החישוב",
+      "heading": "ציון התאמה {{score}} מתוך 100",
       "description": "ציון קבוע שמחושב לפי הפרופיל האפקטיבי שלך ופרטי המשרה.",
       "components": {
         "role": "התאמה לתפקיד",
@@ -228,7 +235,11 @@
       "insideLocation": "בטווח המיקום",
       "professionalEligible": "כשירות מקצועית",
       "scoredForRelevance": "דורגו לפי התאמה",
-      "aboveThreshold": "עברו סף התאמה",
+      "aboveThreshold": "התאמות חזקות, ציון 58 ומעלה",
+      "strongMatches": "התאמות חזקות",
+      "partialMatches": "התאמות חלקיות",
+      "lowConfidenceEligible": "התאמות אפשריות",
+      "historyExclusions": "סינון בגלל היסטוריה",
       "finalExcluded": "סינון סופי",
       "rejectionReasons": "סיבות סינון",
       "sourceCoverage": "כיסוי מקורות בגילוי",
@@ -247,7 +258,8 @@
       "suggestions": "הצעות",
       "displayed": "מוצגות",
       "strong": "חזקה",
-      "acceptable": "סבירה",
+      "partial": "חלקית",
+      "possible": "אפשרית",
       "reject": "נדחתה"
     }
   },

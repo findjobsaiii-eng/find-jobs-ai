@@ -104,6 +104,12 @@ const freshnessBucket = v.union(
   v.literal("freshness_unknown"),
 );
 
+const matchQuality = v.union(
+  v.literal("strong"),
+  v.literal("partial"),
+  v.literal("possible"),
+);
+
 const profileOverrideField = v.union(
   v.literal("targetJobTitles"),
   v.literal("professionalSummary"),
@@ -214,6 +220,7 @@ export const jobFeedItem = v.object({
   discoveredAt: v.number(),
   lastVerifiedAt: v.number(),
   relevanceScore: v.number(),
+  matchQuality: v.optional(matchQuality),
   scoreComponents: v.optional(relevanceComponents),
   matchReasons: v.array(v.string()),
   matchHighlights: v.optional(
@@ -636,6 +643,7 @@ const schema = defineSchema({
     freshnessBucket: v.optional(freshnessBucket),
     freshnessEligible: v.optional(v.boolean()),
     relevanceScore: v.number(),
+    matchQuality: v.optional(matchQuality),
     scoreComponents: relevanceComponents,
     matchReasons: v.array(v.string()),
     resultSource,

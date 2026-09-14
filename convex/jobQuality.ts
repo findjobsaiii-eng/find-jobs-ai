@@ -8,11 +8,21 @@ import {
 import { isDevelopmentFixtureJob } from "./jobSourceProvenance";
 
 export const MINIMUM_RELEVANCE_SCORE = 58;
+export const PARTIAL_MATCH_MINIMUM_SCORE = 45;
+
+export type MatchQuality = "strong" | "partial" | "possible";
+
+export function classifyMatchQuality(score: number): MatchQuality {
+  if (score >= MINIMUM_RELEVANCE_SCORE) return "strong";
+  if (score >= PARTIAL_MATCH_MINIMUM_SCORE) return "partial";
+  return "possible";
+}
 
 export type QualityEvaluation = {
   outcome: "eligible" | "excluded";
   hardEligibilityPassed: boolean;
   passesRelevanceThreshold: boolean;
+  matchQuality: MatchQuality;
   exclusionReasons: string[];
   relevanceScore: number;
   scoreComponents: {
@@ -215,11 +225,22 @@ type RoleConcept =
   | "site_management"
   | "product"
   | "project"
+  | "program"
+  | "education"
   | "marketing"
   | "customer_success"
+  | "client_services"
   | "content"
   | "sales"
-  | "qa";
+  | "qa"
+  | "finance"
+  | "analytics"
+  | "it_support"
+  | "mechanical"
+  | "robotics"
+  | "communications"
+  | "crm"
+  | "business_automation";
 
 function roleConcepts(value: string) {
   const text = normalized(value);
@@ -252,15 +273,33 @@ function roleConcepts(value: string) {
   )
     concepts.add("product");
   if (
-    /(?:project manager|project management|מנהל.?ת? פרויקטים|ניהול פרויקטים)/u.test(
+    /(?:project manager|project coordinator|project management|מנהל.?ת? פרויקטים|רכז.?ת? פרויקטים|ניהול פרויקטים)/u.test(
       text,
     )
   )
     concepts.add("project");
+  if (
+    /(?:program manager|program coordinator|program management|program administration|מנהל.?ת? תוכניות|רכז.?ת? תוכניות|ניהול תוכניות)/u.test(
+      text,
+    )
+  )
+    concepts.add("program");
+  if (
+    /(?:instructional design|instructional designer|academic advisor|education program|teaching|learning program|עיצוב למידה|ייעוץ אקדמי|הדרכה|חינוך)/u.test(
+      text,
+    )
+  )
+    concepts.add("education");
   if (/(?:marketing|ppc|campaign|שיווק|קמפיינים)/u.test(text))
     concepts.add("marketing");
   if (/(?:customer success|client success|הצלחת לקוח)/u.test(text))
     concepts.add("customer_success");
+  if (
+    /(?:client services|customer service|customer support|שירות לקוחות|תמיכת לקוחות)/u.test(
+      text,
+    )
+  )
+    concepts.add("client_services");
   if (
     /(?:content creator|content presenter|copywriter|יצירת תוכן|תוכן שיווקי)/u.test(
       text,
@@ -271,6 +310,50 @@ function roleConcepts(value: string) {
     concepts.add("sales");
   if (/(?:quality assurance|qa engineer|qa tester|בדיקות תוכנה)/u.test(text))
     concepts.add("qa");
+  if (
+    /(?:finance|financial|fp&a|accounting|accountant|p&l|כספים|פיננסי|חשבונאות|רואה חשבון)/u.test(
+      text,
+    )
+  )
+    concepts.add("finance");
+  if (
+    /(?:analyst|analytics|data analysis|אנליסט|אנליטיקה|ניתוח נתונים)/u.test(
+      text,
+    )
+  )
+    concepts.add("analytics");
+  if (
+    /(?:systems? administrator|service desk|help desk|technical support|it support|information systems|network operations|מנהל.?ת? מערכת|תמיכה טכנית|מערכות מידע)/u.test(
+      text,
+    )
+  )
+    concepts.add("it_support");
+  if (
+    /(?:mechanical engineering|mechanical engineer|mechatronics|control systems|הנדסת מכונות|מהנדס.?ת? מכונות)/u.test(
+      text,
+    )
+  )
+    concepts.add("mechanical");
+  if (/(?:robotics|robotic|industrial automation|רובוטיקה)/u.test(text))
+    concepts.add("robotics");
+  if (
+    /(?:public relations|communications coordinator|media relations|יחסי ציבור|תקשורת שיווקית)/u.test(
+      text,
+    )
+  )
+    concepts.add("communications");
+  if (
+    /(?:\bcrm\b|customer relationship management|salesforce|dynamics 365|hubspot|מערכות? crm)/u.test(
+      text,
+    )
+  )
+    concepts.add("crm");
+  if (
+    /(?:business automation|workflow automation|marketing automation|automation manager|אוטומציות|אוטומציה עסקית)/u.test(
+      text,
+    )
+  )
+    concepts.add("business_automation");
   return concepts;
 }
 
@@ -426,9 +509,9 @@ function profileSeniorityLevel(value?: string) {
 }
 
 function domainEvaluation(job: QualityJob, profile: SearchProfile) {
-  const jobConcepts = roleConcepts(
+  const titleConcepts = roleConcepts(job.title);
+  const contextConcepts = roleConcepts(
     [
-      job.title,
       job.descriptionText ?? "",
       job.requirementsText ?? "",
       ...job.responsibilities,
@@ -443,12 +526,16 @@ function domainEvaluation(job: QualityJob, profile: SearchProfile) {
     ...profile.targetJobTitles,
   ];
   const profileConcepts = roleConcepts(profileValues.join(" "));
-  const score = profileConcepts.size
-    ? setSimilarity(profileConcepts, jobConcepts)
-    : 0.5;
+  const titleScore = setSimilarity(profileConcepts, titleConcepts);
+  const contextScore = setSimilarity(profileConcepts, contextConcepts);
+  const score = Math.max(titleScore, contextScore * 0.35);
   const bestDomain = (profile.professionalDomains ?? []).reduce(
     (best, domain) => {
-      const domainScore = setSimilarity(roleConcepts(domain), jobConcepts);
+      const profileDomainConcepts = roleConcepts(domain);
+      const domainScore = Math.max(
+        setSimilarity(profileDomainConcepts, titleConcepts),
+        setSimilarity(profileDomainConcepts, contextConcepts) * 0.35,
+      );
       return domainScore > best.score
         ? { score: domainScore, value: domain }
         : best;
@@ -562,10 +649,8 @@ export function evaluateJobQuality(
     0,
   );
   const passesRelevanceThreshold = relevanceScore >= MINIMUM_RELEVANCE_SCORE;
-  const exclusionReasons = [
-    ...hardExclusions,
-    ...(!passesRelevanceThreshold ? ["below_relevance_threshold"] : []),
-  ];
+  const matchQuality = classifyMatchQuality(relevanceScore);
+  const exclusionReasons = [...hardExclusions];
   const matchedSkills = [
     ...new Set([...required.matched, ...preferred.matched]),
   ];
@@ -581,12 +666,10 @@ export function evaluateJobQuality(
     location: compatibleLocation,
   };
   return {
-    outcome:
-      !hardExclusions.length && passesRelevanceThreshold
-        ? "eligible"
-        : "excluded",
+    outcome: !hardExclusions.length ? "eligible" : "excluded",
     hardEligibilityPassed: hardExclusions.length === 0,
     passesRelevanceThreshold,
+    matchQuality,
     exclusionReasons,
     relevanceScore,
     scoreComponents,

@@ -176,12 +176,19 @@
       "targetRole": "Matches your target role: {{role}}",
       "pastRole": "Matches your previous professional experience",
       "domain": "Matches your experience in {{domain}}",
-      "location": "Within your selected location range"
+      "location": "Within your selected location range",
+      "partialContext": "Relevant professional overlap, with some requirements less closely aligned",
+      "possibleContext": "A plausible professional opportunity with a weaker profile overlap"
+    },
+    "matchQuality": {
+      "strong": "High match",
+      "partial": "Partial match",
+      "possible": "Possible match"
     },
     "score": {
-      "badge": "{{percentage}}% match",
-      "triggerLabel": "{{percentage}}% match — show calculation",
-      "heading": "{{percentage}}% profile match",
+      "badge": "{{quality}} · {{score}}/100",
+      "triggerLabel": "{{quality}}, match score {{score}} out of 100 — show calculation",
+      "heading": "Match score {{score}} out of 100",
       "description": "A deterministic score based on your effective profile and this job.",
       "components": {
         "role": "Role match",
@@ -227,7 +234,11 @@
       "insideLocation": "Inside location/radius",
       "professionalEligible": "Professionally eligible",
       "scoredForRelevance": "Scored for relevance",
-      "aboveThreshold": "Passed relevance threshold",
+      "aboveThreshold": "Strong matches, score ≥58",
+      "strongMatches": "Strong matches",
+      "partialMatches": "Partial matches",
+      "lowConfidenceEligible": "Possible matches",
+      "historyExclusions": "History exclusions",
       "finalExcluded": "Final exclusions",
       "rejectionReasons": "Rejection reasons",
       "sourceCoverage": "Discovery source coverage",
@@ -246,7 +257,8 @@
       "suggestions": "suggestions",
       "displayed": "Displayed",
       "strong": "strong",
-      "acceptable": "acceptable",
+      "partial": "partial",
+      "possible": "possible",
       "reject": "rejected"
     }
   },

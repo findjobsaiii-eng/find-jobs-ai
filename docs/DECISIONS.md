@@ -453,22 +453,26 @@ are private to their owner, survive reloads, and are marked stale when the
 profile revision or job content changes. Free users may retain read access to a
 previously generated review but cannot generate or refresh one.
 
-### D-026: Match percentages expose the deterministic ranking score
+### D-026: Match bands expose the deterministic ranking score
 
 Status: Accepted
 
 Evidence: `convex/jobQuality.ts`, `convex/jobDiscovery.ts`, and
 `src/features/dashboard/job-match-score.tsx`.
 
-The percentage shown on suggestion cards is the same deterministic 100-point
-score used to order the feed. Its components are role (35), skills and
+The score shown on suggestion cards is the same deterministic 100-point score
+used to order the feed. It is presented as points out of 100 rather than a
+probability. Its components are role (35), skills and
 platforms (25), professional domain (15), experience requirements (10),
 seniority (7), location (5), and work preferences (3). The accessible
 hover/focus explanation shows earned points and profile evidence without
 inventing negative deductions. Hard eligibility rules run before ranking, so
 closed jobs and jobs that conflict with mandatory location or work preferences
-never receive a visible score. Historical application snapshots keep the score
-optional so existing saved records remain readable.
+never receive a visible score. A score of 58 or higher is a strong match,
+45–57 is a partial match, and a lower score is a possible match. These bands
+describe ordering quality and do not hide a job that passed all hard activity,
+freshness, location, professional, and history rules. Historical application
+snapshots keep the band optional so existing saved records remain readable.
 
 ### D-027: Job views live in the header and profile topics use App Router paths
 
