@@ -415,9 +415,9 @@
       "summary": "Write at least {{min}} characters and focus on your experience and strengths.",
       "skills": "Search for skills and tools, then add everything that's relevant to you.",
       "locations": "Choose one city or address from the Google suggestions.",
-      "locationRadius": "Choose how far from this location to search.",
+      "locationRadius": "Drag the slider or use the arrow keys to set your search radius.",
       "multipleChoice": "Choose all that apply.",
-      "salary": "Gross monthly amount before tax, between ₪1,000 and ₪200,000.",
+      "salary": "Optional. If you have a minimum, enter the gross monthly amount before tax.",
       "languages": "Choose the level that best reflects your professional working ability."
     },
     "placeholders": {
@@ -425,6 +425,7 @@
       "summary": "Describe your background, strongest capabilities, and the work you want to do next…",
       "skill": "e.g. TypeScript",
       "location": "e.g. Tel Aviv",
+      "salary": "e.g. 15,000",
       "proficiency": "Select a level"
     },
     "location": {
@@ -484,10 +485,10 @@
       "skills": "Add at least one skill (up to 30).",
       "locations": "Choose one location from the Google suggestions.",
       "locationReconfirm": "Choose the saved location again so we can verify its city and search radius.",
-      "locationRadius": "Choose one of the available search distances.",
+      "locationRadius": "Choose a search distance from 5 to 200 km.",
       "workArrangements": "Choose at least one work arrangement.",
       "employmentTypes": "Choose at least one employment type.",
-      "salary": "Enter a whole monthly amount from ₪1,000 to ₪200,000.",
+      "salary": "If you add a salary, enter a whole monthly amount from ₪1,000 to ₪200,000.",
       "languages": "Add at least one language and choose a proficiency for each.",
       "addCustom": "We couldn't add that option. Try a shorter, plain-text value.",
       "placeSelection": "We couldn't add that location. Please choose it again.",

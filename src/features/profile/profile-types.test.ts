@@ -58,9 +58,11 @@ describe("profile location draft", () => {
     const draft = createProfileDraft(profileData());
     draft.locationRadiusKm = 17;
 
-    expect(validateProfileStep(3, draft)).toMatchObject({
+    const errors = validateProfileStep(3, draft);
+    expect(errors).toMatchObject({
       preferredLocations: "onboarding.errors.locations",
       locationRadiusKm: "onboarding.errors.locationRadius",
     });
+    expect(errors).not.toHaveProperty("minimumMonthlySalaryIls");
   });
 });

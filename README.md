@@ -128,10 +128,10 @@ Editable profile data is normalized and bounded on the server:
 | Years of experience          | Whole number from 0–60                                               |
 | Skills                       | 1–30 validated catalog references                                    |
 | Preferred location           | One Google Place with normalized city/region/country and coordinates |
-| Location radius              | One of 5, 10, 15, 25, 40, 60, or 100 km                              |
+| Location radius              | 5–200 km in 5 km increments                                          |
 | Work arrangements            | One or more of onsite, hybrid, and remote                            |
 | Employment types             | One or more of full-time, part-time, and contract                    |
-| Minimum monthly gross salary | Whole ILS amount from 1,000–200,000                                  |
+| Minimum monthly gross salary | Optional whole ILS amount from 1,000–200,000                         |
 | Languages                    | 1–10 unique supported languages, each with a proficiency selection   |
 
 CV versions are stored in the owner-indexed `resumeDocuments` table. Raw text and the complete structured extraction remain server-only; clients receive only the concise review projection. `candidateProfiles.cvCareerProfile` keeps the normalized matching representation while the ordinary profile fields are the effective values used by discovery. Manual saves record field-level overrides. A replacement CV updates the CV-derived layer and recalculates unmodified effective fields, while intentional changes to roles, skills, location, seniority, work preferences, salary, languages, experience, and summary remain in place. Existing pre-CV completed profiles are treated as manually chosen, so their values are preserved on first import.
@@ -151,8 +151,7 @@ fields are bounded and validated by Convex. Optional browser geolocation is used
 only as a temporary search bias and is never written to Convex. The legacy Place
 ID array remains for compatibility; profiles that predate normalized location
 storage must reconfirm and save their location before starting another search.
-Previously stored 50 km and 200 km radii remain valid and can be changed to a
-current preset.
+The radius slider supports 5–200 km in 5 km increments and defaults to 25 km.
 Curated job titles and skills can be updated idempotently with
 `npm run catalog:seed`. Curated job-title rows also store editable bilingual
 aliases used by discovery. Private titles added by users deliberately have no

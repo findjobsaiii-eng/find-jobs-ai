@@ -22,12 +22,9 @@ export const SUPPORTED_LANGUAGES = [
   "ro",
   "yi",
 ] as const;
-export const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 15, 25, 40, 60, 100] as const;
-const SUPPORTED_LOCATION_RADIUS_OPTIONS_KM = [
-  ...LOCATION_RADIUS_OPTIONS_KM,
-  50,
-  200,
-] as const;
+export const LOCATION_RADIUS_MIN_KM = 5;
+export const LOCATION_RADIUS_MAX_KM = 200;
+export const LOCATION_RADIUS_STEP_KM = 5;
 
 export const PROFILE_LIMITS = {
   preferredDisplayName: { min: 2, max: 80 },
@@ -104,6 +101,15 @@ export type ProfileDraft = {
 
 export type ProfileField = keyof ProfileDraft;
 export type ProfileErrors = Partial<Record<ProfileField, string>>;
+
+export function isSupportedLocationRadius(radius: number) {
+  return (
+    Number.isSafeInteger(radius) &&
+    radius >= LOCATION_RADIUS_MIN_KM &&
+    radius <= LOCATION_RADIUS_MAX_KM &&
+    radius % LOCATION_RADIUS_STEP_KM === 0
+  );
+}
 
 export function createProfileDraft(data: CurrentProfile): ProfileDraft {
   const profile = data.profile;
@@ -260,11 +266,7 @@ export function validateProfileStep(
     } else if (!hasNormalizedLocation(draft.preferredLocations[0])) {
       errors.preferredLocations = "onboarding.errors.locationReconfirm";
     }
-    if (
-      !SUPPORTED_LOCATION_RADIUS_OPTIONS_KM.includes(
-        draft.locationRadiusKm as (typeof SUPPORTED_LOCATION_RADIUS_OPTIONS_KM)[number],
-      )
-    ) {
+    if (!isSupportedLocationRadius(draft.locationRadiusKm)) {
       errors.locationRadiusKm = "onboarding.errors.locationRadius";
     }
     if (draft.workArrangements.length === 0) {
@@ -273,14 +275,15 @@ export function validateProfileStep(
     if (draft.employmentTypes.length === 0) {
       errors.employmentTypes = "onboarding.errors.employmentTypes";
     }
-    const salary = Number(draft.minimumMonthlySalaryIls);
-    if (
-      draft.minimumMonthlySalaryIls === "" ||
-      !Number.isSafeInteger(salary) ||
-      salary < PROFILE_LIMITS.minimumMonthlySalaryIls.min ||
-      salary > PROFILE_LIMITS.minimumMonthlySalaryIls.max
-    ) {
-      errors.minimumMonthlySalaryIls = "onboarding.errors.salary";
+    if (draft.minimumMonthlySalaryIls !== "") {
+      const salary = Number(draft.minimumMonthlySalaryIls);
+      if (
+        !Number.isSafeInteger(salary) ||
+        salary < PROFILE_LIMITS.minimumMonthlySalaryIls.min ||
+        salary > PROFILE_LIMITS.minimumMonthlySalaryIls.max
+      ) {
+        errors.minimumMonthlySalaryIls = "onboarding.errors.salary";
+      }
     }
   }
   if (step === 4) {

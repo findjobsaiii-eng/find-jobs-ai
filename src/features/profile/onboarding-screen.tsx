@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type Dispatch,
@@ -22,7 +23,6 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
-import { cn } from "@/lib/utils";
 import {
   Choice,
   ChoiceGroup,
@@ -34,7 +34,9 @@ import {
   EMPLOYMENT_TYPES,
   getInitialStep,
   LANGUAGE_PROFICIENCIES,
-  LOCATION_RADIUS_OPTIONS_KM,
+  LOCATION_RADIUS_MAX_KM,
+  LOCATION_RADIUS_MIN_KM,
+  LOCATION_RADIUS_STEP_KM,
   PROFILE_LIMITS,
   profileDraftToValues,
   type CurrentProfile,
@@ -60,6 +62,11 @@ type StepProps = {
   setDraft: Dispatch<SetStateAction<ProfileDraft>>;
   errors: ProfileErrors;
 };
+
+const salaryFormatters = {
+  en: new Intl.NumberFormat("en-IL"),
+  he: new Intl.NumberFormat("he-IL"),
+} as const;
 
 export function StepOne({
   draft,
@@ -181,8 +188,19 @@ export function StepTwo({ draft, setDraft, errors }: StepProps) {
 }
 
 export function StepThree({ draft, setDraft, errors }: StepProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const radiusInputId = useId();
+  const radiusHintId = `${radiusInputId}-hint`;
   const primaryLocation = draft.preferredLocations[0];
+  const radiusProgress =
+    ((draft.locationRadiusKm - LOCATION_RADIUS_MIN_KM) /
+      (LOCATION_RADIUS_MAX_KM - LOCATION_RADIUS_MIN_KM)) *
+    100;
+  const formattedSalary = draft.minimumMonthlySalaryIls
+    ? salaryFormatters[i18n.resolvedLanguage === "he" ? "he" : "en"].format(
+        Number(draft.minimumMonthlySalaryIls),
+      )
+    : "";
   const toggleWorkArrangement = (value: WorkArrangement) => {
     setDraft((current) => ({
       ...current,
@@ -214,34 +232,67 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
       />
       {primaryLocation ? (
         <fieldset>
-          <legend className="text-sm font-medium">
-            {t("onboarding.fields.locationRadius")}
+          <legend className="w-full">
+            <span className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium">
+                {t("onboarding.fields.locationRadius")}
+              </span>
+              <output
+                htmlFor={radiusInputId}
+                className="bg-primary/10 text-primary rounded-full px-3 py-1 text-sm font-semibold tabular-nums"
+              >
+                {t("onboarding.location.radiusOption", {
+                  radius: draft.locationRadiusKm,
+                })}
+              </output>
+            </span>
           </legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {LOCATION_RADIUS_OPTIONS_KM.map((radius) => {
-              const selected = draft.locationRadiusKm === radius;
-              return (
-                <button
-                  key={radius}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      locationRadiusKm: radius,
-                    }))
-                  }
-                  className={cn(
-                    "border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/40 flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-3",
-                    selected &&
-                      "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
-                  )}
-                >
-                  {selected ? <Check aria-hidden="true" /> : null}
-                  {t("onboarding.location.radiusOption", { radius })}
-                </button>
-              );
-            })}
+          <p
+            id={radiusHintId}
+            className="text-muted-foreground mt-1 text-sm leading-6"
+          >
+            {t("onboarding.hints.locationRadius")}
+          </p>
+          <div className="mt-4 px-1">
+            <input
+              id={radiusInputId}
+              type="range"
+              min={LOCATION_RADIUS_MIN_KM}
+              max={LOCATION_RADIUS_MAX_KM}
+              step={LOCATION_RADIUS_STEP_KM}
+              value={draft.locationRadiusKm}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  locationRadiusKm: Number(event.target.value),
+                }))
+              }
+              aria-label={t("onboarding.fields.locationRadius")}
+              aria-valuetext={t("onboarding.location.radiusOption", {
+                radius: draft.locationRadiusKm,
+              })}
+              aria-describedby={radiusHintId}
+              aria-invalid={Boolean(errors.locationRadiusKm)}
+              style={{
+                background: `linear-gradient(to ${i18n.dir() === "rtl" ? "left" : "right"}, var(--color-primary) 0%, var(--color-primary) ${radiusProgress}%, var(--color-muted) ${radiusProgress}%, var(--color-muted) 100%)`,
+              }}
+              className="focus-visible:ring-ring/40 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:bg-primary [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:bg-primary h-2 w-full cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-3 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:shadow-md"
+            />
+            <div
+              className="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums"
+              aria-hidden="true"
+            >
+              <span>
+                {t("onboarding.location.radiusOption", {
+                  radius: LOCATION_RADIUS_MIN_KM,
+                })}
+              </span>
+              <span>
+                {t("onboarding.location.radiusOption", {
+                  radius: LOCATION_RADIUS_MAX_KM,
+                })}
+              </span>
+            </div>
           </div>
           <p
             className="text-muted-foreground mt-2 text-sm leading-6"
@@ -299,16 +350,18 @@ export function StepThree({ draft, setDraft, errors }: StepProps) {
       <TextField
         label={t("onboarding.fields.salary")}
         hint={t("onboarding.hints.salary")}
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={PROFILE_LIMITS.minimumMonthlySalaryIls.min}
-        max={PROFILE_LIMITS.minimumMonthlySalaryIls.max}
-        step={500}
-        value={draft.minimumMonthlySalaryIls}
+        autoComplete="off"
+        placeholder={t("onboarding.placeholders.salary")}
+        value={formattedSalary}
         onChange={(event) =>
           setDraft((current) => ({
             ...current,
-            minimumMonthlySalaryIls: event.target.value,
+            minimumMonthlySalaryIls: event.target.value
+              .replace(/\D/gu, "")
+              .replace(/^0+(?=\d)/u, "")
+              .slice(0, 6),
           }))
         }
         error={

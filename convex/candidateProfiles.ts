@@ -44,11 +44,18 @@ export const PROFILE_LIMITS = {
   onboardingStep: { min: 1, max: 4 },
 } as const;
 
-// 50 km and 200 km remain valid for profiles saved before the focused
-// onboarding presets were simplified.
-const LOCATION_RADIUS_OPTIONS_KM = [
-  5, 10, 15, 25, 40, 50, 60, 100, 200,
-] as const;
+const LOCATION_RADIUS_MIN_KM = 5;
+const LOCATION_RADIUS_MAX_KM = 200;
+const LOCATION_RADIUS_STEP_KM = 5;
+
+function isSupportedLocationRadius(radius: number) {
+  return (
+    Number.isSafeInteger(radius) &&
+    radius >= LOCATION_RADIUS_MIN_KM &&
+    radius <= LOCATION_RADIUS_MAX_KM &&
+    radius % LOCATION_RADIUS_STEP_KM === 0
+  );
+}
 
 const workArrangementValidator = v.union(
   v.literal("onsite"),
@@ -254,9 +261,7 @@ function normalizeEditableFields(
   if (values.locationRadiusKm !== undefined) {
     if (
       values.locationRadiusKm === null ||
-      !LOCATION_RADIUS_OPTIONS_KM.includes(
-        values.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
-      )
+      !isSupportedLocationRadius(values.locationRadiusKm)
     ) {
       validationError("locationRadiusKm", "invalid_option");
     }
@@ -296,9 +301,7 @@ function normalizeEditableFields(
         !Number.isFinite(location.longitude) ||
         location.longitude < -180 ||
         location.longitude > 180 ||
-        !LOCATION_RADIUS_OPTIONS_KM.includes(
-          location.radiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
-        )
+        !isSupportedLocationRadius(location.radiusKm)
       ) {
         validationError("preferredLocations", "invalid_location");
       }
@@ -455,11 +458,7 @@ function assertComplete(profile: EditableProfilePatch) {
   ) {
     validationError("preferredLocations", "location_reconfirmation_required");
   }
-  if (
-    !LOCATION_RADIUS_OPTIONS_KM.includes(
-      profile.locationRadiusKm as (typeof LOCATION_RADIUS_OPTIONS_KM)[number],
-    )
-  ) {
+  if (!isSupportedLocationRadius(profile.locationRadiusKm ?? Number.NaN)) {
     validationError("locationRadiusKm", "invalid_option");
   }
   if (profile.primaryLocation.radiusKm !== profile.locationRadiusKm) {
@@ -475,9 +474,6 @@ function assertComplete(profile: EditableProfilePatch) {
     (profile.employmentTypes?.length ?? 0) < PROFILE_LIMITS.employmentTypes.min
   ) {
     validationError("employmentTypes", "list_size");
-  }
-  if (profile.minimumMonthlySalaryIls === undefined) {
-    validationError("minimumMonthlySalaryIls", "required");
   }
   if ((profile.languages?.length ?? 0) < PROFILE_LIMITS.languages.min) {
     validationError("languages", "list_size");

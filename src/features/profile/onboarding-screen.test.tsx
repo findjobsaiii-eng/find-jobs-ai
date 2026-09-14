@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
@@ -165,7 +165,7 @@ describe("candidate profile onboarding", () => {
     expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
   });
 
-  it("changes the radius by keyboard in the Hebrew RTL location step", async () => {
+  it("uses an accessible radius slider and formats salary in the Hebrew RTL location step", async () => {
     const user = userEvent.setup();
     await i18n.changeLanguage("he");
     const resumed = {
@@ -188,13 +188,21 @@ describe("candidate profile onboarding", () => {
     render(<OnboardingScreen initialData={resumed} />);
 
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    const radius = screen.getByRole("button", { name: "40 ק״מ" });
+    const radius = screen.getByRole("slider", {
+      name: "כמה רחוק תהיה מוכן לנסוע?",
+    });
     radius.focus();
-    await user.keyboard("{Enter}");
+    fireEvent.change(radius, { target: { value: "40" } });
 
-    expect(radius).toHaveAttribute("aria-pressed", "true");
+    expect(radius).toHaveValue("40");
     expect(
       screen.getByText("נחפש משרות עד 40 ק״מ ממיקום שמור."),
     ).toBeInTheDocument();
+
+    const salary = screen.getByRole("textbox", {
+      name: "מה השכר החודשי המינימלי שמתאים לך?",
+    });
+    await user.type(salary, "4000");
+    expect(salary).toHaveValue("4,000");
   });
 });

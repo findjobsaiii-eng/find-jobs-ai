@@ -211,7 +211,6 @@ describe("candidate profiles", () => {
         },
         workArrangements: ["hybrid", "remote"],
         employmentTypes: ["full-time"],
-        minimumMonthlySalaryIls: 30_000,
         languages: [
           { languageCode: "he", proficiency: "native" },
           { languageCode: "en", proficiency: "fluent" },
@@ -228,6 +227,7 @@ describe("candidate profiles", () => {
       "ChIJH3w7GaZMHRURkD-WwKJy-8E",
     ]);
     expect(completed.locationRadiusKm).toBe(40);
+    expect(completed.minimumMonthlySalaryIls).toBeUndefined();
     expect(completed.primaryLocation).toMatchObject({
       city: "Tel Aviv-Yafo",
       countryCode: "IL",
