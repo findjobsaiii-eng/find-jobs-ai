@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   hasGoogleMapsApiKey,
+  loadGoogleGeocoding,
   loadGooglePlaces,
   type GooglePlace,
   type GooglePlaceAutocompleteElement,
   type GooglePlacePredictionSelectEvent,
   type GooglePlacesLibrary,
+  type GoogleGeocoderResult,
 } from "@/lib/google-maps";
 import type { SelectedPlace } from "./profile-types";
 
@@ -76,6 +78,24 @@ function selectedPlaceFromGoogle(
     latitude,
     longitude,
   };
+}
+
+function selectedPlaceFromGeocoder(result: GoogleGeocoderResult) {
+  const selected = selectedPlaceFromGoogle(
+    {
+      id: result.place_id,
+      formattedAddress: result.formatted_address,
+      addressComponents: result.address_components.map((component) => ({
+        longText: component.long_name,
+        shortText: component.short_name,
+        types: component.types,
+      })),
+      location: result.geometry.location,
+      fetchFields: async () => undefined,
+    },
+    result.formatted_address,
+  );
+  return { ...selected, label: selected.city ?? selected.label };
 }
 
 export function GooglePlacesMultiSelect({
@@ -291,6 +311,43 @@ export function GooglePlacesMultiSelect({
     };
   }, [language, loadState, placesLibrary, t, values]);
 
+  const applyCurrentLocation = async (coords: GeolocationCoordinates) => {
+    const center = { lat: coords.latitude, lng: coords.longitude };
+    setSearchCenter(center);
+    try {
+      const { Geocoder } = await loadGoogleGeocoding();
+      const { results } = await new Geocoder().geocode({
+        location: center,
+        language,
+        region: "IL",
+      });
+      const result =
+        results.find((candidate) => candidate.types.includes("locality")) ??
+        results.find((candidate) =>
+          candidate.types.includes("administrative_area_level_2"),
+        ) ??
+        results[0];
+      if (!result) throw new Error("No location result");
+      const selected = selectedPlaceFromGeocoder(result);
+      labelCacheRef.current.set(
+        `${language}:${selected.placeId}`,
+        selected.label,
+      );
+      onChangeRef.current([selected]);
+      setIsChanging(false);
+      setLocationStatus(
+        t("onboarding.location.currentSelected", {
+          location: selected.label,
+        }),
+      );
+    } catch {
+      setLocationStatus(t("onboarding.location.ready"));
+      window.setTimeout(() => autocompleteRef.current?.focus(), 0);
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
   const locate = () => {
     if (!("geolocation" in navigator)) {
       setLocationStatus(t("onboarding.location.unavailable"));
@@ -300,9 +357,7 @@ export function GooglePlacesMultiSelect({
     setLocationStatus(null);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        setSearchCenter({ lat: coords.latitude, lng: coords.longitude });
-        setLocationStatus(t("onboarding.location.ready"));
-        setIsLocating(false);
+        void applyCurrentLocation(coords);
       },
       (geolocationError) => {
         setLocationStatus(

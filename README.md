@@ -101,10 +101,10 @@ change:
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-browser-key
 ```
 
-In the Google Cloud project, enable billing, **Maps JavaScript API**, and
-**Places API (New)**. Restrict the key to websites, including
+In the Google Cloud project, enable billing, **Maps JavaScript API**,
+**Places API (New)**, and **Geocoding API**. Restrict the key to websites, including
 `http://localhost:3000/*` for local development and the exact production origin
-before deployment. Also apply API restrictions for those two APIs. A `NEXT_PUBLIC_`
+before deployment. Also apply API restrictions for those three APIs. A `NEXT_PUBLIC_`
 key is intentionally visible to the browser, so HTTP-referrer and API
 restrictions are the security boundary; never reuse a server-side secret here.
 

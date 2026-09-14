@@ -48,8 +48,39 @@ export type GooglePlacesLibrary = {
   }) => GooglePlace;
 };
 
+export type GoogleGeocoderResult = {
+  place_id: string;
+  formatted_address: string;
+  types: string[];
+  address_components: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+  geometry: {
+    location: { lat: () => number; lng: () => number };
+  };
+};
+
+export type GoogleGeocodingLibrary = {
+  Geocoder: new () => {
+    geocode: (request: {
+      location: { lat: number; lng: number };
+      language: string;
+      region: string;
+    }) => Promise<{ results: GoogleGeocoderResult[] }>;
+  };
+};
+
 let placesLibraryPromise: Promise<GooglePlacesLibrary> | undefined;
+let geocodingLibraryPromise: Promise<GoogleGeocodingLibrary> | undefined;
 let loaderConfigured = false;
+
+function configureLoader(key: string) {
+  if (loaderConfigured) return;
+  setOptions({ key, v: "weekly", region: "IL" });
+  loaderConfigured = true;
+}
 
 export function hasGoogleMapsApiKey() {
   return Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
@@ -63,10 +94,7 @@ export function loadGooglePlaces(): Promise<GooglePlacesLibrary> {
     return Promise.reject(new Error("Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"));
   }
 
-  if (!loaderConfigured) {
-    setOptions({ key, v: "weekly", region: "IL" });
-    loaderConfigured = true;
-  }
+  configureLoader(key);
   placesLibraryPromise = importLibrary("places")
     .then((library) => library as unknown as GooglePlacesLibrary)
     .catch((error: unknown) => {
@@ -74,4 +102,22 @@ export function loadGooglePlaces(): Promise<GooglePlacesLibrary> {
       throw error;
     });
   return placesLibraryPromise;
+}
+
+export function loadGoogleGeocoding(): Promise<GoogleGeocodingLibrary> {
+  if (geocodingLibraryPromise) return geocodingLibraryPromise;
+
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  if (!key) {
+    return Promise.reject(new Error("Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"));
+  }
+
+  configureLoader(key);
+  geocodingLibraryPromise = importLibrary("geocoding")
+    .then((library) => library as unknown as GoogleGeocodingLibrary)
+    .catch((error: unknown) => {
+      geocodingLibraryPromise = undefined;
+      throw error;
+    });
+  return geocodingLibraryPromise;
 }

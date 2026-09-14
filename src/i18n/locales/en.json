@@ -432,6 +432,7 @@
       "loadingSaved": "Loading saved location…",
       "useCurrent": "Use my current location to prioritize nearby suggestions",
       "nearMe": "Near me",
+      "currentSelected": "Location set to {{location}}.",
       "ready": "Nearby suggestions are now prioritized. Your coordinates are not saved.",
       "permissionDenied": "Location permission was not granted. You can still search manually.",
       "failed": "We couldn't get your location. You can still search manually.",

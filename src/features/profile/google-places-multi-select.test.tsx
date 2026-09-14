@@ -12,6 +12,7 @@ import type { SelectedPlace } from "./profile-types";
 
 const places = vi.hoisted(() => ({
   autocomplete: null as GooglePlaceAutocompleteElement | null,
+  geocode: vi.fn(),
 }));
 
 vi.mock("@/lib/google-maps", () => {
@@ -35,6 +36,11 @@ vi.mock("@/lib/google-maps", () => {
     loadGooglePlaces: async () => ({
       PlaceAutocompleteElement: FakeAutocomplete,
       Place: class {},
+    }),
+    loadGoogleGeocoding: async () => ({
+      Geocoder: class {
+        geocode = places.geocode;
+      },
     }),
   };
 });
@@ -86,7 +92,130 @@ describe("single Google Places location", () => {
 
   beforeEach(async () => {
     places.autocomplete = null;
+    places.geocode.mockReset().mockResolvedValue({
+      results: [
+        {
+          place_id: "place-tel-aviv",
+          formatted_address: "Tel Aviv-Yafo, Israel",
+          types: ["locality", "political"],
+          address_components: [
+            {
+              long_name: "Tel Aviv",
+              short_name: "Tel Aviv",
+              types: ["locality"],
+            },
+            {
+              long_name: "Tel Aviv District",
+              short_name: "TA",
+              types: ["administrative_area_level_1"],
+            },
+            {
+              long_name: "Israel",
+              short_name: "IL",
+              types: ["country"],
+            },
+          ],
+          geometry: {
+            location: { lat: () => 32.0853, lng: () => 34.7818 },
+          },
+        },
+      ],
+    });
     await i18n.changeLanguage("en");
+  });
+
+  it("selects the current city after geolocation permission is granted", async () => {
+    const user = userEvent.setup();
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: {
+          latitude: 32.0853,
+          longitude: 34.7818,
+        } as GeolocationCoordinates,
+      } as GeolocationPosition);
+    });
+    Object.defineProperty(window.navigator, "geolocation", {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+    render(<LocationHarness />);
+    await waitFor(() => expect(places.autocomplete).not.toBeNull());
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use my current location to prioritize nearby suggestions",
+      }),
+    );
+
+    expect(await screen.findByLabelText("Tel Aviv · 25 km")).toBeVisible();
+    expect(places.geocode).toHaveBeenCalledWith({
+      location: { lat: 32.0853, lng: 34.7818 },
+      language: "en",
+      region: "IL",
+    });
+    expect(screen.getByText("Location set to Tel Aviv.")).toBeVisible();
+  });
+
+  it("requests and keeps the localized Hebrew city name", async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage("he");
+    places.geocode.mockResolvedValue({
+      results: [
+        {
+          place_id: "place-sderot",
+          formatted_address: "שדרות, ישראל",
+          types: ["locality", "political"],
+          address_components: [
+            {
+              long_name: "שדרות",
+              short_name: "שדרות",
+              types: ["locality"],
+            },
+            {
+              long_name: "מחוז הדרום",
+              short_name: "מחוז הדרום",
+              types: ["administrative_area_level_1"],
+            },
+            {
+              long_name: "ישראל",
+              short_name: "IL",
+              types: ["country"],
+            },
+          ],
+          geometry: {
+            location: { lat: () => 31.525, lng: () => 34.596 },
+          },
+        },
+      ],
+    });
+    Object.defineProperty(window.navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success: PositionCallback) =>
+          success({
+            coords: {
+              latitude: 31.525,
+              longitude: 34.596,
+            } as GeolocationCoordinates,
+          } as GeolocationPosition),
+      },
+    });
+    render(<LocationHarness />);
+    await waitFor(() => expect(places.autocomplete).not.toBeNull());
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "שימוש במיקום הנוכחי כדי להציג קודם הצעות קרובות",
+      }),
+    );
+
+    expect(await screen.findByLabelText("שדרות · 25 ק״מ")).toBeVisible();
+    expect(places.geocode).toHaveBeenCalledWith({
+      location: { lat: 31.525, lng: 34.596 },
+      language: "he",
+      region: "IL",
+    });
+    expect(screen.queryByText("Sderot")).not.toBeInTheDocument();
   });
 
   it("requires a suggestion, then supports replacing and clearing one location", async () => {
