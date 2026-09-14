@@ -28,6 +28,7 @@ import { AuthShell } from "@/features/auth/auth-shell";
 import {
   Choice,
   ChoiceGroup,
+  SelectInput,
   TextareaField,
   TextField,
 } from "./profile-form-fields";
@@ -453,7 +454,7 @@ export function StepFour({
                 <label htmlFor={id} className="mb-2 block text-sm font-medium">
                   {t("onboarding.fields.proficiency")}
                 </label>
-                <select
+                <SelectInput
                   id={id}
                   value={language.proficiency}
                   onChange={(event) =>
@@ -471,7 +472,6 @@ export function StepFour({
                     }))
                   }
                   aria-invalid={Boolean(errors.languages)}
-                  className="border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full rounded-xl border px-3 text-sm outline-none focus:ring-3"
                 >
                   <option value="">
                     {t("onboarding.placeholders.proficiency")}
@@ -481,7 +481,7 @@ export function StepFour({
                       {t(`onboarding.options.proficiency.${option}`)}
                     </option>
                   ))}
-                </select>
+                </SelectInput>
               </div>
               <Button
                 type="button"
@@ -507,7 +507,7 @@ export function StepFour({
           );
         })}
         {availableLanguages.length > 0 ? (
-          <select
+          <SelectInput
             value=""
             onChange={(event) => {
               const languageCode = event.target.value as LanguageCode;
@@ -520,7 +520,6 @@ export function StepFour({
                 ],
               }));
             }}
-            className="border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full rounded-xl border px-3 text-sm outline-none focus:ring-3"
             aria-label={t("onboarding.addLanguage")}
           >
             <option value="">{t("onboarding.addLanguage")}</option>
@@ -529,7 +528,7 @@ export function StepFour({
                 {t(`onboarding.options.languages.${code}`)}
               </option>
             ))}
-          </select>
+          </SelectInput>
         ) : null}
         {errors.languages ? (
           <p className="text-destructive text-sm" role="alert">

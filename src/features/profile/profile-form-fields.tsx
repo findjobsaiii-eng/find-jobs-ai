@@ -1,4 +1,10 @@
-import { useId, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FieldProps = {
@@ -113,6 +119,32 @@ export function TextareaField({
 type ChoiceGroupProps = FieldProps & {
   children: ReactNode;
 };
+
+type SelectInputProps = SelectHTMLAttributes<HTMLSelectElement>;
+
+export function SelectInput({
+  children,
+  className,
+  ...props
+}: SelectInputProps) {
+  return (
+    <div className="relative">
+      <select
+        className={cn(
+          "border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full appearance-none rounded-xl border ps-3 pe-10 text-sm outline-none focus:ring-3",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2"
+      />
+    </div>
+  );
+}
 
 export function ChoiceGroup({
   label,
