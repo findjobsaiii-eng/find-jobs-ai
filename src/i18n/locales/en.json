@@ -205,7 +205,7 @@
         "skills": "Matched skills: {{skills}}",
         "domain": "Matched domain: {{domain}}"
       },
-      "eligibilityNote": "Closed jobs and jobs that conflict with required location or work preferences are removed before ranking.",
+      "eligibilityNote": "Closed jobs and jobs that conflict with required location, professional field, salary, language, or work authorization are removed before ranking.",
       "breakdownUnavailable": "The detailed breakdown is unavailable for this saved result."
     },
     "noLongerActive": "This job is no longer active",

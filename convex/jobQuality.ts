@@ -581,19 +581,14 @@ export function evaluateJobQuality(
   const workArrangementCompatible =
     job.workArrangement === "unknown" ||
     profile.workArrangements.includes(job.workArrangement);
-  if (!workArrangementCompatible)
-    hardExclusions.push("work_arrangement_conflict");
   const employmentTypeCompatible =
     job.employmentType === "unknown" ||
     profile.employmentTypes.includes(job.employmentType);
-  if (!employmentTypeCompatible)
-    hardExclusions.push("employment_type_conflict");
 
   let experience = 0.7;
   if (job.requiredExperienceYearsMin !== null) {
     const gap = job.requiredExperienceYearsMin - profile.yearsOfExperience;
     experience = gap <= 0 ? 1 : gap <= 1 ? 0.35 : 0;
-    if (gap > 1) hardExclusions.push("experience_conflict");
   }
 
   const jobSeniority = inferredJobSeniority(job.title);
@@ -602,8 +597,6 @@ export function evaluateJobQuality(
   if (jobSeniority !== null && candidateSeniority !== null) {
     const gap = Math.abs(jobSeniority - candidateSeniority);
     seniority = gap === 0 ? 1 : gap === 1 ? 0.5 : gap === 2 ? 0.15 : 0;
-    if (jobSeniority - candidateSeniority >= 2)
-      hardExclusions.push("seniority_conflict");
   }
 
   const compatibleLanguage = languageMatches(job.languages, profile);

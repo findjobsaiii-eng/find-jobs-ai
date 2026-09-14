@@ -215,14 +215,47 @@ describe("deterministic CV-backed relevance", () => {
     ).toBe("excluded");
   });
 
-  it("reduces or excludes a material seniority mismatch", () => {
+  it("ranks a stretch seniority match lower without hiding it", () => {
     const matching = evaluateJobQuality(job(), profile);
     const head = evaluateJobQuality(
       job({ title: "Head of E-commerce" }),
       profile,
     );
     expect(head.relevanceScore).toBeLessThan(matching.relevanceScore);
-    expect(head.exclusionReasons).toContain("seniority_conflict");
+    expect(head.outcome).toBe("eligible");
+    expect(head.exclusionReasons).not.toContain("seniority_conflict");
+  });
+
+  it("ranks an experience stretch lower without hiding it", () => {
+    const matching = evaluateJobQuality(job(), profile);
+    const stretch = evaluateJobQuality(
+      job({ requiredExperienceYearsMin: profile.yearsOfExperience + 3 }),
+      profile,
+    );
+    expect(stretch.relevanceScore).toBeLessThan(matching.relevanceScore);
+    expect(stretch.outcome).toBe("eligible");
+    expect(stretch.exclusionReasons).not.toContain("experience_conflict");
+  });
+
+  it("ranks work preferences without treating them as hard exclusions", () => {
+    const focusedProfile = {
+      ...profile,
+      workArrangements: ["hybrid" as const],
+      employmentTypes: ["full-time" as const],
+    };
+    const matching = evaluateJobQuality(job(), focusedProfile);
+    const stretch = evaluateJobQuality(
+      job({ workArrangement: "onsite", employmentType: "part-time" }),
+      focusedProfile,
+    );
+    expect(stretch.relevanceScore).toBeLessThan(matching.relevanceScore);
+    expect(stretch.outcome).toBe("eligible");
+    expect(stretch.exclusionReasons).not.toEqual(
+      expect.arrayContaining([
+        "work_arrangement_conflict",
+        "employment_type_conflict",
+      ]),
+    );
   });
 
   it("enforces the selected radius for onsite and hybrid jobs", () => {
