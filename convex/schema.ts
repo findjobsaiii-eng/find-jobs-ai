@@ -438,6 +438,15 @@ const schema = defineSchema({
   })
     .index("by_userId_and_jobId", ["userId", "jobId"])
     .index("by_userId_and_appliedAt", ["userId", "appliedAt"]),
+  jobApplicationEvents: defineTable({
+    userId: v.id("users"),
+    applicationId: v.id("jobApplications"),
+    jobId: v.id("jobs"),
+    kind: v.union(v.literal("status_change"), v.literal("note")),
+    status: v.optional(applicationStatus),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_applicationId_and_createdAt", ["applicationId", "createdAt"]),
   dailyDiscoveryAttempts: defineTable({
     userId: v.id("users"),
     dayKey: v.optional(v.string()),

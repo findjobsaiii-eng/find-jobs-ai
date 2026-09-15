@@ -625,16 +625,31 @@
       "closed": "Closed",
       "empty": "No tracked jobs match this filter."
     },
+    "statusPicker": {
+      "open": "Choose how to save this job",
+      "save": "Save",
+      "savedAs": "{{status}}",
+      "title": "Save to a status…"
+    },
     "tracking": {
       "open": "Track",
       "edit": "Update",
       "title": "Application tracking",
-      "description": "Update your progress and private notes for {{title}}.",
+      "description": "Keep a dated history of your progress for {{title}}.",
       "status": "Status",
-      "notes": "Notes",
-      "notesPlaceholder": "Add interview details, a contact name, or your next step…",
-      "characterCount": "{{count}} / {{max}}",
-      "save": "Save update",
+      "changeStatus": "Change status",
+      "statusComment": "Comment (optional)",
+      "statusCommentPlaceholder": "Add context for this status change…",
+      "saveStatus": "Save status update",
+      "addNote": "Add a note",
+      "note": "Note",
+      "notePlaceholder": "Add interview details, a contact name, or your next step…",
+      "addNoteAction": "Add to timeline",
+      "timeline": "Timeline",
+      "loadingTimeline": "Loading application timeline",
+      "emptyTimeline": "Your first update will appear here.",
+      "statusChanged": "Status changed to {{status}}",
+      "noteAdded": "Note added",
       "close": "Close application tracking"
     }
   },

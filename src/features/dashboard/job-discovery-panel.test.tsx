@@ -7,17 +7,21 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
+  timeline: [] as Array<Record<string, unknown>>,
   discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
   setApplication: vi.fn(),
   runReview: vi.fn(),
 }));
 
 vi.mock("convex/react", () => ({
-  useQuery: () => ({
-    jobs: hooks.jobs,
-    plan: "pro",
-    discoveryState: hooks.discoveryState,
-  }),
+  useQuery: (_query: unknown, args: unknown) =>
+    typeof args === "object" && args !== null && "jobId" in args
+      ? hooks.timeline
+      : {
+          jobs: hooks.jobs,
+          plan: "pro",
+          discoveryState: hooks.discoveryState,
+        },
   useMutation: () => hooks.setApplication,
   useAction: () => hooks.runReview,
 }));
@@ -91,6 +95,7 @@ describe("job result cards", () => {
 
   beforeEach(async () => {
     hooks.jobs = [job()];
+    hooks.timeline = [];
     hooks.discoveryState = "complete";
     hooks.setApplication.mockReset().mockResolvedValue(null);
     hooks.runReview.mockReset().mockResolvedValue(null);
@@ -227,7 +232,10 @@ describe("job result cards", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    await user.click(screen.getByRole("button", { name: "Save job" }));
+    await user.click(
+      screen.getByRole("button", { name: "Choose how to save this job" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Saved" }));
 
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
@@ -235,19 +243,18 @@ describe("job result cards", () => {
     });
   });
 
-  it("shows a saved suggestion with an active bookmark", async () => {
+  it("lets a saved suggestion move directly to another status", async () => {
     hooks.jobs = [job({ trackingStatus: "saved" })];
     const user = userEvent.setup();
     renderPanel();
 
-    const bookmark = screen.getByRole("button", {
-      name: "Remove saved job",
-    });
-    expect(bookmark).toHaveAttribute("aria-pressed", "true");
-    await user.click(bookmark);
+    await user.click(
+      screen.getByRole("button", { name: "Choose how to save this job" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Applied" }));
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
-      applied: false,
+      status: "applied",
     });
   });
 
@@ -270,15 +277,38 @@ describe("job result cards", () => {
       screen.getByRole("combobox", { name: "Status" }),
       "interview",
     );
-    const notes = screen.getByRole("textbox", { name: "Notes" });
+    const notes = screen.getByRole("textbox", {
+      name: "Comment (optional)",
+    });
     await user.clear(notes);
     await user.type(notes, "Interview with the product lead.");
-    await user.click(screen.getByRole("button", { name: "Save update" }));
+    await user.click(
+      screen.getByRole("button", { name: "Save status update" }),
+    );
 
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
       status: "interview",
       notes: "Interview with the product lead.",
+    });
+  });
+
+  it("adds a standalone note without changing the current status", async () => {
+    hooks.jobs = [job({ trackingStatus: "phone_screen" })];
+    const user = userEvent.setup();
+    renderPanel("/?tab=in-progress");
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Note" }),
+      "Send the recruiter my availability.",
+    );
+    await user.click(screen.getByRole("button", { name: "Add to timeline" }));
+
+    expect(hooks.setApplication).toHaveBeenCalledWith({
+      jobId: "jobs:one",
+      status: "phone_screen",
+      notes: "Send the recruiter my availability.",
     });
   });
 

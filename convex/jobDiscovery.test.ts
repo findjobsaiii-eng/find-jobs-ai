@@ -1167,6 +1167,35 @@ describe("stored job activity", () => {
       status: "interview",
       notes: "Technical interview scheduled.",
     });
+    await user.mutation(api.jobDiscovery.updateJobTracking, {
+      jobId,
+      status: "interview",
+      notes: "Bring the architecture case study.",
+    });
+    const timeline = await user.query(
+      api.jobDiscovery.listJobTrackingTimeline,
+      { jobId },
+    );
+    expect(
+      timeline.map(({ kind, status, note }) => ({ kind, status, note })),
+    ).toEqual([
+      {
+        kind: "note",
+        status: undefined,
+        note: "Bring the architecture case study.",
+      },
+      {
+        kind: "status_change",
+        status: "interview",
+        note: "Technical interview scheduled.",
+      },
+      { kind: "status_change", status: "applied", note: undefined },
+      {
+        kind: "status_change",
+        status: "saved",
+        note: "Follow up with Dana on Thursday.",
+      },
+    ]);
     await t.run(async (ctx) => {
       const row = await ctx.db
         .query("jobApplications")
@@ -1176,7 +1205,7 @@ describe("stored job activity", () => {
         .unique();
       expect(row).toMatchObject({
         status: "interview",
-        notes: "Technical interview scheduled.",
+        notes: "Bring the architecture case study.",
         appliedAt: firstAppliedAt,
       });
     });

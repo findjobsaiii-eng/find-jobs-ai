@@ -285,18 +285,20 @@ Only internal helpers may accept scheduler-selected user IDs. The public manual
 action derives identity and requires the server `DEV_TOOLS_ENABLED` flag, which
 operators must enable only on development deployments.
 
-### D-019: Application tracking stores one owner-scoped pipeline snapshot
+### D-019: Application tracking stores a snapshot and an owner-scoped event timeline
 
 Status: Accepted
 
-One `jobApplications` record per user/job now represents both saved jobs and the
-candidate's lightweight hiring pipeline. The status is server-validated; notes
-are trimmed and bounded to 3,000 characters; every update derives the owner from
-Convex Auth and refreshes `updatedAt`. “Sent résumé” upserts `applied` without
-discarding notes, while historical rows without a status read as `applied`.
-Saved-only rows remain eligible in Suggestions, but application stages are
-excluded. The immutable posting snapshot keeps tracking readable after source
-expiry. This records candidate activity and never submits a résumé.
+One `jobApplications` record per user/job represents both saved jobs and the
+candidate's lightweight hiring pipeline. Immutable `jobApplicationEvents` rows
+record each status change and standalone note with a timestamp; an optional note
+on a status event keeps its context attached. Notes are trimmed and bounded to
+3,000 characters, timeline reads are bounded to the latest 100 events, and every
+operation derives the owner from Convex Auth. Historical snapshot-only rows are
+shown as a legacy event and are preserved into the event table on their next
+update. Saved-only rows remain eligible in Suggestions, but later application
+stages are excluded. The immutable posting snapshot keeps tracking readable after
+source expiry. These actions record candidate activity and never submit a résumé.
 
 ### D-020: Job activity is cached, conservative, and historical
 

@@ -425,6 +425,50 @@ function normalizedNotes(notes: string | undefined) {
   return value || undefined;
 }
 
+async function addApplicationEvent(
+  ctx: MutationCtx,
+  application: Doc<"jobApplications">,
+  event: {
+    kind: "status_change" | "note";
+    status?: ApplicationStatus;
+    note?: string;
+    createdAt: number;
+  },
+) {
+  await ctx.db.insert("jobApplicationEvents", {
+    userId: application.userId,
+    applicationId: application._id,
+    jobId: application.jobId,
+    kind: event.kind,
+    ...(event.status ? { status: event.status } : {}),
+    ...(event.note ? { note: event.note } : {}),
+    createdAt: event.createdAt,
+  });
+}
+
+async function preserveLegacyApplicationEvent(
+  ctx: MutationCtx,
+  application: Doc<"jobApplications">,
+) {
+  const existingEvent = await ctx.db
+    .query("jobApplicationEvents")
+    .withIndex("by_applicationId_and_createdAt", (q) =>
+      q.eq("applicationId", application._id),
+    )
+    .order("desc")
+    .first();
+  if (existingEvent) return;
+  await addApplicationEvent(ctx, application, {
+    kind: "status_change",
+    status: normalizedApplicationStatus(application),
+    note: application.notes,
+    createdAt:
+      application.updatedAt ??
+      application.appliedAt ??
+      application._creationTime,
+  });
+}
+
 async function canonicalTrackingJob(
   ctx: QueryCtx | MutationCtx,
   jobId: Id<"jobs">,
@@ -2549,6 +2593,59 @@ export const developmentToolsEnabled = query({
     return env.DEV_TOOLS_ENABLED === "true";
   },
 });
+
+export const listJobTrackingTimeline = query({
+  args: { jobId: v.id("jobs") },
+  returns: v.array(
+    v.object({
+      id: v.union(v.id("jobApplicationEvents"), v.null()),
+      kind: v.union(v.literal("status_change"), v.literal("note")),
+      status: v.optional(applicationStatus),
+      note: v.optional(v.string()),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const trackedJob = await canonicalTrackingJob(ctx, args.jobId);
+    const application = await ctx.db
+      .query("jobApplications")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
+      )
+      .unique();
+    if (!application) return [];
+    const events = await ctx.db
+      .query("jobApplicationEvents")
+      .withIndex("by_applicationId_and_createdAt", (q) =>
+        q.eq("applicationId", application._id),
+      )
+      .order("desc")
+      .take(100);
+    if (events.length) {
+      return events.map((event) => ({
+        id: event._id,
+        kind: event.kind,
+        status: event.status,
+        note: event.note,
+        createdAt: event.createdAt,
+      }));
+    }
+    return [
+      {
+        id: null,
+        kind: "status_change" as const,
+        status: normalizedApplicationStatus(application),
+        note: application.notes,
+        createdAt:
+          application.updatedAt ??
+          application.appliedAt ??
+          application._creationTime,
+      },
+    ];
+  },
+});
+
 export const setApplicationStatus = mutation({
   args: { jobId: v.id("jobs"), applied: v.boolean() },
   returns: v.null(),
@@ -2562,7 +2659,20 @@ export const setApplicationStatus = mutation({
       )
       .unique();
     if (!args.applied) {
-      if (existing) await ctx.db.delete("jobApplications", existing._id);
+      if (existing) {
+        const events = await ctx.db
+          .query("jobApplicationEvents")
+          .withIndex("by_applicationId_and_createdAt", (q) =>
+            q.eq("applicationId", existing._id),
+          )
+          .take(1_000);
+        await Promise.all(
+          events.map((event) =>
+            ctx.db.delete("jobApplicationEvents", event._id),
+          ),
+        );
+        await ctx.db.delete("jobApplications", existing._id);
+      }
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
         userId,
         jobId: trackedJob.jobId,
@@ -2571,18 +2681,26 @@ export const setApplicationStatus = mutation({
     }
     const now = Date.now();
     if (existing) {
+      await preserveLegacyApplicationEvent(ctx, existing);
       await ctx.db.patch("jobApplications", existing._id, {
         status: "applied",
         appliedAt: existing.appliedAt ?? now,
         updatedAt: now,
       });
+      if (normalizedApplicationStatus(existing) !== "applied") {
+        await addApplicationEvent(ctx, existing, {
+          kind: "status_change",
+          status: "applied",
+          createdAt: now,
+        });
+      }
     } else {
       const job = trackedJob.job;
       const item = job
         ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
         : null;
       if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
-      await ctx.db.insert("jobApplications", {
+      const applicationId = await ctx.db.insert("jobApplications", {
         userId,
         jobId: trackedJob.jobId,
         appliedAt: now,
@@ -2590,6 +2708,14 @@ export const setApplicationStatus = mutation({
         updatedAt: now,
         snapshot: item,
       });
+      const application = await ctx.db.get("jobApplications", applicationId);
+      if (application) {
+        await addApplicationEvent(ctx, application, {
+          kind: "status_change",
+          status: "applied",
+          createdAt: now,
+        });
+      }
     }
     const match = await ctx.db
       .query("jobMatches")
@@ -2622,6 +2748,10 @@ export const updateJobTracking = mutation({
     const now = Date.now();
     const notes = normalizedNotes(args.notes);
     if (existing) {
+      const previousStatus = normalizedApplicationStatus(existing);
+      const statusChanged = previousStatus !== args.status;
+      if (!statusChanged && !notes) return null;
+      await preserveLegacyApplicationEvent(ctx, existing);
       await ctx.db.patch("jobApplications", existing._id, {
         status: args.status,
         ...(args.notes !== undefined ? { notes } : {}),
@@ -2630,13 +2760,19 @@ export const updateJobTracking = mutation({
           : {}),
         updatedAt: now,
       });
+      await addApplicationEvent(ctx, existing, {
+        kind: statusChanged ? "status_change" : "note",
+        ...(statusChanged ? { status: args.status } : {}),
+        note: notes,
+        createdAt: now,
+      });
     } else {
       const job = trackedJob.job;
       const item = job
         ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
         : null;
       if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
-      await ctx.db.insert("jobApplications", {
+      const applicationId = await ctx.db.insert("jobApplications", {
         userId,
         jobId: trackedJob.jobId,
         ...(args.status !== "saved" ? { appliedAt: now } : {}),
@@ -2645,6 +2781,15 @@ export const updateJobTracking = mutation({
         updatedAt: now,
         snapshot: item,
       });
+      const application = await ctx.db.get("jobApplications", applicationId);
+      if (application) {
+        await addApplicationEvent(ctx, application, {
+          kind: "status_change",
+          status: args.status,
+          note: notes,
+          createdAt: now,
+        });
+      }
     }
     const match = await ctx.db
       .query("jobMatches")

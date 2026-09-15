@@ -626,16 +626,31 @@
       "closed": "הסתיימו",
       "empty": "אין משרות במעקב שמתאימות למסנן הזה."
     },
+    "statusPicker": {
+      "open": "בחירת סטטוס לשמירת המשרה",
+      "save": "שמירה",
+      "savedAs": "{{status}}",
+      "title": "שמירה בסטטוס…"
+    },
     "tracking": {
       "open": "מעקב",
       "edit": "עדכון",
       "title": "מעקב מועמדות",
-      "description": "עדכון ההתקדמות וההערות הפרטיות עבור {{title}}.",
+      "description": "היסטוריה מסודרת לפי תאריך של ההתקדמות עבור {{title}}.",
       "status": "סטטוס",
-      "notes": "הערות",
-      "notesPlaceholder": "פרטי ראיון, שם איש או אשת קשר, או הצעד הבא…",
-      "characterCount": "{{count}} / {{max}}",
-      "save": "שמירת עדכון",
+      "changeStatus": "שינוי סטטוס",
+      "statusComment": "תגובה (לא חובה)",
+      "statusCommentPlaceholder": "אפשר להוסיף הקשר לשינוי הסטטוס…",
+      "saveStatus": "שמירת שינוי הסטטוס",
+      "addNote": "הוספת הערה",
+      "note": "הערה",
+      "notePlaceholder": "פרטי ראיון, שם איש או אשת קשר, או הצעד הבא…",
+      "addNoteAction": "הוספה לציר הזמן",
+      "timeline": "ציר הזמן",
+      "loadingTimeline": "ציר הזמן של המועמדות נטען",
+      "emptyTimeline": "העדכון הראשון יופיע כאן.",
+      "statusChanged": "הסטטוס השתנה ל{{status}}",
+      "noteAdded": "נוספה הערה",
       "close": "סגירת מעקב המועמדות"
     }
   },

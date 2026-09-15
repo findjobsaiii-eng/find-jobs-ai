@@ -5,8 +5,6 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import {
   BriefcaseBusiness,
-  Bookmark,
-  BookmarkCheck,
   Building2,
   CalendarDays,
   Check,
@@ -23,6 +21,7 @@ import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
 import { JobMatchScore } from "./job-match-score";
 import { ApplicationTrackerDialog } from "./application-tracker-dialog";
+import { ApplicationStatusPicker } from "./application-status-picker";
 import {
   APPLICATION_FILTERS,
   matchesApplicationFilter,
@@ -64,9 +63,9 @@ export function JobDiscoveryPanel({
     }
   };
 
-  const toggleSaved = async (
+  const saveWithStatus = async (
     jobId: Id<"jobs">,
-    status: ApplicationStatus | undefined,
+    status: ApplicationStatus,
   ) => {
     if (pendingRef.current) return;
     pendingRef.current = true;
@@ -74,13 +73,8 @@ export function JobDiscoveryPanel({
     setError(false);
     setNotice(null);
     try {
-      if (status === "saved") {
-        await updateApplication({ jobId, applied: false });
-        setNotice("unmarked");
-      } else {
-        await updateTracking({ jobId, status: "saved" });
-        setNotice("marked");
-      }
+      await updateTracking({ jobId, status });
+      setNotice(status === "saved" ? "marked" : "trackingSaved");
     } catch {
       setError(true);
     } finally {
@@ -357,39 +351,12 @@ export function JobDiscoveryPanel({
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             {view === "suggestions" ? (
-                              <>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  disabled={pending !== null}
-                                  aria-label={t(
-                                    trackingStatus === "saved"
-                                      ? "applications.removeSaved"
-                                      : "applications.saveJob",
-                                  )}
-                                  aria-pressed={trackingStatus === "saved"}
-                                  onClick={() =>
-                                    void toggleSaved(job.id, trackingStatus)
-                                  }
-                                >
-                                  {pending === job.id ? (
-                                    <LoaderCircle
-                                      aria-hidden="true"
-                                      className="animate-spin"
-                                    />
-                                  ) : trackingStatus === "saved" ? (
-                                    <BookmarkCheck aria-hidden="true" />
-                                  ) : (
-                                    <Bookmark aria-hidden="true" />
-                                  )}
-                                </Button>
-                                <JobMatchScore
-                                  score={job.relevanceScore}
-                                  quality={matchQuality}
-                                  components={job.scoreComponents}
-                                  highlights={job.matchHighlights}
-                                />
-                              </>
+                              <JobMatchScore
+                                score={job.relevanceScore}
+                                quality={matchQuality}
+                                components={job.scoreComponents}
+                                highlights={job.matchHighlights}
+                              />
                             ) : null}
                           </div>
                         </div>
@@ -565,38 +532,38 @@ export function JobDiscoveryPanel({
                             {t(`jobDiscovery.sourceTiers.${job.sourceTier}`)}
                           </span>
                           <div className="flex flex-wrap gap-2">
-                            {trackingStatus || view === "inProgress" ? (
+                            {view === "inProgress" ? (
                               <ApplicationTrackerDialog
                                 jobId={job.id}
                                 jobTitle={job.title}
                                 status={trackingStatus}
-                                notes={job.trackingNotes}
-                                updatedAt={job.trackingUpdatedAt}
                                 onSaved={() => setNotice("trackingSaved")}
                               />
                             ) : null}
-                            <Button
-                              variant={
-                                view === "inProgress" ? "ghost" : "outline"
-                              }
-                              className="min-h-11"
-                              disabled={pending !== null}
-                              onClick={() =>
-                                void markApplied(job.id, view !== "inProgress")
-                              }
-                            >
-                              {pending === job.id ? (
-                                <LoaderCircle
-                                  aria-hidden="true"
-                                  className="animate-spin"
-                                />
-                              ) : null}
-                              {t(
-                                view === "inProgress"
-                                  ? "applications.undo"
-                                  : "applications.sentResume",
-                              )}
-                            </Button>
+                            {view === "suggestions" ? (
+                              <ApplicationStatusPicker
+                                status={trackingStatus}
+                                disabled={pending !== null}
+                                onSelect={(status) =>
+                                  saveWithStatus(job.id, status)
+                                }
+                              />
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                className="min-h-11"
+                                disabled={pending !== null}
+                                onClick={() => void markApplied(job.id, false)}
+                              >
+                                {pending === job.id ? (
+                                  <LoaderCircle
+                                    aria-hidden="true"
+                                    className="animate-spin"
+                                  />
+                                ) : null}
+                                {t("applications.undo")}
+                              </Button>
+                            )}
                             <a
                               href={job.sourceUrl}
                               target="_blank"

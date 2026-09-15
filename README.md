@@ -281,14 +281,16 @@ backfill.
 
 The homepage contains a compact Suggestions / In progress tab bar and scannable
 job cards. Each card prioritizes title, company, location, work model, posting or
-discovery date, a short summary, up to five key skills, source, and the two
-available actions. Raw provider and verification diagnostics never appear in the
-normal UI.
+discovery date, a short summary, up to five key skills, source, and concise
+actions. Raw provider and verification diagnostics never appear in the normal
+UI.
 The fixed profile button sits at the logical start (left in English, right in
 Hebrew) and opens profile editing, CV replacement, language switching, and sign-out.
-“Sent résumé” updates an owner-scoped tracking snapshot to applied and moves the job to
-In progress. Undo removes the marker. Snapshots remain available after a job
-expires from suggestions; the action records tracking only and never sends a CV.
+The footer Save control opens a status picker and moves the job into the selected
+stage. In progress offers a dated event timeline for status changes, comments
+attached to those changes, and standalone notes. Undo removes the tracking record.
+Snapshots remain available after a job expires from suggestions; these actions
+record tracking only and never send a CV.
 Suggestions show up to 50 of the highest-ranked materialized matches; In
 progress currently shows the latest 100.
 
