@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
@@ -8,6 +14,7 @@ import type { CurrentProfile } from "@/features/profile/profile-types";
 import type { FunctionArgs } from "convex/server";
 import type { api } from "../../../convex/_generated/api";
 import { AuthenticatedShell } from "./authenticated-shell";
+import { useJobViewNavigation } from "./app-routes";
 import { DashboardLoadingScreen, DashboardScreen } from "./dashboard-screen";
 
 const hooks = vi.hoisted(() => ({
@@ -254,20 +261,53 @@ describe("dashboard and completed profile editing", () => {
     expect(
       screen.getByRole("heading", { name: "משרות מומלצות עבורך" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "הצעות" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-    expect(screen.getByRole("link", { name: "שמורות" })).toHaveAttribute(
-      "href",
-      "/?tab=in-progress",
-    );
+    const suggestionsTab = screen.getByRole("link", { name: "הצעות" });
+    const savedTab = screen.getByRole("link", { name: "שמורות" });
+    expect(suggestionsTab).toHaveAttribute("href", "/");
+    expect(savedTab).toHaveAttribute("href", "/?tab=in-progress");
+    expect(suggestionsTab.querySelector("svg")).not.toBeNull();
+    expect(savedTab.querySelector("svg")).not.toBeNull();
+    expect(
+      suggestionsTab.querySelector("[data-job-tab-indicator]"),
+    ).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "תפריט משתמש" }));
     expect(screen.getByRole("link", { name: "פרופיל" })).toHaveAttribute(
       "href",
       "/profile",
     );
+  });
+
+  it("switches job tabs immediately and keeps browser history in sync", () => {
+    window.history.replaceState(null, "", "/");
+    const { result } = renderHook(() => useJobViewNavigation("suggestions"));
+
+    act(() => result.current.selectView("inProgress"));
+    expect(result.current.view).toBe("inProgress");
+    expect(window.location.search).toBe("?tab=in-progress");
+
+    act(() => {
+      window.history.pushState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(result.current.view).toBe("suggestions");
+  });
+
+  it("intercepts tab links for an immediate in-place view change", async () => {
+    const user = userEvent.setup();
+    const onJobViewChange = vi.fn();
+    render(
+      <AuthenticatedShell
+        currentPage="jobs"
+        jobView="suggestions"
+        onJobViewChange={onJobViewChange}
+      >
+        <p>Jobs</p>
+      </AuthenticatedShell>,
+    );
+
+    await user.click(screen.getByRole("link", { name: "Saved" }));
+    expect(onJobViewChange).toHaveBeenCalledWith("inProgress");
   });
 
   it("uses the server-selected jobs view instead of client URL parsing", () => {

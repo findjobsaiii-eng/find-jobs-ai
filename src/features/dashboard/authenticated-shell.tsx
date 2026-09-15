@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { DirectionProvider } from "@base-ui/react/direction-provider";
+import { Bookmark, Sparkles, type LucideIcon } from "lucide-react";
+import { domAnimation, LazyMotion, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { useTranslation } from "react-i18next";
 import { Brand } from "@/features/auth/brand";
 import { UserMenu } from "@/features/auth/user-menu";
@@ -15,13 +18,16 @@ export function AuthenticatedShell({
   children,
   currentPage,
   jobView,
+  onJobViewChange,
 }: {
   data?: CurrentProfile;
   children: ReactNode;
   currentPage: "jobs" | "profile";
   jobView?: "suggestions" | "inProgress";
+  onJobViewChange?: (view: "suggestions" | "inProgress") => void;
 }) {
   const { t, i18n } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const displayName = data
     ? data.profile?.preferredDisplayName ||
       data.identity.googleDisplayName ||
@@ -30,18 +36,55 @@ export function AuthenticatedShell({
   const isJobsPage = currentPage === "jobs";
   const isSaved = isJobsPage && jobView === "inProgress";
 
-  const jobLink = (to: string, label: string, active: boolean) => (
+  const jobLink = (
+    to: string,
+    label: string,
+    view: "suggestions" | "inProgress",
+    active: boolean,
+    Icon: LucideIcon,
+  ) => (
     <Link
       href={to}
       aria-current={active ? "page" : undefined}
+      onClick={
+        onJobViewChange
+          ? (event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              ) {
+                return;
+              }
+              event.preventDefault();
+              onJobViewChange(view);
+            }
+          : undefined
+      }
       className={cn(
-        "min-h-9 rounded-lg px-2.5 py-2 text-xs font-semibold transition-[color,background-color,box-shadow] outline-none focus-visible:ring-3 focus-visible:ring-white/35 motion-reduce:transition-none sm:px-4 sm:text-sm",
+        "relative isolate inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-white/35 motion-reduce:transition-none sm:px-4 sm:text-sm",
         active
-          ? "text-brand-midnight bg-white shadow-sm"
+          ? "text-brand-midnight"
           : "text-white/65 hover:bg-white/10 hover:text-white",
       )}
     >
-      {label}
+      {active ? (
+        <m.span
+          data-job-tab-indicator=""
+          aria-hidden="true"
+          layoutId="active-job-view"
+          className="absolute inset-0 -z-10 rounded-lg bg-white shadow-sm"
+          transition={
+            reducedMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 520, damping: 42, mass: 0.72 }
+          }
+        />
+      ) : null}
+      <Icon aria-hidden="true" className="size-3.5 sm:size-4" />
+      <span>{label}</span>
     </Link>
   );
 
@@ -59,19 +102,25 @@ export function AuthenticatedShell({
             </Link>
 
             <nav
-              className="flex items-center gap-0.5 justify-self-center"
+              className="flex items-center gap-0.5 justify-self-center rounded-xl border border-white/8 bg-white/5 p-1"
               aria-label={t("dashboard.jobNavigation")}
             >
-              {jobLink(
-                "/",
-                t("applications.suggestions"),
-                isJobsPage && !isSaved,
-              )}
-              {jobLink(
-                "/?tab=in-progress",
-                t("applications.inProgress"),
-                isSaved,
-              )}
+              <LazyMotion features={domAnimation}>
+                {jobLink(
+                  "/",
+                  t("applications.suggestions"),
+                  "suggestions",
+                  isJobsPage && !isSaved,
+                  Sparkles,
+                )}
+                {jobLink(
+                  "/?tab=in-progress",
+                  t("applications.inProgress"),
+                  "inProgress",
+                  isSaved,
+                  Bookmark,
+                )}
+              </LazyMotion>
             </nav>
 
             {data && displayName ? (
