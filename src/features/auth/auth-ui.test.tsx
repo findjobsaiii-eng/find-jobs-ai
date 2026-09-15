@@ -153,12 +153,10 @@ describe("authentication UI", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Less searching. Better matches.",
+        name: "Every job. One place.",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByText("Ask. Match. Apply.", { selector: "p" }),
-    ).toHaveLength(2);
+    expect(screen.getByText("Find. Understand. Track.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute(
       "href",
       "#product",

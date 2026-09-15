@@ -43,8 +43,9 @@ function Beam({ path, delay }: { path: string; delay: number }) {
 }
 
 export function AnimatedMatchingMap() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const reducedMotion = useReducedMotion();
+  const isRtl = i18n.dir() === "rtl";
 
   return (
     <div className="relative mx-auto w-full max-w-[42rem]">
@@ -73,6 +74,10 @@ export function AnimatedMatchingMap() {
           className="pointer-events-none absolute inset-0 h-full w-full"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
+          style={{
+            transform: isRtl ? "scaleX(-1)" : undefined,
+            transformOrigin: "center",
+          }}
         >
           <defs>
             <linearGradient id="beam-gradient" x1="0" x2="1">
@@ -80,10 +85,10 @@ export function AnimatedMatchingMap() {
               <stop offset="1" stopColor="#3b82f6" />
             </linearGradient>
           </defs>
-          <Beam path="M 18 42 C 31 42, 34 56, 49 56" delay={0} />
-          <Beam path="M 51 56 C 64 56, 65 35, 81 35" delay={0.2} />
-          <Beam path="M 51 56 C 64 56, 65 56, 81 56" delay={0.75} />
-          <Beam path="M 51 56 C 64 56, 65 77, 81 77" delay={1.3} />
+          <Beam path="M 29 48 C 37 48, 40 56, 44 56" delay={0} />
+          <Beam path="M 44 56 C 52 56, 54 32, 62 32" delay={0.2} />
+          <Beam path="M 44 56 C 52 56, 54 47, 62 47" delay={0.75} />
+          <Beam path="M 44 56 C 52 56, 54 62, 62 62" delay={1.3} />
         </svg>
 
         <motion.div
@@ -105,7 +110,7 @@ export function AnimatedMatchingMap() {
         <motion.div
           animate={reducedMotion ? undefined : { scale: [1, 1.035, 1] }}
           transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut" }}
-          className="bg-brand-midnight absolute start-1/2 top-[49%] z-20 grid size-18 -translate-x-1/2 place-items-center rounded-[1.4rem] border border-white/10 shadow-xl shadow-slate-950/25 sm:size-21 rtl:translate-x-1/2"
+          className="bg-brand-midnight absolute start-[44%] top-[49%] z-20 grid size-18 -translate-x-1/2 place-items-center rounded-[1.4rem] border border-white/10 shadow-xl shadow-slate-950/25 sm:size-21 rtl:translate-x-1/2"
         >
           <span className="absolute -inset-2 rounded-[1.7rem] border border-blue-300/25" />
           <JobmiterMark className="size-10 sm:size-12" variant="inverse" />

@@ -18,10 +18,10 @@
     "otherLanguage": "עברית"
   },
   "landing": {
-    "eyebrow": "AI-powered job matching for real people",
-    "titleStart": "Less searching.",
-    "titleAccent": "Better matches.",
-    "description": "JOBMITER understands your experience, skills, and direction—then brings the most relevant opportunities into one calm, focused workspace.",
+    "eyebrow": "Your job search, working every day",
+    "titleStart": "Every job.",
+    "titleAccent": "One place.",
+    "description": "JOBMITER finds fresh jobs from across the web every day, matches them to your profile, and keeps everything from application notes to interview prep in one place.",
     "signIn": "Get started with Google",
     "privacy": "Your resume stays private and in your control.",
     "secondaryCta": "See how it works",
@@ -33,38 +33,38 @@
       "start": "Get started"
     },
     "workflow": {
-      "title": "Ask. Match. Apply.",
-      "live": "Working for you",
+      "title": "Discover. Decide. Track.",
+      "live": "Scanning the web daily",
       "intent": "A job that fits you",
-      "intentHint": "Product roles · Tel Aviv · Hybrid",
-      "analysis": "AI understands your experience",
-      "matches": "The best opportunities rise to the top",
-      "focus": "You focus on what comes next"
+      "intentHint": "Your profile · preferences · location",
+      "analysis": "Fresh jobs from across the web",
+      "matches": "A full AI report in one click",
+      "focus": "Every application tracked in one place"
     },
-    "howEyebrow": "Ask. Match. Apply.",
-    "howItWorks": "A clearer path to the right role",
-    "howDescription": "One thoughtful flow replaces scattered tabs, noisy job boards, and hours of searching.",
+    "howEyebrow": "Find. Understand. Track.",
+    "howItWorks": "Your entire job search in one place",
+    "howDescription": "Stop repeating the same searches across different sites. JOBMITER brings fresh opportunities to you and helps you handle every next step.",
     "steps": {
       "ask": {
-        "title": "Tell us where you want to go",
-        "description": "Build your profile from your resume and set the direction that matters to you."
+        "title": "Tell us what fits",
+        "description": "Upload your resume or build your profile manually, then set the roles, locations, and working style you want."
       },
       "match": {
-        "title": "See opportunities with context",
-        "description": "JOBMITER compares your experience with real roles and explains why each one fits."
+        "title": "Get fresh jobs every day",
+        "description": "JOBMITER searches across the web automatically and brings the most relevant new opportunities into one focused list."
       },
       "apply": {
-        "title": "Move forward with focus",
-        "description": "Open the strongest opportunities and keep every application organized as it progresses."
+        "title": "Understand and track every role",
+        "description": "Generate a full AI report with one click, then keep application status, notes, and preparation together."
       }
     },
     "preview": {
       "navMatches": "Matches",
-      "navProgress": "In progress",
+      "navProgress": "Applications",
       "navProfile": "Profile",
-      "eyebrow": "Matched for you",
-      "title": "Your most relevant opportunities",
-      "fresh": "Updated today",
+      "eyebrow": "Found across the web",
+      "title": "Fresh jobs matched to you",
+      "fresh": "New today",
       "jobs": {
         "product": {
           "initial": "P",
@@ -84,44 +84,44 @@
       }
     },
     "product": {
-      "eyebrow": "Less noise. More signal.",
-      "title": "A job search that stays on your side",
-      "description": "Recommendations, match context, saved roles, and application progress live together—so every next step is obvious.",
+      "eyebrow": "More than job discovery",
+      "title": "Everything after the search, handled too",
+      "description": "Review why a role fits, save it, track your application, add notes, and prepare for what comes next without losing context.",
       "points": {
-        "focused": "A focused list shaped around your real profile",
-        "transparent": "Clear match context instead of unexplained rankings",
-        "progress": "Simple application tracking without the ATS complexity"
+        "focused": "Fresh matches from across the web, every day",
+        "transparent": "A one-click AI report for every job",
+        "progress": "Applications, notes, status, and prep in one place"
       }
     },
     "pillars": {
-      "eyebrow": "Built around people",
-      "title": "Where talent meets opportunity.",
-      "description": "AI should make a difficult process feel clearer, not colder. Every JOBMITER surface is designed to reduce uncertainty and help you make confident decisions.",
+      "eyebrow": "One search. Full workflow.",
+      "title": "From discovery to interview.",
+      "description": "JOBMITER keeps finding opportunities while you focus on choosing well, applying thoughtfully, and staying prepared.",
       "items": {
         "clarity": {
-          "title": "Clarity",
-          "description": "Fewer distractions. Better next steps."
+          "title": "Across the web",
+          "description": "Relevant roles from many sources, gathered into one list."
         },
         "speed": {
-          "title": "Speed",
-          "description": "From search to opportunity, faster."
+          "title": "Fresh every day",
+          "description": "New matches arrive without repeating manual searches."
         },
         "relevance": {
-          "title": "Relevance",
-          "description": "Matches grounded in your experience."
+          "title": "Understand every job",
+          "description": "One click gives you a full AI fit report."
         },
         "trust": {
-          "title": "Trust",
-          "description": "Private by design and always in your control."
+          "title": "Stay ready",
+          "description": "Track status, notes, and preparation for every application."
         }
       }
     },
     "cta": {
-      "title": "Your next chapter deserves a smarter start.",
-      "description": "Bring your experience. JOBMITER will help turn it into focused, relevant opportunities.",
+      "title": "Let the right jobs come to you.",
+      "description": "Create your profile once. Get fresh matches every day, understand each opportunity, and manage every application in one place.",
       "button": "Start with JOBMITER"
     },
-    "footer": "AI × people × progress"
+    "footer": "Discover × understand × track"
   },
   "auth": {
     "eyebrow": "Welcome",

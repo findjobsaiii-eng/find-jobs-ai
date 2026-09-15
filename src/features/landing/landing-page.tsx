@@ -266,13 +266,20 @@ export function LandingPage() {
         </motion.div>
       </section>
 
-      <div className="border-y border-blue-100/80 bg-white/70 py-5 backdrop-blur">
-        <div className="landing-marquee flex w-max items-center gap-8 text-sm font-bold tracking-[0.23em] whitespace-nowrap text-slate-700 uppercase motion-reduce:translate-x-0">
-          {[0, 1].map((group) => (
+      <div
+        dir="ltr"
+        className="overflow-hidden border-y border-blue-100/80 bg-white/70 py-5 backdrop-blur"
+      >
+        <div
+          dir="ltr"
+          className="landing-marquee flex w-max text-sm font-bold tracking-[0.23em] whitespace-nowrap text-slate-700 uppercase motion-reduce:translate-x-0"
+        >
+          {[0, 1, 2, 3].map((segment) => (
             <div
-              key={group}
-              aria-hidden={group === 1}
-              className="flex items-center gap-8"
+              key={segment}
+              dir={i18n.dir()}
+              aria-hidden={segment > 0}
+              className="flex min-w-[100vw] shrink-0 items-center justify-around gap-8 px-4"
             >
               <span>{t("landing.workflow.analysis")}</span>
               <Sparkles

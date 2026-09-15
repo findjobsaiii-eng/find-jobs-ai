@@ -248,6 +248,7 @@
 
 .landing-marquee {
   animation: landing-marquee 28s linear infinite;
+  will-change: transform;
 }
 
 @keyframes landing-pulse {
@@ -265,7 +266,7 @@
     transform: translateX(0);
   }
   to {
-    transform: translateX(-50%);
+    transform: translateX(-25%);
   }
 }
 
