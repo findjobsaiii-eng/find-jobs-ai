@@ -389,7 +389,7 @@ const discoveryStateValidator = v.union(
   v.literal("failed"),
 );
 
-const MAX_APPLICATION_NOTES_LENGTH = 3_000;
+const MAX_APPLICATION_NOTE_LENGTH = 3_000;
 
 type ApplicationStatus =
   | "saved"
@@ -403,31 +403,21 @@ type ApplicationStatus =
   | "rejected"
   | "withdrawn";
 
-function normalizedApplicationStatus(application: Doc<"jobApplications">) {
-  return (application.status ?? "applied") as ApplicationStatus;
-}
-
 function timelineEventView(event: Doc<"jobApplicationEvents">) {
-  return {
-    id: event._id,
-    kind: event.kind,
-    status: event.status,
-    note: event.note,
-    createdAt: event.createdAt,
-  };
-}
-
-function legacyTimelineEvent(application: Doc<"jobApplications">) {
-  return {
-    id: null,
-    kind: "status_change" as const,
-    status: normalizedApplicationStatus(application),
-    note: application.notes,
-    createdAt:
-      application.updatedAt ??
-      application.appliedAt ??
-      application._creationTime,
-  };
+  return event.kind === "status_change"
+    ? {
+        id: event._id,
+        kind: event.kind,
+        status: event.status,
+        note: event.note,
+        createdAt: event.createdAt,
+      }
+    : {
+        id: event._id,
+        kind: event.kind,
+        note: event.note,
+        createdAt: event.createdAt,
+      };
 }
 
 function timelineEventsByApplication(events: Doc<"jobApplicationEvents">[]) {
@@ -450,22 +440,16 @@ function trackingFields(
   if (!application) return {};
   return {
     appliedAt: application.appliedAt,
-    trackingStatus: normalizedApplicationStatus(application),
-    trackingNotes: application.notes,
-    trackingUpdatedAt:
-      application.updatedAt ??
-      application.appliedAt ??
-      application._creationTime,
-    trackingTimeline: events.length
-      ? events
-      : [legacyTimelineEvent(application)],
+    trackingStatus: application.status,
+    trackingUpdatedAt: application.updatedAt,
+    trackingTimeline: events,
   };
 }
 
-function normalizedNotes(notes: string | undefined) {
-  if (notes === undefined) return undefined;
-  const value = notes.trim();
-  if (value.length > MAX_APPLICATION_NOTES_LENGTH) {
+function normalizedNote(note: string | undefined) {
+  if (note === undefined) return undefined;
+  const value = note.trim();
+  if (value.length > MAX_APPLICATION_NOTE_LENGTH) {
     throw new ConvexError({ code: "APPLICATION_NOTES_TOO_LONG" });
   }
   return value || undefined;
@@ -474,44 +458,20 @@ function normalizedNotes(notes: string | undefined) {
 async function addApplicationEvent(
   ctx: MutationCtx,
   application: Doc<"jobApplications">,
-  event: {
-    kind: "status_change" | "note";
-    status?: ApplicationStatus;
-    note?: string;
-    createdAt: number;
-  },
+  event:
+    | {
+        kind: "status_change";
+        status: ApplicationStatus;
+        note?: string;
+        createdAt: number;
+      }
+    | { kind: "note"; note: string; createdAt: number },
 ) {
   await ctx.db.insert("jobApplicationEvents", {
     userId: application.userId,
     applicationId: application._id,
     jobId: application.jobId,
-    kind: event.kind,
-    ...(event.status ? { status: event.status } : {}),
-    ...(event.note ? { note: event.note } : {}),
-    createdAt: event.createdAt,
-  });
-}
-
-async function preserveLegacyApplicationEvent(
-  ctx: MutationCtx,
-  application: Doc<"jobApplications">,
-) {
-  const existingEvent = await ctx.db
-    .query("jobApplicationEvents")
-    .withIndex("by_applicationId_and_createdAt", (q) =>
-      q.eq("applicationId", application._id),
-    )
-    .order("desc")
-    .first();
-  if (existingEvent) return;
-  await addApplicationEvent(ctx, application, {
-    kind: "status_change",
-    status: normalizedApplicationStatus(application),
-    note: application.notes,
-    createdAt:
-      application.updatedAt ??
-      application.appliedAt ??
-      application._creationTime,
+    ...event,
   });
 }
 
@@ -2011,7 +1971,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
     ]);
   const appliedJobIds = new Set(
     applications
-      .filter((item) => normalizedApplicationStatus(item) !== "saved")
+      .filter((item) => item.status !== "saved")
       .map((item) => item.jobId),
   );
   const fixtureJobIds = new Set(
@@ -2680,15 +2640,12 @@ export const listJobTrackingTimeline = query({
       )
       .order("desc")
       .take(100);
-    if (events.length) {
-      return events.map(timelineEventView);
-    }
-    return [legacyTimelineEvent(application)];
+    return events.map(timelineEventView);
   },
 });
 
-export const setApplicationStatus = mutation({
-  args: { jobId: v.id("jobs"), applied: v.boolean() },
+export const removeJobTracking = mutation({
+  args: { jobId: v.id("jobs") },
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -2699,73 +2656,22 @@ export const setApplicationStatus = mutation({
         q.eq("userId", userId).eq("jobId", trackedJob.jobId),
       )
       .unique();
-    if (!args.applied) {
-      if (existing) {
-        const events = await ctx.db
-          .query("jobApplicationEvents")
-          .withIndex("by_applicationId_and_createdAt", (q) =>
-            q.eq("applicationId", existing._id),
-          )
-          .take(1_000);
-        await Promise.all(
-          events.map((event) =>
-            ctx.db.delete("jobApplicationEvents", event._id),
-          ),
-        );
-        await ctx.db.delete("jobApplications", existing._id);
-      }
-      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
-        userId,
-        jobId: trackedJob.jobId,
-      });
-      return null;
-    }
-    const now = Date.now();
     if (existing) {
-      await preserveLegacyApplicationEvent(ctx, existing);
-      await ctx.db.patch("jobApplications", existing._id, {
-        status: "applied",
-        appliedAt: existing.appliedAt ?? now,
-        updatedAt: now,
-      });
-      if (normalizedApplicationStatus(existing) !== "applied") {
-        await addApplicationEvent(ctx, existing, {
-          kind: "status_change",
-          status: "applied",
-          createdAt: now,
-        });
-      }
-    } else {
-      const job = trackedJob.job;
-      const item = job
-        ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
-        : null;
-      if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
-      const applicationId = await ctx.db.insert("jobApplications", {
-        userId,
-        jobId: trackedJob.jobId,
-        appliedAt: now,
-        status: "applied",
-        updatedAt: now,
-        snapshot: item,
-      });
-      const application = await ctx.db.get("jobApplications", applicationId);
-      if (application) {
-        await addApplicationEvent(ctx, application, {
-          kind: "status_change",
-          status: "applied",
-          createdAt: now,
-        });
-      }
+      const events = await ctx.db
+        .query("jobApplicationEvents")
+        .withIndex("by_applicationId_and_createdAt", (q) =>
+          q.eq("applicationId", existing._id),
+        )
+        .take(1_000);
+      await Promise.all(
+        events.map((event) => ctx.db.delete("jobApplicationEvents", event._id)),
+      );
+      await ctx.db.delete("jobApplications", existing._id);
     }
-    const match = await ctx.db
-      .query("jobMatches")
-      .withIndex("by_userId_and_jobId", (q) =>
-        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
-      )
-      .unique();
-    if (match)
-      await ctx.db.patch("jobMatches", match._id, { displayEligible: false });
+    await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
+      userId,
+      jobId: trackedJob.jobId,
+    });
     return null;
   },
 });
@@ -2774,7 +2680,7 @@ export const updateJobTracking = mutation({
   args: {
     jobId: v.id("jobs"),
     status: applicationStatus,
-    notes: v.optional(v.string()),
+    note: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -2787,24 +2693,20 @@ export const updateJobTracking = mutation({
       )
       .unique();
     const now = Date.now();
-    const notes = normalizedNotes(args.notes);
+    const note = normalizedNote(args.note);
     if (existing) {
-      const previousStatus = normalizedApplicationStatus(existing);
-      const statusChanged = previousStatus !== args.status;
-      if (!statusChanged && !notes) return null;
-      await preserveLegacyApplicationEvent(ctx, existing);
+      if (existing.status === args.status) return null;
       await ctx.db.patch("jobApplications", existing._id, {
         status: args.status,
-        ...(args.notes !== undefined ? { notes } : {}),
         ...(args.status !== "saved" && !existing.appliedAt
           ? { appliedAt: now }
           : {}),
         updatedAt: now,
       });
       await addApplicationEvent(ctx, existing, {
-        kind: statusChanged ? "status_change" : "note",
-        ...(statusChanged ? { status: args.status } : {}),
-        note: notes,
+        kind: "status_change",
+        status: args.status,
+        note,
         createdAt: now,
       });
     } else {
@@ -2818,7 +2720,6 @@ export const updateJobTracking = mutation({
         jobId: trackedJob.jobId,
         ...(args.status !== "saved" ? { appliedAt: now } : {}),
         status: args.status,
-        ...(notes ? { notes } : {}),
         updatedAt: now,
         snapshot: item,
       });
@@ -2827,7 +2728,7 @@ export const updateJobTracking = mutation({
         await addApplicationEvent(ctx, application, {
           kind: "status_change",
           status: args.status,
-          note: notes,
+          note,
           createdAt: now,
         });
       }
@@ -2856,7 +2757,7 @@ export const addJobTrackingNote = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
     const trackedJob = await canonicalTrackingJob(ctx, args.jobId);
-    const note = normalizedNotes(args.note);
+    const note = normalizedNote(args.note);
     if (!note) throw new ConvexError({ code: "APPLICATION_NOTE_REQUIRED" });
     const existing = await ctx.db
       .query("jobApplications")
@@ -2866,9 +2767,7 @@ export const addJobTrackingNote = mutation({
       .unique();
     const now = Date.now();
     if (existing) {
-      await preserveLegacyApplicationEvent(ctx, existing);
       await ctx.db.patch("jobApplications", existing._id, {
-        notes: note,
         updatedAt: now,
       });
       await addApplicationEvent(ctx, existing, {
@@ -2888,7 +2787,6 @@ export const addJobTrackingNote = mutation({
       userId,
       jobId: trackedJob.jobId,
       status: "saved",
-      notes: note,
       updatedAt: now,
       snapshot: item,
     });

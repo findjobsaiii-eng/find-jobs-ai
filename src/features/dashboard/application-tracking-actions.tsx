@@ -28,7 +28,7 @@ export function ApplicationTrackingActions({
   const { t } = useTranslation();
   const updateTracking = useMutation(api.jobDiscovery.updateJobTracking);
   const addNote = useMutation(api.jobDiscovery.addJobTrackingNote);
-  const removeTracking = useMutation(api.jobDiscovery.setApplicationStatus);
+  const removeTracking = useMutation(api.jobDiscovery.removeJobTracking);
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -42,7 +42,7 @@ export function ApplicationTrackingActions({
         await updateTracking({
           jobId,
           status: dialogMode.status,
-          ...(comment.trim() ? { notes: comment } : {}),
+          ...(comment.trim() ? { note: comment } : {}),
         });
         onChanged(dialogMode.status === "saved" ? "marked" : "trackingSaved");
       } else {
@@ -61,7 +61,7 @@ export function ApplicationTrackingActions({
     if (saving) return;
     setSaving(true);
     try {
-      await removeTracking({ jobId, applied: false });
+      await removeTracking({ jobId });
       onChanged("unmarked");
     } catch {
       onRemoveError();

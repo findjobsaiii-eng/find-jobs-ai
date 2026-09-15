@@ -123,13 +123,21 @@ export const applicationStatus = v.union(
   v.literal("withdrawn"),
 );
 
-export const applicationTimelineEvent = v.object({
-  id: v.union(v.id("jobApplicationEvents"), v.null()),
-  kind: v.union(v.literal("status_change"), v.literal("note")),
-  status: v.optional(applicationStatus),
-  note: v.optional(v.string()),
-  createdAt: v.number(),
-});
+export const applicationTimelineEvent = v.union(
+  v.object({
+    id: v.id("jobApplicationEvents"),
+    kind: v.literal("status_change"),
+    status: applicationStatus,
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }),
+  v.object({
+    id: v.id("jobApplicationEvents"),
+    kind: v.literal("note"),
+    note: v.string(),
+    createdAt: v.number(),
+  }),
+);
 
 const profileOverrideField = v.union(
   v.literal("targetJobTitles"),
@@ -219,7 +227,6 @@ export const deepReviewView = v.object({
 export const jobFeedItem = v.object({
   appliedAt: v.optional(v.number()),
   trackingStatus: v.optional(applicationStatus),
-  trackingNotes: v.optional(v.string()),
   trackingUpdatedAt: v.optional(v.number()),
   trackingTimeline: v.optional(v.array(applicationTimelineEvent)),
   id: v.id("jobs"),
@@ -440,22 +447,33 @@ const schema = defineSchema({
     userId: v.id("users"),
     jobId: v.id("jobs"),
     appliedAt: v.optional(v.number()),
-    status: v.optional(applicationStatus),
-    notes: v.optional(v.string()),
-    updatedAt: v.optional(v.number()),
+    status: applicationStatus,
+    updatedAt: v.number(),
     snapshot: jobFeedItem,
   })
     .index("by_userId_and_jobId", ["userId", "jobId"])
     .index("by_userId_and_appliedAt", ["userId", "appliedAt"]),
-  jobApplicationEvents: defineTable({
-    userId: v.id("users"),
-    applicationId: v.id("jobApplications"),
-    jobId: v.id("jobs"),
-    kind: v.union(v.literal("status_change"), v.literal("note")),
-    status: v.optional(applicationStatus),
-    note: v.optional(v.string()),
-    createdAt: v.number(),
-  })
+  jobApplicationEvents: defineTable(
+    v.union(
+      v.object({
+        userId: v.id("users"),
+        applicationId: v.id("jobApplications"),
+        jobId: v.id("jobs"),
+        kind: v.literal("status_change"),
+        status: applicationStatus,
+        note: v.optional(v.string()),
+        createdAt: v.number(),
+      }),
+      v.object({
+        userId: v.id("users"),
+        applicationId: v.id("jobApplications"),
+        jobId: v.id("jobs"),
+        kind: v.literal("note"),
+        note: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  )
     .index("by_applicationId_and_createdAt", ["applicationId", "createdAt"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"]),
   dailyDiscoveryAttempts: defineTable({

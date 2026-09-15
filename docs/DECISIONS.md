@@ -294,15 +294,17 @@ candidate's lightweight hiring pipeline. Immutable `jobApplicationEvents` rows
 record each status change and standalone note with a timestamp; an optional note
 on a status event keeps its context attached. Notes are trimmed and bounded to
 3,000 characters, timeline reads are bounded to the latest 100 events, and every
-operation derives the owner from Convex Auth. Historical snapshot-only rows are
-shown as a legacy event and are preserved into the event table on their next
-update. Saved-only rows remain eligible in Suggestions, but later application
-stages are excluded. The immutable posting snapshot keeps tracking readable after
-source expiry. Job cards use one Save/status picker plus an adjacent standalone
-comment action; status comments are collected only after a new status is chosen.
-The newest timeline events are embedded in the bounded feed result and rendered
-inline below Key skills, avoiding a query per card. These actions record candidate
-activity and never submit a résumé.
+operation derives the owner from Convex Auth. Every application has a required
+status and update timestamp; every status change or note has a corresponding
+event. No compatibility fallback exists for incomplete tracking rows—development
+data is cleared when this model changes. Saved-only rows remain eligible in
+Suggestions, but later application stages are excluded. The immutable posting
+snapshot keeps tracking readable after source expiry. Job cards use one
+Save/status picker plus an adjacent standalone comment action; status comments
+are collected only after a new status is chosen. The newest timeline events are
+embedded in the bounded feed result and rendered inline below Key skills,
+avoiding a query per card. These actions record candidate activity and never
+submit a résumé.
 
 ### D-020: Job activity is cached, conservative, and historical
 

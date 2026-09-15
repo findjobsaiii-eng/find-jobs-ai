@@ -222,7 +222,6 @@ describe("job result cards", () => {
     await user.click(screen.getByRole("button", { name: "הסרה מהשמורות" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
-      applied: false,
     });
   });
 
@@ -265,7 +264,6 @@ describe("job result cards", () => {
     hooks.jobs = [
       job({
         trackingStatus: "applied",
-        trackingNotes: "Waiting for a reply.",
         trackingUpdatedAt: Date.UTC(2026, 8, 7, 10),
       }),
     ];
@@ -286,7 +284,7 @@ describe("job result cards", () => {
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
       status: "interview",
-      notes: "Interview with the product lead.",
+      note: "Interview with the product lead.",
     });
   });
 

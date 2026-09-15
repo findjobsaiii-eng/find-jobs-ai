@@ -6,13 +6,20 @@ import { LocalizedDate } from "@/components/ui/localized-date";
 import type { ApplicationStatus } from "./application-status";
 import { ApplicationStatusIcon } from "./application-status-visual";
 
-export type ApplicationTimelineEvent = {
-  id: string | null;
-  kind: "status_change" | "note";
-  status?: ApplicationStatus;
-  note?: string;
-  createdAt: number;
-};
+export type ApplicationTimelineEvent =
+  | {
+      id: string;
+      kind: "status_change";
+      status: ApplicationStatus;
+      note?: string;
+      createdAt: number;
+    }
+  | {
+      id: string;
+      kind: "note";
+      note: string;
+      createdAt: number;
+    };
 
 const COLLAPSED_EVENT_COUNT = 3;
 
@@ -32,10 +39,7 @@ export function ApplicationTimeline({
     <section className="mt-5" aria-label={t("applications.tracking.timeline")}>
       <ol className="space-y-0">
         {visibleEvents.map((event, index) => (
-          <li
-            key={event.id ?? `legacy-${event.createdAt}`}
-            className="relative flex gap-3 pb-4 last:pb-0"
-          >
+          <li key={event.id} className="relative flex gap-3 pb-4 last:pb-0">
             {index < visibleEvents.length - 1 ? (
               <span
                 aria-hidden="true"

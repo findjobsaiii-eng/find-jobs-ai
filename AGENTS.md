@@ -15,6 +15,11 @@
 
 This is an AI-powered job-search assistant built with Next.js App Router, React, TypeScript, and Convex. Keep architecture proportional to the feature being built: prefer a clear feature folder over speculative abstractions, and record durable decisions in the README or a focused document under `docs/`.
 
+## Pre-production data policy
+
+- Do not add backward-compatibility fallbacks, legacy readers, transitional schema fields, or automatic preservation/backfill behavior unless the owner explicitly requests it.
+- When a cleaner schema conflicts with development data, prefer the clean schema and clear or reseed the affected development data. Tests must exercise only the current data model.
+
 # Frontend conventions
 
 - Keep `src/app/` focused on App Router routes, layouts, metadata, and application-wide providers. Put reusable primitives in `src/components/ui/`, feature code in `src/features/<feature>/`, shared utilities in `src/lib/`, and translations in `src/i18n/locales/`.

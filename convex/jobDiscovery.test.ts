@@ -1036,9 +1036,9 @@ describe("stored job activity", () => {
       sourceId: (await ctx.db.query("jobSources").first())?._id,
     }));
     if (!ids.jobId || !ids.sourceId) throw new Error("Expected stored job");
-    await asUser(t, userId).mutation(api.jobDiscovery.setApplicationStatus, {
+    await asUser(t, userId).mutation(api.jobDiscovery.updateJobTracking, {
       jobId: ids.jobId,
-      applied: true,
+      status: "applied",
     });
     await t.mutation(internal.jobActivity.recordVerification, {
       sourceId: ids.sourceId,
@@ -1067,46 +1067,6 @@ describe("stored job activity", () => {
     });
   });
 
-  it("reads historical Sent résumé snapshots as applied", async () => {
-    const t = convexTest(schema, modules);
-    const userId = await createUser(t);
-    await addCompletedProfile(t, userId);
-    await ingestCandidates(t, userId, [
-      { job: normalizedJob(), verification: verification() },
-    ]);
-    const jobId = await t.run(
-      async (ctx) => (await ctx.db.query("jobs").first())?._id,
-    );
-    if (!jobId) throw new Error("Expected stored job");
-    await asUser(t, userId).mutation(api.jobDiscovery.setApplicationStatus, {
-      jobId,
-      applied: true,
-    });
-    await t.run(async (ctx) => {
-      const application = await ctx.db
-        .query("jobApplications")
-        .withIndex("by_userId_and_jobId", (q) =>
-          q.eq("userId", userId).eq("jobId", jobId),
-        )
-        .unique();
-      if (!application) throw new Error("Expected application");
-      await ctx.db.patch("jobApplications", application._id, {
-        status: undefined,
-        updatedAt: undefined,
-      });
-    });
-
-    const history = await asUser(t, userId).query(
-      api.jobDiscovery.listCurrentUserJobs,
-      { view: "inProgress" },
-    );
-    expect(history.jobs[0]).toMatchObject({
-      id: jobId,
-      trackingStatus: "applied",
-    });
-    expect(history.jobs[0].trackingUpdatedAt).toBeTypeOf("number");
-  });
-
   it("saves once, updates status and bounded notes, and preserves appliedAt", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
@@ -1123,7 +1083,7 @@ describe("stored job activity", () => {
     await user.mutation(api.jobDiscovery.updateJobTracking, {
       jobId,
       status: "saved",
-      notes: "  Follow up with Dana on Thursday.  ",
+      note: "  Follow up with Dana on Thursday.  ",
     });
     const savedFeed = await user.query(api.jobDiscovery.listCurrentUserJobs, {
       view: "inProgress",
@@ -1131,7 +1091,6 @@ describe("stored job activity", () => {
     expect(savedFeed.jobs[0]).toMatchObject({
       id: jobId,
       trackingStatus: "saved",
-      trackingNotes: "Follow up with Dana on Thursday.",
       trackingTimeline: [
         {
           kind: "status_change",
@@ -1150,9 +1109,9 @@ describe("stored job activity", () => {
       expect(saved?.appliedAt).toBeUndefined();
     });
 
-    await user.mutation(api.jobDiscovery.setApplicationStatus, {
+    await user.mutation(api.jobDiscovery.updateJobTracking, {
       jobId,
-      applied: true,
+      status: "applied",
     });
     const firstAppliedAt = await t.run(async (ctx) => {
       const rows = await ctx.db
@@ -1162,17 +1121,14 @@ describe("stored job activity", () => {
         )
         .take(10);
       expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        status: "applied",
-        notes: "Follow up with Dana on Thursday.",
-      });
+      expect(rows[0]).toMatchObject({ status: "applied" });
       return rows[0].appliedAt;
     });
 
     await user.mutation(api.jobDiscovery.updateJobTracking, {
       jobId,
       status: "interview",
-      notes: "Technical interview scheduled.",
+      note: "Technical interview scheduled.",
     });
     await user.mutation(api.jobDiscovery.addJobTrackingNote, {
       jobId,
@@ -1183,11 +1139,10 @@ describe("stored job activity", () => {
       { jobId },
     );
     expect(
-      timeline.map(({ kind, status, note }) => ({ kind, status, note })),
+      timeline.map(({ id: _id, createdAt: _createdAt, ...event }) => event),
     ).toEqual([
       {
         kind: "note",
-        status: undefined,
         note: "Bring the architecture case study.",
       },
       {
@@ -1195,7 +1150,7 @@ describe("stored job activity", () => {
         status: "interview",
         note: "Technical interview scheduled.",
       },
-      { kind: "status_change", status: "applied", note: undefined },
+      { kind: "status_change", status: "applied" },
       {
         kind: "status_change",
         status: "saved",
@@ -1211,7 +1166,6 @@ describe("stored job activity", () => {
         .unique();
       expect(row).toMatchObject({
         status: "interview",
-        notes: "Bring the architecture case study.",
         appliedAt: firstAppliedAt,
       });
     });
@@ -1219,7 +1173,7 @@ describe("stored job activity", () => {
       user.mutation(api.jobDiscovery.updateJobTracking, {
         jobId,
         status: "interview",
-        notes: "x".repeat(3_001),
+        note: "x".repeat(3_001),
       }),
     ).rejects.toThrow();
   });
@@ -1248,21 +1202,17 @@ describe("stored job activity", () => {
     expect(feed.jobs[0]).toMatchObject({
       id: jobId,
       trackingStatus: "saved",
-      trackingNotes: "Ask about the reporting line.",
     });
     expect(
-      feed.jobs[0].trackingTimeline?.map(({ kind, status, note }) => ({
-        kind,
-        status,
-        note,
-      })),
+      feed.jobs[0].trackingTimeline?.map(
+        ({ id: _id, createdAt: _createdAt, ...event }) => event,
+      ),
     ).toEqual([
       {
         kind: "note",
-        status: undefined,
         note: "Ask about the reporting line.",
       },
-      { kind: "status_change", status: "saved", note: undefined },
+      { kind: "status_change", status: "saved" },
     ]);
   });
 
@@ -1288,12 +1238,12 @@ describe("stored job activity", () => {
     await asUser(t, ownerId).mutation(api.jobDiscovery.updateJobTracking, {
       jobId,
       status: "applied",
-      notes: "Owner note",
+      note: "Owner note",
     });
     await asUser(t, otherId).mutation(api.jobDiscovery.updateJobTracking, {
       jobId,
       status: "saved",
-      notes: "Other note",
+      note: "Other note",
     });
 
     await t.run(async (ctx) => {
@@ -1309,8 +1259,8 @@ describe("stored job activity", () => {
           q.eq("userId", otherId).eq("jobId", jobId),
         )
         .unique();
-      expect(owner).toMatchObject({ status: "applied", notes: "Owner note" });
-      expect(other).toMatchObject({ status: "saved", notes: "Other note" });
+      expect(owner).toMatchObject({ status: "applied" });
+      expect(other).toMatchObject({ status: "saved" });
     });
   });
 
