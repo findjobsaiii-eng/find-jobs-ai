@@ -38,14 +38,16 @@ class ProfileErrorBoundary extends Component<
 
 function ProfileRoute({
   children,
+  loading,
 }: {
   children: (data: CurrentProfile) => ReactNode;
+  loading: ReactNode;
 }) {
   const [manualEntry, setManualEntry] = useState(false);
   const profileState = useQuery(api.candidateProfiles.getCurrent);
   const resume = useQuery(api.resumes.getCurrent);
   if (profileState === undefined || resume === undefined) {
-    return <AuthLoadingScreen variant="profile" />;
+    return loading;
   }
   if (
     profileState.profile?.onboardingCompleted &&
@@ -70,8 +72,10 @@ function ProfileRoute({
 
 export function ProfileGate({
   children,
+  loading = <AuthLoadingScreen variant="profile" />,
 }: {
   children: (data: CurrentProfile) => ReactNode;
+  loading?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [attempt, setAttempt] = useState(0);
@@ -107,7 +111,7 @@ export function ProfileGate({
 
   return (
     <ProfileErrorBoundary key={attempt} fallback={fallback}>
-      <ProfileRoute>{children}</ProfileRoute>
+      <ProfileRoute loading={loading}>{children}</ProfileRoute>
     </ProfileErrorBoundary>
   );
 }

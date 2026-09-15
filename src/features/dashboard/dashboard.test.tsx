@@ -8,11 +8,11 @@ import type { CurrentProfile } from "@/features/profile/profile-types";
 import type { FunctionArgs } from "convex/server";
 import type { api } from "../../../convex/_generated/api";
 import { AuthenticatedShell } from "./authenticated-shell";
-import { DashboardScreen } from "./dashboard-screen";
+import { DashboardLoadingScreen, DashboardScreen } from "./dashboard-screen";
 
 const hooks = vi.hoisted(() => ({
-  data: null as CurrentProfile | null,
-  resume: null as { status: string } | null,
+  data: null as CurrentProfile | null | undefined,
+  resume: null as { status: string } | null | undefined,
   push: vi.fn(),
   replace: vi.fn(),
   save: vi.fn<
@@ -153,6 +153,36 @@ describe("dashboard and completed profile editing", () => {
         name: "Drop a resume here or click to browse",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the dashboard shell while the profile is loading", () => {
+    hooks.data = undefined;
+    hooks.resume = undefined;
+
+    render(
+      <ProfileGate
+        loading={
+          <AuthenticatedShell currentPage="jobs" jobView="suggestions">
+            <DashboardLoadingScreen view="suggestions" />
+          </AuthenticatedShell>
+        }
+      >
+        {() => <p>Protected content</p>}
+      </ProfileGate>,
+    );
+
+    expect(screen.getByRole("link", { name: "JOBMITER" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(screen.getByRole("link", { name: "Suggestions" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("status", { name: "Loading discovered jobs…" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
   it("opens the full editable onboarding review after CV extraction", async () => {

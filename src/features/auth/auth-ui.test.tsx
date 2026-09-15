@@ -20,11 +20,13 @@ const convexHooks = vi.hoisted(() => ({
 function TestAuthGate({
   isAuthenticated,
   isLoading,
+  initiallyAuthenticated,
   callbackStatus,
   onDismissCallbackError,
 }: {
   isAuthenticated: boolean;
   isLoading: boolean;
+  initiallyAuthenticated?: boolean;
   callbackStatus:
     "initializing" | "idle" | "exchanging" | "awaiting-session" | "error";
   onDismissCallbackError: () => void;
@@ -33,6 +35,7 @@ function TestAuthGate({
     <AuthGate
       isAuthenticated={isAuthenticated}
       isLoading={isLoading}
+      initiallyAuthenticated={initiallyAuthenticated}
       callbackStatus={callbackStatus}
       onDismissCallbackError={onDismissCallbackError}
       unauthenticated={<SignInScreen />}
@@ -123,6 +126,23 @@ describe("authentication UI", () => {
 
     expect(screen.getByText("Public landing")).toBeVisible();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
+  });
+
+  it("keeps initially authenticated content visible while the client restores its session", () => {
+    render(
+      <TestAuthGate
+        isAuthenticated={false}
+        isLoading={true}
+        initiallyAuthenticated
+        callbackStatus="idle"
+        onDismissCallbackError={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Checking your session")).not.toBeInTheDocument();
   });
 
   it("renders the branded landing journey and keeps its primary conversion working", async () => {

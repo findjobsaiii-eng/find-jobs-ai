@@ -10,6 +10,7 @@ import { AuthLoadingScreen } from "./auth-loading-screen";
 type AuthGateProps = {
   isAuthenticated: boolean;
   isLoading: boolean;
+  initiallyAuthenticated?: boolean;
   callbackStatus: AuthCallbackStatus;
   onDismissCallbackError: () => void;
   unauthenticated: ReactNode;
@@ -19,6 +20,7 @@ type AuthGateProps = {
 export function AuthGate({
   isAuthenticated,
   isLoading,
+  initiallyAuthenticated = false,
   callbackStatus,
   onDismissCallbackError,
   unauthenticated,
@@ -37,7 +39,11 @@ export function AuthGate({
   }
 
   if (isLoading) {
-    return <AuthLoadingScreen variant="session" />;
+    return initiallyAuthenticated ? (
+      children
+    ) : (
+      <AuthLoadingScreen variant="session" />
+    );
   }
 
   return isAuthenticated ? children : unauthenticated;
@@ -46,9 +52,11 @@ export function AuthGate({
 export function AuthBoundary({
   unauthenticated,
   children,
+  initiallyAuthenticated = false,
 }: {
   unauthenticated: ReactNode;
   children: ReactNode;
+  initiallyAuthenticated?: boolean;
 }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const authFlow = useAuthFlow();
@@ -57,6 +65,7 @@ export function AuthBoundary({
     <AuthGate
       isAuthenticated={isAuthenticated}
       isLoading={isLoading}
+      initiallyAuthenticated={initiallyAuthenticated}
       callbackStatus={authFlow.status}
       onDismissCallbackError={authFlow.dismissCallbackError}
       unauthenticated={unauthenticated}

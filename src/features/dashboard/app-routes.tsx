@@ -13,16 +13,30 @@ import { ProfileGate } from "@/features/profile/profile-gate";
 import { ProfileOverview } from "@/features/profile/profile-overview";
 import type { ProfileSection } from "@/features/profile/profile-section";
 import { AuthenticatedShell } from "./authenticated-shell";
-import { DashboardScreen } from "./dashboard-screen";
+import { DashboardLoadingScreen, DashboardScreen } from "./dashboard-screen";
 
 export type JobView = "suggestions" | "inProgress";
 
-export function HomeRoute({ view }: { view: JobView }) {
+export function HomeRoute({
+  view,
+  initiallyAuthenticated = false,
+}: {
+  view: JobView;
+  initiallyAuthenticated?: boolean;
+}) {
   const router = useRouter();
+  const loading = (
+    <AuthenticatedShell currentPage="jobs" jobView={view}>
+      <DashboardLoadingScreen view={view} />
+    </AuthenticatedShell>
+  );
 
   return (
-    <AuthBoundary unauthenticated={<LandingPage />}>
-      <ProfileGate>
+    <AuthBoundary
+      unauthenticated={<LandingPage />}
+      initiallyAuthenticated={initiallyAuthenticated}
+    >
+      <ProfileGate loading={loading}>
         {(data) => (
           <ProfileProvider data={data}>
             <AuthenticatedShell data={data} currentPage="jobs" jobView={view}>
