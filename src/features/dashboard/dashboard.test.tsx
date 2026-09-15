@@ -222,7 +222,7 @@ describe("dashboard and completed profile editing", () => {
       "href",
       "/",
     );
-    expect(screen.getByRole("link", { name: "בתהליך" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "שמורות" })).toHaveAttribute(
       "href",
       "/?tab=in-progress",
     );

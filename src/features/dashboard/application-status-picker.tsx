@@ -7,6 +7,7 @@ import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from "./application-status";
+import { ApplicationStatusIcon } from "./application-status-visual";
 
 export function ApplicationStatusPicker({
   status,
@@ -41,7 +42,14 @@ export function ApplicationStatusPicker({
         disabled={disabled}
         aria-label={t("applications.statusPicker.open")}
       >
-        <Bookmark aria-hidden="true" />
+        {status ? (
+          <ApplicationStatusIcon
+            status={status}
+            className="size-6 rounded-md"
+          />
+        ) : (
+          <Bookmark aria-hidden="true" />
+        )}
         {status
           ? t("applications.statusPicker.savedAs", {
               status: t(`applications.status.${status}`),
@@ -70,7 +78,14 @@ export function ApplicationStatusPicker({
                   onClick={() => void selectStatus(value)}
                   className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-start text-sm transition-colors outline-none focus-visible:ring-3 disabled:opacity-60 motion-reduce:transition-none"
                 >
-                  <span className="text-primary grid size-5 shrink-0 place-items-center">
+                  <ApplicationStatusIcon
+                    status={value}
+                    className="size-7 rounded-md"
+                  />
+                  <span className="flex-1">
+                    {t(`applications.status.${value}`)}
+                  </span>
+                  <span className="ms-auto grid size-5 shrink-0 place-items-center">
                     {savingStatus === value ? (
                       <LoaderCircle
                         aria-hidden="true"
@@ -80,7 +95,6 @@ export function ApplicationStatusPicker({
                       <Check aria-hidden="true" className="size-4" />
                     ) : null}
                   </span>
-                  <span>{t(`applications.status.${value}`)}</span>
                 </button>
               ))}
             </div>

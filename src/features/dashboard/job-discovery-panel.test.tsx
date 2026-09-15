@@ -273,10 +273,11 @@ describe("job result cards", () => {
     expect(
       screen.getByRole("heading", { name: "Application tracking" }),
     ).toBeVisible();
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Status" }),
-      "interview",
-    );
+    expect(screen.getAllByRole("radio")).toHaveLength(10);
+    expect(screen.getByRole("radio", { name: "Applied" })).toBeChecked();
+    const interviewStatus = screen.getByRole("radio", { name: "Interview" });
+    await user.click(interviewStatus);
+    expect(interviewStatus).toBeChecked();
     const notes = screen.getByRole("textbox", {
       name: "Comment (optional)",
     });

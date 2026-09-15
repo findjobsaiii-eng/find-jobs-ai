@@ -25,6 +25,7 @@ import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from "./application-status";
+import { ApplicationStatusChoice } from "./application-status-visual";
 
 const MAX_NOTES_LENGTH = 3_000;
 
@@ -115,7 +116,7 @@ export function ApplicationTrackerDialog({
         <Settings2 aria-hidden="true" />
         {t("applications.tracking.edit")}
       </DialogTrigger>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <DialogHeader>
             <DialogTitle>{t("applications.tracking.title")}</DialogTitle>
@@ -135,26 +136,26 @@ export function ApplicationTrackerDialog({
           <div className="space-y-5">
             <form onSubmit={(event) => void saveStatus(event)}>
               <fieldset disabled={saving !== null} className="space-y-3">
-                <legend className="text-sm font-semibold">
+                <legend id={statusId} className="text-sm font-semibold">
                   {t("applications.tracking.changeStatus")}
                 </legend>
-                <label htmlFor={statusId} className="sr-only">
-                  {t("applications.tracking.status")}
-                </label>
-                <select
-                  id={statusId}
-                  value={draftStatus}
-                  onChange={(event) =>
-                    setDraftStatus(event.target.value as ApplicationStatus)
-                  }
-                  className="border-input bg-background focus:border-ring focus:ring-ring/30 h-11 w-full rounded-xl border px-3 text-sm outline-none focus:ring-3"
+                <div
+                  role="radiogroup"
+                  aria-labelledby={statusId}
+                  className="grid gap-2 sm:grid-cols-2"
                 >
                   {APPLICATION_STATUSES.map((value) => (
-                    <option key={value} value={value}>
-                      {t(`applications.status.${value}`)}
-                    </option>
+                    <ApplicationStatusChoice
+                      key={value}
+                      status={value}
+                      label={t(`applications.status.${value}`)}
+                      name={`${statusId}-choice`}
+                      selected={draftStatus === value}
+                      disabled={saving !== null}
+                      onChange={setDraftStatus}
+                    />
                   ))}
-                </select>
+                </div>
                 <label
                   htmlFor={statusCommentId}
                   className="text-sm font-medium"
