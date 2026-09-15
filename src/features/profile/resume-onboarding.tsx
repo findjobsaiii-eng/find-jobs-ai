@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
 import { CatalogMultiSelect } from "./reference-multi-select";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
-import type { CatalogOption, SelectedPlace } from "./profile-types";
+import type {
+  CatalogOption,
+  CurrentProfile,
+  SelectedPlace,
+} from "./profile-types";
 import { processingErrorKey } from "./resume-errors";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +33,14 @@ function resumeLocation(state: ResumeState): SelectedPlace[] {
 
 export function ResumeOnboarding({
   resume,
+  identity,
   onEdit,
   onManualEntry,
   onComplete,
   replaceMode = false,
 }: {
   resume: ResumeState;
+  identity?: CurrentProfile["identity"];
   onEdit: () => void;
   onManualEntry?: () => void;
   onComplete?: () => void;
@@ -189,7 +195,7 @@ export function ResumeOnboarding({
     analysisDelayDone;
 
   return (
-    <AuthShell>
+    <AuthShell identity={identity}>
       <motion.main
         key={analyzing ? "analyzing" : ready ? "summary" : "upload"}
         initial={{ opacity: 0, y: 8 }}

@@ -1,20 +1,11 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
-import Image from "next/image";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Popover } from "@base-ui/react/popover";
 import { DirectionProvider } from "@base-ui/react/direction-provider";
-import { useAuthActions } from "@convex-dev/auth/react";
-import {
-  ChevronDown,
-  Languages,
-  LoaderCircle,
-  LogOut,
-  UserRound,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Brand } from "@/features/auth/brand";
+import { UserMenu } from "@/features/auth/user-menu";
 import { PageContainer } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
 import type { CurrentProfile } from "@/features/profile/profile-types";
@@ -31,33 +22,13 @@ export function AuthenticatedShell({
   jobView?: "suggestions" | "inProgress";
 }) {
   const { t, i18n } = useTranslation();
-  const { signOut } = useAuthActions();
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutError, setSignOutError] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const signingOutRef = useRef(false);
   const displayName = data
     ? data.profile?.preferredDisplayName ||
       data.identity.googleDisplayName ||
       t("dashboard.nav.profile")
     : null;
-  const initials = displayName?.trim().slice(0, 1).toLocaleUpperCase();
   const isJobsPage = currentPage === "jobs";
   const isSaved = isJobsPage && jobView === "inProgress";
-
-  const handleSignOut = async () => {
-    if (signingOutRef.current) return;
-    signingOutRef.current = true;
-    setSigningOut(true);
-    setSignOutError(false);
-    try {
-      await signOut();
-    } catch {
-      setSignOutError(true);
-      signingOutRef.current = false;
-      setSigningOut(false);
-    }
-  };
 
   const jobLink = (to: string, label: string, active: boolean) => (
     <Link
@@ -104,94 +75,11 @@ export function AuthenticatedShell({
             </nav>
 
             {data && displayName ? (
-              <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
-                <Popover.Trigger
-                  aria-label={t("dashboard.userMenu")}
-                  className="flex min-h-11 min-w-11 items-center justify-self-end rounded-xl p-1.5 transition-colors outline-none hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/35"
-                >
-                  <span className="bg-brand-teal grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white">
-                    {data.identity.profileImage ? (
-                      <Image
-                        src={data.identity.profileImage}
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="size-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      initials
-                    )}
-                  </span>
-                  <span className="mx-2 hidden max-w-32 truncate text-sm font-medium md:inline">
-                    {displayName}
-                  </span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className="hidden size-4 text-white/55 md:block"
-                  />
-                </Popover.Trigger>
-                <Popover.Portal>
-                  <Popover.Positioner
-                    side="bottom"
-                    align="end"
-                    sideOffset={8}
-                    collisionPadding={12}
-                    className="z-50"
-                  >
-                    <Popover.Popup className="bg-popover text-popover-foreground border-border w-60 origin-[var(--transform-origin)] rounded-xl border p-2 text-start shadow-xl transition-[transform,opacity] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-none">
-                      <div className="border-border mb-1 border-b px-3 py-2.5">
-                        <p className="truncate text-sm font-semibold">
-                          {displayName}
-                        </p>
-                        <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                          {data.identity.email}
-                        </p>
-                      </div>
-                      <Link
-                        href="/profile"
-                        onClick={() => setMenuOpen(false)}
-                        className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm outline-none focus-visible:ring-3"
-                      >
-                        <UserRound aria-hidden="true" className="size-4" />
-                        {t("dashboard.nav.profile")}
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          void i18n.changeLanguage(
-                            i18n.resolvedLanguage === "he" ? "en" : "he",
-                          );
-                        }}
-                        className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm outline-none focus-visible:ring-3"
-                      >
-                        <Languages aria-hidden="true" className="size-4" />
-                        {t("language.otherLanguage")}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={signingOut}
-                        onClick={() => {
-                          setMenuOpen(false);
-                          void handleSignOut();
-                        }}
-                        className="text-destructive hover:bg-destructive/10 focus-visible:ring-ring/40 mt-1 flex min-h-10 w-full items-center gap-2.5 rounded-lg border-t px-3 text-sm outline-none focus-visible:ring-3 disabled:opacity-60"
-                      >
-                        {signingOut ? (
-                          <LoaderCircle
-                            aria-hidden="true"
-                            className="size-4 animate-spin"
-                          />
-                        ) : (
-                          <LogOut aria-hidden="true" className="size-4" />
-                        )}
-                        {t("auth.signOut")}
-                      </button>
-                    </Popover.Popup>
-                  </Popover.Positioner>
-                </Popover.Portal>
-              </Popover.Root>
+              <UserMenu
+                identity={data.identity}
+                displayName={displayName}
+                tone="dark"
+              />
             ) : (
               <div
                 aria-hidden="true"
@@ -202,13 +90,6 @@ export function AuthenticatedShell({
               </div>
             )}
           </PageContainer>
-          {signOutError ? (
-            <PageContainer>
-              <p role="alert" className="text-destructive pb-2 text-sm">
-                {t("auth.signOutError")}
-              </p>
-            </PageContainer>
-          ) : null}
         </header>
         <main className="flex-1 py-6 sm:py-10">
           <PageContainer>{children}</PageContainer>

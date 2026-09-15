@@ -232,6 +232,12 @@ describe("dashboard and completed profile editing", () => {
         name: "Let's build your profile",
       }),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to CV upload" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Upload your CV" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the shared app shell with URL-backed job tabs and profile link", async () => {

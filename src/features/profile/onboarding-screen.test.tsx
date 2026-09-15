@@ -80,6 +80,22 @@ describe("candidate profile onboarding", () => {
     ).toHaveValue("Google Candidate");
   });
 
+  it("shows the account menu during onboarding without a profile link", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingScreen initialData={emptyProfile} />);
+
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "עברית" })).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Profile" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(hooks.signOut).toHaveBeenCalledOnce();
+  });
+
   it("shows field validation and does not submit an incomplete step", async () => {
     const user = userEvent.setup();
     render(<OnboardingScreen initialData={emptyProfile} />);

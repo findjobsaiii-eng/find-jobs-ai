@@ -60,10 +60,17 @@ function ProfileRoute({
     resume?.status === "ready" || resume?.status === "needs_confirmation";
 
   return manualEntry || resumeReady ? (
-    <OnboardingScreen initialData={profileState} resumeReview={resumeReady} />
+    <OnboardingScreen
+      initialData={profileState}
+      resumeReview={resumeReady}
+      onBackToResume={
+        manualEntry && !resumeReady ? () => setManualEntry(false) : undefined
+      }
+    />
   ) : (
     <ResumeOnboarding
       resume={resume}
+      identity={profileState.identity}
       onEdit={() => setManualEntry(true)}
       onManualEntry={() => setManualEntry(true)}
     />

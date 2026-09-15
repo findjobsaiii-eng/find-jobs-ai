@@ -550,9 +550,11 @@ export function OnboardingScreen({
   initialData,
   editing,
   resumeReview = false,
+  onBackToResume,
 }: {
   initialData: CurrentProfile;
   resumeReview?: boolean;
+  onBackToResume?: () => void;
   editing?: {
     onCancel: () => void;
     onSaved: () => void;
@@ -670,7 +672,7 @@ export function OnboardingScreen({
     );
 
   return (
-    <AuthShell>
+    <AuthShell identity={editing ? undefined : initialData.identity}>
       <section className="w-full max-w-3xl" aria-labelledby="onboarding-title">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -765,18 +767,26 @@ export function OnboardingScreen({
               type="button"
               variant="ghost"
               onClick={() => {
+                if (step === 1 && onBackToResume) {
+                  onBackToResume();
+                  return;
+                }
                 setErrors({});
                 setServerError(null);
                 setStep((current) => Math.max(1, current - 1));
               }}
-              disabled={step === 1 || isSubmitting}
+              disabled={(step === 1 && !onBackToResume) || isSubmitting}
             >
               {isRtl ? (
                 <ArrowRight aria-hidden="true" />
               ) : (
                 <ArrowLeft aria-hidden="true" />
               )}
-              {t("onboarding.back")}
+              {t(
+                step === 1 && onBackToResume
+                  ? "onboarding.backToResume"
+                  : "onboarding.back",
+              )}
             </Button>
             <Button
               type="button"

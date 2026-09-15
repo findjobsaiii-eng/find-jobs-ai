@@ -450,6 +450,7 @@
     "removeLanguage": "Remove {{language}}",
     "savedLocationFallback": "Saved location",
     "back": "Back",
+    "backToResume": "Back to CV upload",
     "continue": "Continue",
     "saveDraft": "Save draft",
     "finish": "Save & finish",
