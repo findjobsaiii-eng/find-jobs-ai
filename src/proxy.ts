@@ -1,9 +1,18 @@
 import { convexAuthNextjsMiddleware } from "@convex-dev/auth/nextjs/server";
 
-// Keep OAuth verifier and session cookies on the JOBMITER origin. In
-// particular, this avoids relying on a cross-site Convex callback cookie in
-// browsers with strict tracking prevention, while retaining PKCE validation.
-export const proxy = convexAuthNextjsMiddleware();
+function isProviderOAuthRoute(pathname: string) {
+  return (
+    pathname.startsWith("/api/auth/signin/") ||
+    pathname.startsWith("/api/auth/callback/")
+  );
+}
+
+// The provider-facing GET routes are rewritten to Convex after this proxy runs.
+// Only the resulting app callback (for example `/?code=...`) is exchanged here.
+export const proxy = convexAuthNextjsMiddleware(undefined, {
+  shouldHandleCode: (request) =>
+    !isProviderOAuthRoute(request.nextUrl.pathname),
+});
 
 export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api)(.*)"],
