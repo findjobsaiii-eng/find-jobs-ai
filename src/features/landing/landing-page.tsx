@@ -75,7 +75,7 @@ function WorkspacePreview() {
   return (
     <div className="overflow-hidden rounded-[1.8rem] border border-slate-200/80 bg-white shadow-[var(--brand-shadow-preview)]">
       <div className="bg-brand-midnight flex min-h-16 items-center justify-between px-4 text-white sm:px-6">
-        <Brand />
+        <Brand inverse />
         <div className="hidden items-center gap-1 rounded-xl border border-white/10 bg-white/8 p-1 text-xs font-medium sm:flex">
           <span className="rounded-lg bg-white px-3 py-1.5 text-slate-900">
             {t("landing.preview.navMatches")}
@@ -407,7 +407,7 @@ export function LandingPage() {
         <div className="bg-brand-midnight relative mx-auto max-w-[88rem] overflow-hidden rounded-[2rem] px-6 py-16 text-center text-white sm:px-10 sm:py-22">
           <div className="landing-cta-glow absolute inset-0" />
           <div className="relative mx-auto max-w-2xl">
-            <JobmiterMark className="mx-auto size-13" />
+            <JobmiterMark className="mx-auto size-13" variant="inverse" />
             <h2 className="mt-6 text-3xl font-semibold tracking-[-0.045em] text-balance sm:text-5xl">
               {t("landing.cta.title")}
             </h2>

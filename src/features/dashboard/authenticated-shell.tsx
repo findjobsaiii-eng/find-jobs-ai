@@ -83,7 +83,7 @@ export function AuthenticatedShell({
               className="justify-self-start"
               aria-label={t("brand.name")}
             >
-              <Brand />
+              <Brand inverse />
             </Link>
 
             <nav

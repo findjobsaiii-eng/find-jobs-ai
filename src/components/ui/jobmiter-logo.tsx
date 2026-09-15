@@ -2,11 +2,18 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const ICON_SIZE = 1254;
+type LogoVariant = "default" | "inverse";
 
-export function JobmiterMark({ className }: { className?: string }) {
+export function JobmiterMark({
+  className,
+  variant = "default",
+}: {
+  className?: string;
+  variant?: LogoVariant;
+}) {
   return (
     <Image
-      src="/brand/icon.png"
+      src={variant === "inverse" ? "/brand/icon-white.png" : "/brand/icon.png"}
       alt=""
       width={ICON_SIZE}
       height={ICON_SIZE}
@@ -19,15 +26,17 @@ export function JobmiterLogo({
   className,
   compact = false,
   responsive = false,
+  variant = "default",
 }: {
   className?: string;
   compact?: boolean;
   responsive?: boolean;
+  variant?: LogoVariant;
 }) {
   if (compact) {
     return (
       <span role="img" aria-label="JOBMITER" className={className}>
-        <JobmiterMark />
+        <JobmiterMark variant={variant} />
       </span>
     );
   }
@@ -39,9 +48,13 @@ export function JobmiterLogo({
       aria-label="JOBMITER"
       className={cn("inline-flex shrink-0 items-center", className)}
     >
-      {responsive ? <JobmiterMark className="sm:hidden" /> : null}
+      {responsive ? (
+        <JobmiterMark className="sm:hidden" variant={variant} />
+      ) : null}
       <Image
-        src="/brand/logo.png"
+        src={
+          variant === "inverse" ? "/brand/logo-white.png" : "/brand/logo.png"
+        }
         alt=""
         width={2172}
         height={724}

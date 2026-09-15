@@ -108,7 +108,7 @@ export function AnimatedMatchingMap() {
           className="bg-brand-midnight absolute start-1/2 top-[49%] z-20 grid size-18 -translate-x-1/2 place-items-center rounded-[1.4rem] border border-white/10 shadow-xl shadow-slate-950/25 sm:size-21 rtl:translate-x-1/2"
         >
           <span className="absolute -inset-2 rounded-[1.7rem] border border-blue-300/25" />
-          <JobmiterMark className="size-10 sm:size-12" />
+          <JobmiterMark className="size-10 sm:size-12" variant="inverse" />
           <Sparkles className="text-brand-teal absolute -end-1 -top-1 size-4" />
         </motion.div>
 

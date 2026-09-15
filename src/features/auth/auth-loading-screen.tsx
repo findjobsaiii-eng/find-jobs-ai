@@ -21,7 +21,7 @@ export function AuthLoadingScreen({
             aria-hidden="true"
             className="border-brand-electric/30 absolute -inset-2 rounded-[2rem] border motion-safe:animate-pulse"
           />
-          <JobmiterMark className="size-13" />
+          <JobmiterMark className="size-13" variant="inverse" />
         </span>
         <span className="flex items-center gap-2">
           <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
