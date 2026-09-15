@@ -532,6 +532,20 @@ destination, so successful authentication reveals the originally requested
 route. Convex ownership checks remain mandatory because a client layout is a UX
 boundary, not an authorization boundary.
 
+### D-029: OAuth completes on the first-party Next.js origin
+
+Status: Accepted (2026-09-15)
+
+Evidence: `src/proxy.ts`, `src/app/layout.tsx`, and
+`src/app/app-providers.tsx`.
+
+Google sign-in is initiated through the Convex Auth Next.js adapter and completed
+by the server-side proxy on the same frontend origin. The PKCE verifier and
+session remain in first-party `HttpOnly` cookies, avoiding dependence on a
+cross-site callback cookie in browsers with strict tracking prevention. Each
+deployment must set `CUSTOM_AUTH_SITE_URL` to its exact frontend origin and
+register `<origin>/api/auth/callback/google` with Google; PKCE remains enabled.
+
 ## Job activity freshness (2026-09-09)
 
 Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.

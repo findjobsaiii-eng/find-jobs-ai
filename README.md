@@ -70,23 +70,28 @@ The screenshots supplied during setup are product-direction references, not a sp
 
 Authentication uses Convex Auth with Google OAuth. The Convex deployment needs
 `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and
-`SITE_URL`. For local development, set `SITE_URL` to `http://localhost:3000`.
+`SITE_URL`. It also needs `CUSTOM_AUTH_SITE_URL` set to the exact frontend origin
+so OAuth is completed through the first-party Next.js auth proxy. For local
+development, set both URL values to `http://localhost:3000`.
 Only the variable names belong in documentation and source control; their values
 must remain in the Convex deployment environment.
 
 The Google OAuth client must allow this callback URL:
 
 ```text
-https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google
+https://jobmiter.com/api/auth/callback/google
 ```
 
-Deployment-specific URLs and credential values are intentionally not stored in repository documentation.
+Use the matching frontend origin for each isolated development or preview OAuth
+client. Deployment-specific URLs and credential values are intentionally not
+stored in repository documentation.
 
 The browser receives only the public `NEXT_PUBLIC_CONVEX_URL`. OAuth credentials are
-read by Convex server code and are never passed through a `NEXT_PUBLIC_` variable. The
-client removes the one-time OAuth callback code from the address bar before
-exchanging it, presents a recoverable callback-error state, and delegates session
-storage and invalidation to Convex Auth.
+read by Convex server code and are never passed through a `NEXT_PUBLIC_` variable.
+The Next.js auth proxy exchanges the one-time OAuth callback code server-side,
+removes it from the address bar, and stores the verifier/session in first-party
+`HttpOnly` cookies. The client presents a recoverable callback-error state and
+delegates session storage and invalidation to Convex Auth.
 
 Exact manual Google OAuth smoke-test steps and the latest external configuration
 status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).

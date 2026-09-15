@@ -32,11 +32,11 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 - A Next.js App Router application with a neutral root layout, a separate public
   landing experience, a protected route-group layout, Convex providers, and Motion.
-- Google-only OAuth wiring through Convex Auth, including HTTP callback routes and auth tables in the Convex schema.
+- Google-only OAuth wiring through Convex Auth, including a first-party Next.js auth proxy, HTTP callback routes, and auth tables in the Convex schema.
 - Server-only Google provider credentials with required environment validation for `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
 - A validated public Convex client URL that rejects credentials, unexpected paths, queries, fragments, and insecure non-local origins.
 - Sign-in, session-loading, OAuth-callback loading/error recovery, configuration-error, authenticated boundary, sign-out, and sign-out error UI states.
-- One-time OAuth callback codes are held only in memory during exchange and removed from the browser URL before the network exchange begins.
+- One-time OAuth callback codes are exchanged server-side by the first-party auth proxy and removed from the browser URL before the application renders.
 - Focused Vitest and React Testing Library coverage for auth boundaries, callback exchange/recovery, duplicate-submit prevention, sign-out failure recovery, URL validation, required server configuration, and English/Hebrew direction changes.
 - A GitHub Actions quality gate using the committed npm lockfile and Node.js 22.
 - English and Hebrew UI copy, document language/direction synchronization, and persisted language detection.
@@ -153,8 +153,9 @@ npm run dev
 
 Local authentication uses the exact frontend origin `http://localhost:3000`.
 The personal Convex development deployment `glorious-mallard-885` has its
-`SITE_URL` set to that origin. Production and preview deployments must configure
-their own exact public origin before OAuth is used there.
+`SITE_URL` set to that origin. It also requires `CUSTOM_AUTH_SITE_URL` on that
+deployment and a matching Google callback. Production and preview deployments
+must configure their own exact public origin before OAuth is used there.
 
 Run the available checks:
 
@@ -178,15 +179,19 @@ development deployment. Never paste environment-variable values into issues,
 logs, screenshots, or documentation.
 
 1. Confirm the Convex deployment defines `AUTH_GOOGLE_ID`,
-   `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
-2. Set `SITE_URL` to the exact frontend origin. For local development, use
-   `http://localhost:3000` and open that same hostname in the browser.
-3. In Google Cloud, register
-   `https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google` as an authorized
-   redirect URI and the frontend origin as an authorized JavaScript origin.
+   `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL`, and
+   `CUSTOM_AUTH_SITE_URL`.
+2. Set `SITE_URL` and `CUSTOM_AUTH_SITE_URL` to the exact frontend origin. For
+   local development, use `http://localhost:3000` and open that same hostname in
+   the browser.
+3. In Google Cloud, register the frontend callback, such as
+   `https://jobmiter.com/api/auth/callback/google`, as an authorized redirect URI
+   and the frontend origin as an authorized JavaScript origin. Retain the old
+   Convex callback until the first-party production flow has been verified.
 4. Run `npm run dev`, open the frontend, and choose **Continue with Google**.
-5. Complete account selection and consent. Confirm the browser returns to the
-   frontend, removes the `code` query parameter, and shows authenticated content.
+5. Complete account selection and consent. Confirm the browser returns through
+   the frontend `/api/auth/callback/google` path, removes the `code` query
+   parameter, and shows authenticated content.
 6. Refresh the page and confirm the authenticated session remains active.
 7. Sign out, refresh again, and confirm authenticated content is no longer
    accessible.
@@ -209,9 +214,10 @@ logs, screenshots, or documentation.
     browser permission in separate checks, and confirm neither path blocks manual
     search.
 
-The product owner subsequently reported that the replacement Google OAuth client
-completed the live flow successfully. This repository audit did not repeat that
-external account-level smoke test; automated auth coverage remains in place.
+The product owner subsequently reported that the previous direct Convex callback
+failed in Safari during the OAuth token exchange. The first-party proxy change is
+covered locally, but the updated Google callback and live Safari account flow
+still require the manual configuration and smoke test above.
 
 ## Activity filtering update (2026-09-09)
 

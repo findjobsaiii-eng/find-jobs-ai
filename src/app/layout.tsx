@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import { AppProviders } from "./app-providers";
 import {
   siteMetadata,
@@ -12,18 +13,20 @@ export const viewport = siteViewport;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="he" dir="rtl" suppressHydrationWarning>
-      <body>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webApplicationStructuredData),
-          }}
-        />
-        <AppProviders convexUrl={process.env.NEXT_PUBLIC_CONVEX_URL}>
-          {children}
-        </AppProviders>
-      </body>
-    </html>
+    <ConvexAuthNextjsServerProvider shouldHandleCode={false}>
+      <html lang="he" dir="rtl" suppressHydrationWarning>
+        <body>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(webApplicationStructuredData),
+            }}
+          />
+          <AppProviders convexUrl={process.env.NEXT_PUBLIC_CONVEX_URL}>
+            {children}
+          </AppProviders>
+        </body>
+      </html>
+    </ConvexAuthNextjsServerProvider>
   );
 }

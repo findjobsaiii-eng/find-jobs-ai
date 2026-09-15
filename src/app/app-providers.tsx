@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { ConvexReactClient } from "convex/react";
 import { MotionConfig } from "motion/react";
 import { AuthConfigurationErrorScreen } from "@/features/auth/auth-configuration-error-screen";
@@ -55,8 +55,8 @@ export function AppProviders({
   }
 
   return (
-    <ConvexAuthProvider client={convex} shouldHandleCode={false}>
+    <ConvexAuthNextjsProvider client={convex}>
       <AuthFlowProvider>{content}</AuthFlowProvider>
-    </ConvexAuthProvider>
+    </ConvexAuthNextjsProvider>
   );
 }

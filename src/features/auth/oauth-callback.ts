@@ -1,17 +1,5 @@
 const OAUTH_ATTEMPT_KEY = "find-jobs-ai:oauth-attempt-pending";
 
-export function getOAuthCallbackCode(search: string) {
-  const code = new URLSearchParams(search).get("code")?.trim();
-  return code ? code : null;
-}
-
-export function removeOAuthCallbackCode(location: Location) {
-  const url = new URL(location.href);
-  url.searchParams.delete("code");
-  url.searchParams.delete("redirectTo");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
 export function getOAuthReturnUrl(location: Location) {
   const url = new URL(location.href);
   url.searchParams.delete("code");

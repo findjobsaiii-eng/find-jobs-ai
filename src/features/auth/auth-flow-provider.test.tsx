@@ -7,15 +7,14 @@ import { markOAuthAttemptPending } from "./oauth-callback";
 
 const authMocks = vi.hoisted(() => ({
   isAuthenticated: false,
-  signIn: vi.fn(),
-}));
-
-vi.mock("@convex-dev/auth/react", () => ({
-  useAuthActions: () => ({ signIn: authMocks.signIn }),
+  isLoading: false,
 }));
 
 vi.mock("convex/react", () => ({
-  useConvexAuth: () => ({ isAuthenticated: authMocks.isAuthenticated }),
+  useConvexAuth: () => ({
+    isAuthenticated: authMocks.isAuthenticated,
+    isLoading: authMocks.isLoading,
+  }),
 }));
 
 function FlowState() {
@@ -35,54 +34,26 @@ function FlowState() {
 describe("AuthFlowProvider", () => {
   beforeEach(() => {
     authMocks.isAuthenticated = false;
-    authMocks.signIn.mockReset();
+    authMocks.isLoading = false;
+    window.history.replaceState(null, "", "/");
+    window.sessionStorage.clear();
   });
 
-  it("exchanges a callback code once and removes it from browser history", async () => {
-    authMocks.signIn.mockResolvedValue({ signingIn: true });
+  it("waits for the server-side callback exchange to finish", () => {
+    authMocks.isLoading = true;
     markOAuthAttemptPending(window.sessionStorage);
-    window.history.replaceState(
-      null,
-      "",
-      "/?code=one-time-code&next=jobs#details",
-    );
-
-    const { rerender } = render(
+    render(
       <AuthFlowProvider>
         <FlowState />
       </AuthFlowProvider>,
     );
 
-    expect(screen.getByRole("button")).toHaveTextContent("exchanging");
-    await waitFor(() => {
-      expect(authMocks.signIn).toHaveBeenCalledWith(undefined, {
-        code: "one-time-code",
-      });
-    });
-    expect(window.location.href).toBe(
-      "http://localhost:3000/?next=jobs#details",
-    );
-    expect(window.sessionStorage.length).toBe(0);
-    await waitFor(() => {
-      expect(screen.getByRole("button")).toHaveTextContent("awaiting-session");
-    });
-
-    authMocks.isAuthenticated = true;
-    rerender(
-      <AuthFlowProvider>
-        <FlowState />
-      </AuthFlowProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("button")).toHaveTextContent("idle");
-    });
-    expect(authMocks.signIn).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button")).toHaveTextContent("awaiting-session");
   });
 
-  it("surfaces a failed callback exchange without retaining the code", async () => {
-    authMocks.signIn.mockRejectedValue(new Error("exchange failed"));
-    window.history.replaceState(null, "", "/?code=invalid-code");
+  it("clears a pending attempt after the server establishes a session", async () => {
+    markOAuthAttemptPending(window.sessionStorage);
+    authMocks.isAuthenticated = true;
 
     render(
       <AuthFlowProvider>
@@ -91,12 +62,12 @@ describe("AuthFlowProvider", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button")).toHaveTextContent("error");
+      expect(screen.getByRole("button")).toHaveTextContent("idle");
     });
-    expect(window.location.search).toBe("");
+    expect(window.sessionStorage.length).toBe(0);
   });
 
-  it("recognizes a provider callback that returned without a code", async () => {
+  it("surfaces an unsuccessful server-side callback exchange", async () => {
     markOAuthAttemptPending(window.sessionStorage);
 
     render(
@@ -113,6 +84,5 @@ describe("AuthFlowProvider", () => {
 
     expect(screen.getByRole("button")).toHaveTextContent("idle");
     expect(window.sessionStorage.length).toBe(0);
-    expect(authMocks.signIn).not.toHaveBeenCalled();
   });
 });
