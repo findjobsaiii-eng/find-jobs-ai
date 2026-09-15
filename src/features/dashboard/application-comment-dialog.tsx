@@ -6,7 +6,6 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -17,7 +16,6 @@ const MAX_COMMENT_LENGTH = 3_000;
 
 export function ApplicationCommentDialog({
   open,
-  jobTitle,
   status,
   saving,
   error,
@@ -25,7 +23,6 @@ export function ApplicationCommentDialog({
   onSubmit,
 }: {
   open: boolean;
-  jobTitle: string;
   status?: ApplicationStatus;
   saving: boolean;
   error: boolean;
@@ -70,19 +67,6 @@ export function ApplicationCommentDialog({
                 )}
               </DialogTitle>
             </div>
-            <DialogDescription>
-              {t(
-                isStatusChange
-                  ? "applications.commentDialog.statusDescription"
-                  : "applications.commentDialog.noteDescription",
-                {
-                  title: jobTitle,
-                  status: status
-                    ? t(`applications.status.${status}`)
-                    : undefined,
-                },
-              )}
-            </DialogDescription>
           </DialogHeader>
           <DialogClose
             aria-label={t("applications.commentDialog.close")}

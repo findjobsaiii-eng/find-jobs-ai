@@ -279,7 +279,7 @@ backfill.
 
 ### Homepage and development controls
 
-The homepage contains a compact Suggestions / In progress tab bar and scannable
+The homepage contains a compact Suggestions / Saved tab bar and scannable
 job cards. Each card prioritizes title, company, location, work model, posting or
 discovery date, a short summary, up to five key skills, source, and concise
 actions. Raw provider and verification diagnostics never appear in the normal

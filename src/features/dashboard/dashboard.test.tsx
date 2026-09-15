@@ -245,12 +245,12 @@ describe("dashboard and completed profile editing", () => {
       </AuthenticatedShell>,
     );
 
-    expect(screen.getByRole("link", { name: "In progress" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Saved" })).toHaveAttribute(
       "aria-current",
       "page",
     );
     expect(
-      screen.getByRole("heading", { name: "Applications in progress" }),
+      screen.getByRole("heading", { name: "Saved jobs" }),
     ).toBeInTheDocument();
   });
 

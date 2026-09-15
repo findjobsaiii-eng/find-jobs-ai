@@ -97,6 +97,20 @@ describe("job result cards", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("describes an empty Saved view using the current status workflow", async () => {
+    await i18n.changeLanguage("he");
+    hooks.jobs = [];
+
+    renderPanel("/?tab=in-progress");
+
+    expect(
+      screen.getByRole("heading", { name: "עדיין אין משרות שמורות" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("בחרו סטטוס למשרה בהצעות, והיא תופיע כאן."),
+    ).toBeVisible();
+  });
+
   it("shows a warm Hebrew search-in-progress state before discovery completes", async () => {
     await i18n.changeLanguage("he");
     hooks.jobs = [];
@@ -258,6 +272,7 @@ describe("job result cards", () => {
       jobId: "jobs:one",
       status: "applied",
     });
+    expect(screen.getByRole("status")).toHaveTextContent("Moved to Saved.");
   });
 
   it("changes a tracked status with an attached comment", async () => {
@@ -275,8 +290,8 @@ describe("job result cards", () => {
     );
     await user.click(screen.getByRole("button", { name: "Interview" }));
     expect(
-      screen.getByText(/changing Senior Product Manager to Interview/),
-    ).toBeVisible();
+      screen.queryByText(/changing Senior Product Manager to Interview/),
+    ).not.toBeInTheDocument();
     const notes = screen.getByRole("textbox", { name: "Comment" });
     await user.type(notes, "Interview with the product lead.");
     await user.click(screen.getByRole("button", { name: "Update status" }));

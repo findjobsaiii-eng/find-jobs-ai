@@ -14,15 +14,17 @@ type DialogMode =
 
 export function ApplicationTrackingActions({
   jobId,
-  jobTitle,
+  inSuggestions,
   status,
   onChanged,
   onRemoveError,
 }: {
   jobId: Id<"jobs">;
-  jobTitle: string;
+  inSuggestions: boolean;
   status?: ApplicationStatus;
-  onChanged: (notice: "marked" | "trackingSaved" | "unmarked") => void;
+  onChanged: (
+    notice: "marked" | "movedToSaved" | "trackingSaved" | "unmarked",
+  ) => void;
   onRemoveError: () => void;
 }) {
   const { t } = useTranslation();
@@ -44,7 +46,13 @@ export function ApplicationTrackingActions({
           status: dialogMode.status,
           ...(comment.trim() ? { note: comment } : {}),
         });
-        onChanged(dialogMode.status === "saved" ? "marked" : "trackingSaved");
+        onChanged(
+          inSuggestions && dialogMode.status !== "saved"
+            ? "movedToSaved"
+            : dialogMode.status === "saved"
+              ? "marked"
+              : "trackingSaved",
+        );
       } else {
         await addNote({ jobId, note: comment });
         onChanged(status ? "trackingSaved" : "marked");
@@ -102,7 +110,6 @@ export function ApplicationTrackingActions({
       {dialogMode ? (
         <ApplicationCommentDialog
           open
-          jobTitle={jobTitle}
           status={dialogMode.kind === "status" ? dialogMode.status : undefined}
           saving={saving}
           error={error}
