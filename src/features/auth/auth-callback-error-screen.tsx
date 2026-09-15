@@ -22,11 +22,11 @@ export function AuthCallbackErrorScreen({
         />
         <h1
           id="auth-error-title"
-          className="text-3xl font-semibold tracking-tight"
+          className="text-3xl font-semibold tracking-tight text-balance"
         >
           {t("auth.callbackErrorTitle")}
         </h1>
-        <p className="text-muted-foreground mt-3 leading-7">
+        <p className="text-muted-foreground mt-3 leading-7 text-pretty">
           {t("auth.callbackErrorDescription")}
         </p>
         <Button className="mt-7" onClick={onTryAgain}>

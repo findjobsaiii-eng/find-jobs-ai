@@ -1,6 +1,6 @@
-# Find Jobs AI
+# JOBMITER
 
-An AI-powered job-search assistant with bilingual UI, Google OAuth through Convex Auth, CV-first career-profile creation, daily server-side job discovery, deterministic job quality checks, and basic application tracking. Resume writing, automatic applications, and Gmail integration have not been implemented.
+JOBMITER is an AI-powered job-search assistant with a bilingual UI, Google OAuth through Convex Auth, CV-first career-profile creation, daily server-side job discovery, deterministic job quality checks, and candidate-first application tracking. The production site is [jobmiter.com](https://jobmiter.com). Resume writing, automatic applications, and Gmail integration have not been implemented.
 
 ## Stack
 
@@ -286,7 +286,7 @@ available actions. Raw provider and verification diagnostics never appear in the
 normal UI.
 The fixed profile button sits at the logical start (left in English, right in
 Hebrew) and opens profile editing, CV replacement, language switching, and sign-out.
-“Sent résumé” saves an owner-scoped application snapshot and moves the job to
+“Sent résumé” updates an owner-scoped tracking snapshot to applied and moves the job to
 In progress. Undo removes the marker. Snapshots remain available after a job
 expires from suggestions; the action records tracking only and never sends a CV.
 Suggestions show up to 50 of the highest-ranked materialized matches; In

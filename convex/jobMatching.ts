@@ -13,6 +13,10 @@ const lifecycleValidator = v.union(
   v.literal("probably_active"),
 );
 
+function hidesSuggestion(application: Doc<"jobApplications"> | null) {
+  return Boolean(application && application.status !== "saved");
+}
+
 async function loadProfile(
   ctx: MutationCtx,
   userId: Id<"users">,
@@ -123,7 +127,7 @@ export const reconcileUserPage = internalMutation({
         )
         .unique();
       const displayEligible = Boolean(
-        !application &&
+        !hidesSuggestion(application) &&
         quality.outcome === "eligible" &&
         freshness.eligible &&
         isDisplayEligibleJob(job) &&
@@ -249,7 +253,7 @@ export const reconcileJobUsers = internalMutation({
         )
         .unique();
       const displayEligible = Boolean(
-        !application &&
+        !hidesSuggestion(application) &&
         quality.outcome === "eligible" &&
         freshness.eligible &&
         isDisplayEligibleJob(job) &&
@@ -331,7 +335,7 @@ export const reconcileUserJob = internalMutation({
       now,
     });
     const displayEligible = Boolean(
-      !application &&
+      !hidesSuggestion(application) &&
       quality.outcome === "eligible" &&
       freshness.eligible &&
       isDisplayEligibleJob(job) &&

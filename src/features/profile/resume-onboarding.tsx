@@ -206,10 +206,10 @@ export function ResumeOnboarding({
                 className="size-7 animate-pulse motion-reduce:animate-none"
               />
             </div>
-            <h1 className="mt-6 text-2xl font-semibold">
+            <h1 className="mt-6 text-2xl font-semibold text-balance">
               {t("resume.analyzingTitle")}
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-muted-foreground mt-2 text-pretty">
               {t("resume.analyzingDescription")}
             </p>
           </section>
@@ -218,10 +218,13 @@ export function ResumeOnboarding({
             <div className="bg-primary/10 text-primary mb-5 grid size-12 place-items-center rounded-xl">
               <Sparkles aria-hidden="true" className="size-5" />
             </div>
-            <h1 id="resume-summary-title" className="text-2xl font-semibold">
+            <h1
+              id="resume-summary-title"
+              className="text-2xl font-semibold text-balance"
+            >
               {t("resume.summaryTitle")}
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-muted-foreground mt-2 text-pretty">
               {t("resume.summaryDescription")}
             </p>
             <div className="mt-7 space-y-6">
@@ -327,11 +330,11 @@ export function ResumeOnboarding({
             </div>
             <h1
               id="resume-upload-title"
-              className="mt-6 text-3xl font-semibold"
+              className="mt-6 text-3xl font-semibold text-balance"
             >
               {t("resume.uploadTitle")}
             </h1>
-            <p className="text-muted-foreground mx-auto mt-3 max-w-md leading-7">
+            <p className="text-muted-foreground mx-auto mt-3 max-w-md leading-7 text-pretty">
               {t("resume.uploadDescription")}
             </p>
             <input

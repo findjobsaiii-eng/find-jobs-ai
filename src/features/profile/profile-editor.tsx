@@ -129,10 +129,10 @@ export function ProfileEditor({
       <form onSubmit={(event) => void submit(event)} noValidate>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold text-balance">
               {t(sectionCopy[section].title)}
             </h2>
-            <p className="text-muted-foreground mt-1 text-sm leading-6">
+            <p className="text-muted-foreground mt-1 text-sm leading-6 text-pretty">
               {t(sectionCopy[section].description)}
             </p>
           </div>

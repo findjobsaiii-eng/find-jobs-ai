@@ -285,16 +285,18 @@ Only internal helpers may accept scheduler-selected user IDs. The public manual
 action derives identity and requires the server `DEV_TOOLS_ENABLED` flag, which
 operators must enable only on development deployments.
 
-### D-019: Application tracking stores an owner-scoped snapshot
+### D-019: Application tracking stores one owner-scoped pipeline snapshot
 
 Status: Accepted
 
-“Sent résumé” creates one application per user/job and excludes it from that
-user's suggestions. The server verifies an eligible owned match and snapshots
-the posting; clients cannot supply posting contents or user identity. In progress
-keeps the snapshot after source expiry. Undo removes only the caller's marker.
-This records an application and never submits a résumé. Interview stages and
-tracking pagination beyond the latest 100 applications remain future work.
+One `jobApplications` record per user/job now represents both saved jobs and the
+candidate's lightweight hiring pipeline. The status is server-validated; notes
+are trimmed and bounded to 3,000 characters; every update derives the owner from
+Convex Auth and refreshes `updatedAt`. “Sent résumé” upserts `applied` without
+discarding notes, while historical rows without a status read as `applied`.
+Saved-only rows remain eligible in Suggestions, but application stages are
+excluded. The immutable posting snapshot keeps tracking readable after source
+expiry. This records candidate activity and never submits a résumé.
 
 ### D-020: Job activity is cached, conservative, and historical
 

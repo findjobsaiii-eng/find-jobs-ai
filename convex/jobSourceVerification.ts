@@ -187,7 +187,7 @@ async function requestPinned(url: URL): Promise<PinnedResponse> {
           Accept: "text/html,application/xhtml+xml,text/plain;q=0.8",
           "Accept-Encoding": "identity",
           Host: url.host,
-          "User-Agent": "WorkyJobVerifier/1.0",
+          "User-Agent": "JOBMITERJobVerifier/1.0",
         },
       },
       (response) => {

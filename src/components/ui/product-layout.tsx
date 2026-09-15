@@ -29,11 +29,11 @@ export function PageHeader({
   return (
     <header className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           {title}
         </h1>
         {description ? (
-          <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
+          <p className="text-muted-foreground mt-2 text-sm leading-6 text-pretty sm:text-base">
             {description}
           </p>
         ) : null}
@@ -55,7 +55,7 @@ export function Surface({
   return (
     <section
       className={cn(
-        "bg-card border-border rounded-2xl border p-5 shadow-sm sm:p-6",
+        "bg-card border-border rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] sm:p-6",
         className,
       )}
     >
@@ -76,9 +76,9 @@ export function SectionHeader({
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="text-lg font-semibold text-balance">{title}</h2>
         {description ? (
-          <p className="text-muted-foreground mt-1 text-sm leading-6">
+          <p className="text-muted-foreground mt-1 text-sm leading-6 text-pretty">
             {description}
           </p>
         ) : null}

@@ -85,10 +85,13 @@ export function ProfileGate({
           aria-hidden="true"
           className="text-destructive mx-auto mb-5 size-10"
         />
-        <h1 id="profile-error-title" className="text-2xl font-semibold">
+        <h1
+          id="profile-error-title"
+          className="text-2xl font-semibold text-balance"
+        >
           {t("onboarding.loadErrorTitle")}
         </h1>
-        <p className="text-muted-foreground mt-3 leading-7">
+        <p className="text-muted-foreground mt-3 leading-7 text-pretty">
           {t("onboarding.loadErrorDescription")}
         </p>
         <Button

@@ -106,12 +106,10 @@ describe("job result cards", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "אנחנו כבר מחפשים לך את המשרה הבאה",
+        name: "כבר מחפשים עבורך משרות",
       }),
     ).toBeVisible();
-    expect(
-      screen.getByText(/חזור בקרוב כדי לראות את ההמלצות הכי טובות/),
-    ).toBeVisible();
+    expect(screen.getByText(/אפשר לחזור בעוד כמה דקות/)).toBeVisible();
     expect(
       screen.queryByText("לא נמצאו כרגע משרות שמתאימות לפרופיל שלך."),
     ).not.toBeInTheDocument();
@@ -206,6 +204,8 @@ describe("job result cards", () => {
       job({
         unavailable: true,
         appliedAt: Date.UTC(2026, 8, 6, 10),
+        trackingStatus: "applied",
+        trackingUpdatedAt: Date.UTC(2026, 8, 7, 10),
       }),
     ];
     const user = userEvent.setup();
@@ -215,10 +215,70 @@ describe("job result cards", () => {
     expect(screen.getByText("תל אביב")).toBeVisible();
     expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
-    await user.click(screen.getByRole("button", { name: "הסרה מהשמורות" }));
+    expect(screen.getByText("נשלחו קורות חיים")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "הסרה" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
       applied: false,
+    });
+  });
+
+  it("saves a suggestion without marking it as applied", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Save job" }));
+
+    expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
+      jobId: "jobs:one",
+      status: "saved",
+    });
+  });
+
+  it("shows a saved suggestion with an active bookmark", async () => {
+    hooks.jobs = [job({ trackingStatus: "saved" })];
+    const user = userEvent.setup();
+    renderPanel();
+
+    const bookmark = screen.getByRole("button", {
+      name: "Remove saved job",
+    });
+    expect(bookmark).toHaveAttribute("aria-pressed", "true");
+    await user.click(bookmark);
+    expect(hooks.setApplication).toHaveBeenCalledWith({
+      jobId: "jobs:one",
+      applied: false,
+    });
+  });
+
+  it("edits a tracked status and notes in an accessible dialog", async () => {
+    hooks.jobs = [
+      job({
+        trackingStatus: "applied",
+        trackingNotes: "Waiting for a reply.",
+        trackingUpdatedAt: Date.UTC(2026, 8, 7, 10),
+      }),
+    ];
+    const user = userEvent.setup();
+    renderPanel("/?tab=in-progress");
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    expect(
+      screen.getByRole("heading", { name: "Application tracking" }),
+    ).toBeVisible();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Status" }),
+      "interview",
+    );
+    const notes = screen.getByRole("textbox", { name: "Notes" });
+    await user.clear(notes);
+    await user.type(notes, "Interview with the product lead.");
+    await user.click(screen.getByRole("button", { name: "Save update" }));
+
+    expect(hooks.setApplication).toHaveBeenCalledWith({
+      jobId: "jobs:one",
+      status: "interview",
+      notes: "Interview with the product lead.",
     });
   });
 

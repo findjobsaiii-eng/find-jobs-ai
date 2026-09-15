@@ -17,11 +17,11 @@ export function AuthConfigurationErrorScreen() {
         />
         <h1
           id="configuration-error-title"
-          className="text-3xl font-semibold tracking-tight"
+          className="text-3xl font-semibold tracking-tight text-balance"
         >
           {t("auth.configurationErrorTitle")}
         </h1>
-        <p className="text-muted-foreground mt-3 leading-7">
+        <p className="text-muted-foreground mt-3 leading-7 text-pretty">
           {t("auth.configurationErrorDescription")}
         </p>
       </section>

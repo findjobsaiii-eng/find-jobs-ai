@@ -222,7 +222,7 @@ describe("dashboard and completed profile editing", () => {
       "href",
       "/",
     );
-    expect(screen.getByRole("link", { name: "שמורות" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "בתהליך" })).toHaveAttribute(
       "href",
       "/?tab=in-progress",
     );
@@ -245,12 +245,12 @@ describe("dashboard and completed profile editing", () => {
       </AuthenticatedShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Saved" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "In progress" })).toHaveAttribute(
       "aria-current",
       "page",
     );
     expect(
-      screen.getByRole("heading", { name: "Saved jobs" }),
+      screen.getByRole("heading", { name: "Applications in progress" }),
     ).toBeInTheDocument();
   });
 

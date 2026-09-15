@@ -110,6 +110,19 @@ const matchQuality = v.union(
   v.literal("possible"),
 );
 
+export const applicationStatus = v.union(
+  v.literal("saved"),
+  v.literal("applied"),
+  v.literal("recruiter_contact"),
+  v.literal("phone_screen"),
+  v.literal("interview"),
+  v.literal("assignment"),
+  v.literal("final_interview"),
+  v.literal("offer"),
+  v.literal("rejected"),
+  v.literal("withdrawn"),
+);
+
 const profileOverrideField = v.union(
   v.literal("targetJobTitles"),
   v.literal("professionalSummary"),
@@ -197,6 +210,9 @@ export const deepReviewView = v.object({
 
 export const jobFeedItem = v.object({
   appliedAt: v.optional(v.number()),
+  trackingStatus: v.optional(applicationStatus),
+  trackingNotes: v.optional(v.string()),
+  trackingUpdatedAt: v.optional(v.number()),
   id: v.id("jobs"),
   title: v.string(),
   companyName: v.string(),
@@ -414,7 +430,10 @@ const schema = defineSchema({
   jobApplications: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
-    appliedAt: v.number(),
+    appliedAt: v.optional(v.number()),
+    status: v.optional(applicationStatus),
+    notes: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
     snapshot: jobFeedItem,
   })
     .index("by_userId_and_jobId", ["userId", "jobId"])

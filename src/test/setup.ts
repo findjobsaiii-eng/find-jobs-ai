@@ -16,6 +16,28 @@ if (typeof window !== "undefined") {
       dispatchEvent: vi.fn(),
     })),
   });
+
+  class TestIntersectionObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
+    readonly thresholds = [0];
+
+    disconnect() {
+      return undefined;
+    }
+    observe() {
+      return undefined;
+    }
+    takeRecords() {
+      return [];
+    }
+    unobserve() {
+      return undefined;
+    }
+  }
+
+  vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
 }
 
 afterEach(() => {

@@ -738,7 +738,7 @@ export function OnboardingScreen({
 
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="bg-card border-border rounded-3xl border p-5 shadow-sm sm:p-8"
+          className="bg-card border-border rounded-3xl border p-5 shadow-[var(--brand-shadow-preview)] sm:p-8"
           noValidate
         >
           <div className="mb-7">
@@ -753,7 +753,7 @@ export function OnboardingScreen({
               ref={headingRef}
               tabIndex={-1}
               id="onboarding-title"
-              className="mt-1 text-2xl font-semibold tracking-tight outline-none sm:text-3xl"
+              className="mt-1 text-2xl font-semibold tracking-tight text-balance outline-none sm:text-3xl"
             >
               {editing
                 ? t("dashboard.editProfile")
@@ -763,7 +763,7 @@ export function OnboardingScreen({
                       : `onboarding.steps.${step}.title`,
                   )}
             </h1>
-            <p className="text-muted-foreground mt-2 leading-6">
+            <p className="text-muted-foreground mt-2 leading-6 text-pretty">
               {t(
                 resumeReview && step === 1
                   ? "onboarding.resumeReview.description"

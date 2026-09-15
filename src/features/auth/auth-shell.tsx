@@ -5,13 +5,17 @@ import { LanguageButton } from "./language-button";
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <main className="bg-background relative isolate flex min-h-svh overflow-hidden px-5 py-6 text-start sm:px-8 sm:py-8">
+    <main className="bg-brand-snow relative isolate flex min-h-svh overflow-hidden px-5 py-6 text-start sm:px-8 sm:py-8">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-[30rem] max-w-5xl bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_68%)]"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-[34rem] max-w-5xl bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_68%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="bg-brand-midnight absolute inset-x-0 top-0 -z-20 h-44"
       />
       <div className="mx-auto flex w-full max-w-5xl flex-col">
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between rounded-2xl bg-white/90 px-3 py-2 shadow-[var(--brand-shadow-card)] backdrop-blur sm:px-4">
           <Brand />
           <LanguageButton />
         </header>

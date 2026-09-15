@@ -173,7 +173,7 @@ export function JobDeepReview({
                     </span>
                   ) : null}
                 </div>
-                <p className="text-foreground/80 mt-2 text-sm leading-6">
+                <p className="text-foreground/80 mt-2 text-sm leading-6 text-pretty">
                   {review.summary}
                 </p>
               </div>
@@ -187,7 +187,7 @@ export function JobDeepReview({
                       <span className="text-sm font-medium">
                         {strength.title}
                       </span>
-                      <p className="text-muted-foreground mt-0.5 text-sm leading-6">
+                      <p className="text-muted-foreground mt-0.5 text-sm leading-6 text-pretty">
                         {strength.detail}
                       </p>
                     </li>
@@ -212,10 +212,10 @@ export function JobDeepReview({
                           {t(`jobReview.importance.${gap.importance}`)}
                         </span>
                       </div>
-                      <p className="text-muted-foreground mt-1.5 text-sm leading-6">
+                      <p className="text-muted-foreground mt-1.5 text-sm leading-6 text-pretty">
                         {gap.currentEvidence}
                       </p>
-                      <p className="text-foreground/80 mt-1 text-sm leading-6">
+                      <p className="text-foreground/80 mt-1 text-sm leading-6 text-pretty">
                         {gap.howToClose}
                       </p>
                     </li>
@@ -234,7 +234,7 @@ export function JobDeepReview({
                 </p>
               ) : null}
               {review.resumeRationale ? (
-                <p className="text-muted-foreground mt-1 text-sm leading-6">
+                <p className="text-muted-foreground mt-1 text-sm leading-6 text-pretty">
                   {review.resumeRationale}
                 </p>
               ) : null}

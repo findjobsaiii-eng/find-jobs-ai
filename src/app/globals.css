@@ -41,6 +41,11 @@
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --color-brand-glow: var(--brand-glow);
+  --color-brand-midnight: var(--brand-midnight);
+  --color-brand-electric: var(--brand-electric);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-cloud: var(--brand-cloud);
+  --color-brand-snow: var(--brand-snow);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -51,6 +56,11 @@
 }
 
 :root {
+  --brand-midnight: #0b1f3b;
+  --brand-electric: #3b82f6;
+  --brand-teal: #14b8a6;
+  --brand-cloud: #e5e7eb;
+  --brand-snow: #f8fafc;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -84,6 +94,10 @@
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
   --brand-glow: oklch(0.9 0.07 165 / 55%);
+  --brand-shadow-card: 0 12px 34px -24px rgb(11 31 59 / 0.28);
+  --brand-shadow-card-hover: 0 20px 48px -26px rgb(11 31 59 / 0.34);
+  --brand-shadow-preview: 0 34px 80px -38px rgb(11 31 59 / 0.34);
+  --brand-shadow-hero: 0 36px 90px -36px rgb(0 0 0 / 0.72);
 }
 
 .dark {
@@ -119,6 +133,10 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
   --brand-glow: oklch(0.34 0.08 165 / 45%);
+  --brand-shadow-card: 0 14px 36px -24px rgb(0 0 0 / 0.58);
+  --brand-shadow-card-hover: 0 22px 48px -24px rgb(0 0 0 / 0.68);
+  --brand-shadow-preview: 0 34px 80px -36px rgb(0 0 0 / 0.72);
+  --brand-shadow-hero: 0 36px 90px -36px rgb(0 0 0 / 0.82);
 }
 
 @layer base {

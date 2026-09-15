@@ -6,6 +6,7 @@ import { AuthGate } from "./auth-gate";
 import { AuthenticatedHome } from "./authenticated-home";
 import { hasOAuthAttemptPending } from "./oauth-callback";
 import { SignInScreen } from "./sign-in-screen";
+import { LandingPage } from "@/features/landing/landing-page";
 
 const authActions = vi.hoisted(() => ({
   signIn: vi.fn(),
@@ -122,6 +123,33 @@ describe("authentication UI", () => {
 
     expect(screen.getByText("Public landing")).toBeVisible();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
+  });
+
+  it("renders the branded landing journey and keeps its primary conversion working", async () => {
+    const user = userEvent.setup();
+    authActions.signIn.mockReturnValue(new Promise(() => undefined));
+    render(<LandingPage />);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Less searching. Better matches.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Ask. Match. Apply.", { selector: "p" }),
+    ).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute(
+      "href",
+      "#product",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Get started with Google" }),
+    );
+    expect(authActions.signIn).toHaveBeenCalledWith("google", {
+      redirectTo: "http://localhost:3000/",
+    });
   });
 
   it("recovers when the initial OAuth request fails", async () => {

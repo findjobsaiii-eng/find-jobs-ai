@@ -75,8 +75,8 @@ export function AuthenticatedShell({
 
   return (
     <DirectionProvider direction={i18n.dir()}>
-      <div className="bg-muted/30 min-h-svh text-start">
-        <header className="bg-background/95 border-border sticky top-0 z-30 border-b backdrop-blur">
+      <div className="bg-brand-snow min-h-svh text-start">
+        <header className="border-border sticky top-0 z-30 border-b bg-white/90 backdrop-blur-xl">
           <PageContainer className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-2">
             <Link
               href="/"
@@ -201,7 +201,11 @@ export function AuthenticatedShell({
             </PageContainer>
           ) : null}
         </header>
-        <main className="py-7 sm:py-10">
+        <main className="relative py-7 sm:py-10">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-56 bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_72%)] opacity-55"
+          />
           <PageContainer>{children}</PageContainer>
         </main>
       </div>

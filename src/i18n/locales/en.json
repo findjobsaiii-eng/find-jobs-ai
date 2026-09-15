@@ -1,43 +1,127 @@
 {
   "meta": {
-    "title": "Find Jobs AI"
+    "title": "JOBMITER"
   },
   "brand": {
-    "name": "Find Jobs AI"
+    "name": "JOBMITER"
+  },
+  "errors": {
+    "notFoundTitle": "This page wandered off.",
+    "notFoundDescription": "The page you’re looking for doesn’t exist or has moved.",
+    "backHome": "Back to JOBMITER",
+    "title": "Something didn’t load.",
+    "description": "Your information is safe. Try loading this view again.",
+    "retry": "Try again"
   },
   "language": {
     "switchLabel": "Switch language to Hebrew",
     "otherLanguage": "עברית"
   },
   "landing": {
-    "eyebrow": "A simpler job search starts with your resume",
-    "title": "Your experience, turned into better job matches.",
-    "description": "Upload your resume once. We build your professional profile and keep your job search focused on roles that genuinely fit.",
+    "eyebrow": "AI-powered job matching for real people",
+    "titleStart": "Less searching.",
+    "titleAccent": "Better matches.",
+    "description": "JOBMITER understands your experience, skills, and direction—then brings the most relevant opportunities into one calm, focused workspace.",
     "signIn": "Get started with Google",
     "privacy": "Your resume stays private and in your control.",
-    "howItWorks": "From resume to relevant roles",
+    "secondaryCta": "See how it works",
+    "nav": {
+      "label": "Landing page navigation",
+      "how": "How it works",
+      "product": "Product",
+      "why": "Why JOBMITER",
+      "start": "Get started"
+    },
+    "workflow": {
+      "title": "Ask. Match. Apply.",
+      "live": "Working for you",
+      "intent": "A job that fits you",
+      "intentHint": "Product roles · Tel Aviv · Hybrid",
+      "analysis": "AI understands your experience",
+      "matches": "The best opportunities rise to the top",
+      "focus": "You focus on what comes next"
+    },
+    "howEyebrow": "Ask. Match. Apply.",
+    "howItWorks": "A clearer path to the right role",
+    "howDescription": "One thoughtful flow replaces scattered tabs, noisy job boards, and hours of searching.",
     "steps": {
-      "upload": {
-        "title": "Upload your resume",
-        "description": "PDF or DOCX is enough to begin."
+      "ask": {
+        "title": "Tell us where you want to go",
+        "description": "Build your profile from your resume and set the direction that matters to you."
       },
-      "profile": {
-        "title": "Review your profile",
-        "description": "We organize your experience, skills, and preferences."
+      "match": {
+        "title": "See opportunities with context",
+        "description": "JOBMITER compares your experience with real roles and explains why each one fits."
       },
-      "jobs": {
-        "title": "Discover fitting jobs",
-        "description": "See focused recommendations in one calm workspace."
+      "apply": {
+        "title": "Move forward with focus",
+        "description": "Open the strongest opportunities and keep every application organized as it progresses."
       }
     },
     "preview": {
-      "resume": "Resume uploaded",
-      "profile": "Profile ready",
-      "matches": "Relevant jobs",
-      "role": "Frontend Engineer",
-      "company": "Product company · Tel Aviv",
-      "match": "Strong match"
-    }
+      "navMatches": "Matches",
+      "navProgress": "In progress",
+      "navProfile": "Profile",
+      "eyebrow": "Matched for you",
+      "title": "Your most relevant opportunities",
+      "fresh": "Updated today",
+      "jobs": {
+        "product": {
+          "initial": "P",
+          "role": "Product Manager",
+          "company": "Fintech · Tel Aviv · Hybrid"
+        },
+        "frontend": {
+          "initial": "F",
+          "role": "Frontend Engineer",
+          "company": "SaaS · Remote"
+        },
+        "design": {
+          "initial": "D",
+          "role": "Senior Product Designer",
+          "company": "Consumer tech · Herzliya"
+        }
+      }
+    },
+    "product": {
+      "eyebrow": "Less noise. More signal.",
+      "title": "A job search that stays on your side",
+      "description": "Recommendations, match context, saved roles, and application progress live together—so every next step is obvious.",
+      "points": {
+        "focused": "A focused list shaped around your real profile",
+        "transparent": "Clear match context instead of unexplained rankings",
+        "progress": "Simple application tracking without the ATS complexity"
+      }
+    },
+    "pillars": {
+      "eyebrow": "Built around people",
+      "title": "Where talent meets opportunity.",
+      "description": "AI should make a difficult process feel clearer, not colder. Every JOBMITER surface is designed to reduce uncertainty and help you make confident decisions.",
+      "items": {
+        "clarity": {
+          "title": "Clarity",
+          "description": "Fewer distractions. Better next steps."
+        },
+        "speed": {
+          "title": "Speed",
+          "description": "From search to opportunity, faster."
+        },
+        "relevance": {
+          "title": "Relevance",
+          "description": "Matches grounded in your experience."
+        },
+        "trust": {
+          "title": "Trust",
+          "description": "Private by design and always in your control."
+        }
+      }
+    },
+    "cta": {
+      "title": "Your next chapter deserves a smarter start.",
+      "description": "Bring your experience. JOBMITER will help turn it into focused, relevant opportunities.",
+      "button": "Start with JOBMITER"
+    },
+    "footer": "AI × people × progress"
   },
   "auth": {
     "eyebrow": "Welcome",
@@ -59,7 +143,7 @@
     "signOutError": "We couldn't sign you out. Please try again."
   },
   "dashboard": {
-    "brand": "Worky",
+    "brand": "JOBMITER",
     "candidate": "there",
     "greeting": "Good morning, {{displayName}}",
     "supportingText": "We found jobs that match your profile",
@@ -127,8 +211,8 @@
       "central": "Jobs refreshed from the shared database."
     },
     "retry": "Try again",
-    "pendingTitle": "We’re already finding your next job",
-    "pendingDescription": "We’re searching across the web for roles that best match you. Check back soon to see today’s best finds.",
+    "pendingTitle": "We’re already searching for jobs for you",
+    "pendingDescription": "JOBMITER is analyzing your profile and looking for opportunities that genuinely fit. You can come back in a few minutes.",
     "emptyTitle": "No jobs currently match your profile.",
     "emptyDescription": "Only jobs that pass your profile and location relevance threshold appear here.",
     "locationEmptyTitle": "No active jobs are currently within your search area.",
@@ -214,7 +298,7 @@
     "openPosting": "View job",
     "errors": {
       "incomplete": "Complete the required job-search profile fields before starting a search.",
-      "locationReconfirm": "Choose and save your location again so Worky can verify its city and radius before searching.",
+      "locationReconfirm": "Choose and save your location again so JOBMITER can verify its city and radius before searching.",
       "disabled": "Fresh web search is temporarily disabled. Existing verified jobs remain available.",
       "alreadyRunning": "A job search is already running for your account.",
       "configuration": "Job discovery is not configured on the server yet.",
@@ -504,17 +588,55 @@
   },
   "applications": {
     "suggestions": "Suggestions",
-    "inProgress": "Saved",
-    "savedTitle": "Saved jobs",
-    "savedDescription": "Jobs you kept for later, in one place.",
-    "sentResume": "Save job",
-    "undo": "Remove from saved",
+    "inProgress": "In progress",
+    "savedTitle": "Applications in progress",
+    "savedDescription": "Keep saved jobs and every application stage in one calm place.",
+    "sentResume": "I sent my résumé",
+    "undo": "Remove",
+    "saveJob": "Save job",
+    "removeSaved": "Remove saved job",
     "marked": "Job saved.",
-    "unmarked": "Removed from saved jobs.",
+    "appliedMarked": "Application moved to Applied.",
+    "unmarked": "Job removed from tracking.",
+    "trackingSaved": "Application tracking updated.",
     "error": "Couldn’t update this job. Please try again.",
-    "emptyTitle": "No saved jobs yet",
-    "emptyDescription": "Save a job from Suggestions and it will appear here.",
-    "sentAt": "Saved {{date}}"
+    "emptyTitle": "Nothing in progress yet",
+    "emptyDescription": "Save a job or mark that you sent your résumé, and it will appear here.",
+    "sentAt": "Applied {{date}}",
+    "lastUpdated": "Updated {{date}}",
+    "status": {
+      "saved": "Saved",
+      "applied": "Applied",
+      "recruiter_contact": "Recruiter contact",
+      "phone_screen": "Phone screen",
+      "interview": "Interview",
+      "assignment": "Take-home assignment",
+      "final_interview": "Final interview",
+      "offer": "Offer received",
+      "rejected": "Not selected",
+      "withdrawn": "Withdrawn"
+    },
+    "filters": {
+      "label": "Filter applications by stage",
+      "all": "All",
+      "applied": "Saved & applied",
+      "interviewing": "Interviewing",
+      "offer": "Offer",
+      "closed": "Closed",
+      "empty": "No tracked jobs match this filter."
+    },
+    "tracking": {
+      "open": "Track",
+      "edit": "Update",
+      "title": "Application tracking",
+      "description": "Update your progress and private notes for {{title}}.",
+      "status": "Status",
+      "notes": "Notes",
+      "notesPlaceholder": "Add interview details, a contact name, or your next step…",
+      "characterCount": "{{count}} / {{max}}",
+      "save": "Save update",
+      "close": "Close application tracking"
+    }
   },
   "common": {
     "save": "Save",

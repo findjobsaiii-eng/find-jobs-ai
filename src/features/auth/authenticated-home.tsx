@@ -34,11 +34,11 @@ export function AuthenticatedHome() {
         </span>
         <h1
           id="welcome-title"
-          className="text-3xl font-semibold tracking-tight sm:text-4xl"
+          className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
         >
           {t("auth.welcomeTitle")}
         </h1>
-        <p className="text-muted-foreground mx-auto mt-4 max-w-md leading-7">
+        <p className="text-muted-foreground mx-auto mt-4 max-w-md leading-7 text-pretty">
           {t("auth.welcomeDescription")}
         </p>
         <Button

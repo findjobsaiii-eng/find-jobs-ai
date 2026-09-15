@@ -1,4 +1,4 @@
-import { jobFeedItem } from "./schema";
+import { applicationStatus, jobFeedItem } from "./schema";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -384,6 +384,59 @@ const discoveryStateValidator = v.union(
   v.literal("complete"),
   v.literal("failed"),
 );
+
+const MAX_APPLICATION_NOTES_LENGTH = 3_000;
+
+type ApplicationStatus =
+  | "saved"
+  | "applied"
+  | "recruiter_contact"
+  | "phone_screen"
+  | "interview"
+  | "assignment"
+  | "final_interview"
+  | "offer"
+  | "rejected"
+  | "withdrawn";
+
+function normalizedApplicationStatus(application: Doc<"jobApplications">) {
+  return (application.status ?? "applied") as ApplicationStatus;
+}
+
+function trackingFields(application: Doc<"jobApplications"> | undefined) {
+  if (!application) return {};
+  return {
+    appliedAt: application.appliedAt,
+    trackingStatus: normalizedApplicationStatus(application),
+    trackingNotes: application.notes,
+    trackingUpdatedAt:
+      application.updatedAt ??
+      application.appliedAt ??
+      application._creationTime,
+  };
+}
+
+function normalizedNotes(notes: string | undefined) {
+  if (notes === undefined) return undefined;
+  const value = notes.trim();
+  if (value.length > MAX_APPLICATION_NOTES_LENGTH) {
+    throw new ConvexError({ code: "APPLICATION_NOTES_TOO_LONG" });
+  }
+  return value || undefined;
+}
+
+async function canonicalTrackingJob(
+  ctx: QueryCtx | MutationCtx,
+  jobId: Id<"jobs">,
+) {
+  const requested = await ctx.db.get("jobs", jobId);
+  const canonicalId = requested?.canonicalJobId ?? jobId;
+  return {
+    jobId: canonicalId,
+    job:
+      canonicalId === jobId ? requested : await ctx.db.get("jobs", canonicalId),
+  };
+}
 
 async function requireUserId(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -1637,6 +1690,7 @@ async function suggestionFeedForUser(
   profile: SearchProfile,
   profileRevision: number,
   reviewsByJob: Map<Id<"jobs">, Doc<"jobDeepReviews">>,
+  applicationsByJob: Map<Id<"jobs">, Doc<"jobApplications">>,
 ) {
   const matches = await ctx.db
     .query("jobMatches")
@@ -1658,6 +1712,7 @@ async function suggestionFeedForUser(
     if (!item) continue;
     jobs.push({
       ...item,
+      ...trackingFields(applicationsByJob.get(job._id)),
       deepReview: deepReviewView(
         reviewsByJob.get(job._id),
         job,
@@ -1689,7 +1744,7 @@ export const listCurrentUserJobs = query({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
     const now = Date.now();
-    const [plan, reviews, profileRecord] = await Promise.all([
+    const [plan, reviews, profileRecord, applications] = await Promise.all([
       currentPlan(ctx, userId, now),
       ctx.db
         .query("jobDeepReviews")
@@ -1697,16 +1752,16 @@ export const listCurrentUserJobs = query({
         .order("desc")
         .take(100),
       getProfile(ctx, userId),
+      ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
     ]);
     const reviewsByJob = new Map(
       reviews.map((review) => [review.jobId, review]),
     );
     if (args.view === "inProgress") {
-      const applications = await ctx.db
-        .query("jobApplications")
-        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
-        .order("desc")
-        .take(100);
       const jobs = await Promise.all(
         applications.map(async (application) => {
           const current = await ctx.db.get("jobs", application.jobId);
@@ -1729,14 +1784,20 @@ export const listCurrentUserJobs = query({
             : application.snapshot.deepReview;
           return {
             ...application.snapshot,
-            appliedAt: application.appliedAt,
+            ...trackingFields(application),
             unavailable: !current || !isDisplayEligibleJob(current),
             deepReview: review,
           };
         }),
       );
+      const visibleJobs = jobs.filter((job) => job !== null);
+      visibleJobs.sort(
+        (left, right) =>
+          (right.trackingUpdatedAt ?? right.appliedAt ?? 0) -
+          (left.trackingUpdatedAt ?? left.appliedAt ?? 0),
+      );
       return {
-        jobs: jobs.filter((job) => job !== null),
+        jobs: visibleJobs,
         plan,
         emptyState: null,
         discoveryState: null,
@@ -1768,6 +1829,9 @@ export const listCurrentUserJobs = query({
       profile,
       profileRecord.updatedAt,
       reviewsByJob,
+      new Map(
+        applications.map((application) => [application.jobId, application]),
+      ),
     );
     const emptyState = jobs.length
       ? null
@@ -1836,7 +1900,11 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
         .order("desc")
         .take(50),
     ]);
-  const appliedJobIds = new Set(applications.map((item) => item.jobId));
+  const appliedJobIds = new Set(
+    applications
+      .filter((item) => normalizedApplicationStatus(item) !== "saved")
+      .map((item) => item.jobId),
+  );
   const fixtureJobIds = new Set(
     allSources
       .filter((source) => !isUserFacingJobSource(source))
@@ -2468,6 +2536,7 @@ export const listUserJobsForDevelopment = internalQuery({
       profile,
       profileRecord.updatedAt,
       new Map(reviews.map((review) => [review.jobId, review])),
+      new Map(),
     );
   },
 });
@@ -2485,40 +2554,112 @@ export const setApplicationStatus = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
+    const trackedJob = await canonicalTrackingJob(ctx, args.jobId);
     const existing = await ctx.db
       .query("jobApplications")
       .withIndex("by_userId_and_jobId", (q) =>
-        q.eq("userId", userId).eq("jobId", args.jobId),
+        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
       )
       .unique();
     if (!args.applied) {
       if (existing) await ctx.db.delete("jobApplications", existing._id);
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
         userId,
-        jobId: args.jobId,
+        jobId: trackedJob.jobId,
       });
       return null;
     }
-    if (existing) return null;
-    const job = await ctx.db.get("jobs", args.jobId);
-    const item = job
-      ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
-      : null;
-    if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
-    await ctx.db.insert("jobApplications", {
-      userId,
-      jobId: args.jobId,
-      appliedAt: Date.now(),
-      snapshot: item,
-    });
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch("jobApplications", existing._id, {
+        status: "applied",
+        appliedAt: existing.appliedAt ?? now,
+        updatedAt: now,
+      });
+    } else {
+      const job = trackedJob.job;
+      const item = job
+        ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
+        : null;
+      if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
+      await ctx.db.insert("jobApplications", {
+        userId,
+        jobId: trackedJob.jobId,
+        appliedAt: now,
+        status: "applied",
+        updatedAt: now,
+        snapshot: item,
+      });
+    }
     const match = await ctx.db
       .query("jobMatches")
       .withIndex("by_userId_and_jobId", (q) =>
-        q.eq("userId", userId).eq("jobId", args.jobId),
+        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
       )
       .unique();
     if (match)
       await ctx.db.patch("jobMatches", match._id, { displayEligible: false });
+    return null;
+  },
+});
+
+export const updateJobTracking = mutation({
+  args: {
+    jobId: v.id("jobs"),
+    status: applicationStatus,
+    notes: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const trackedJob = await canonicalTrackingJob(ctx, args.jobId);
+    const existing = await ctx.db
+      .query("jobApplications")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
+      )
+      .unique();
+    const now = Date.now();
+    const notes = normalizedNotes(args.notes);
+    if (existing) {
+      await ctx.db.patch("jobApplications", existing._id, {
+        status: args.status,
+        ...(args.notes !== undefined ? { notes } : {}),
+        ...(args.status !== "saved" && !existing.appliedAt
+          ? { appliedAt: now }
+          : {}),
+        updatedAt: now,
+      });
+    } else {
+      const job = trackedJob.job;
+      const item = job
+        ? await feedItem(ctx, job, await loadSearchProfile(ctx, userId))
+        : null;
+      if (!item) throw new ConvexError({ code: "JOB_NOT_AVAILABLE" });
+      await ctx.db.insert("jobApplications", {
+        userId,
+        jobId: trackedJob.jobId,
+        ...(args.status !== "saved" ? { appliedAt: now } : {}),
+        status: args.status,
+        ...(notes ? { notes } : {}),
+        updatedAt: now,
+        snapshot: item,
+      });
+    }
+    const match = await ctx.db
+      .query("jobMatches")
+      .withIndex("by_userId_and_jobId", (q) =>
+        q.eq("userId", userId).eq("jobId", trackedJob.jobId),
+      )
+      .unique();
+    if (args.status === "saved") {
+      await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
+        userId,
+        jobId: trackedJob.jobId,
+      });
+    } else if (match) {
+      await ctx.db.patch("jobMatches", match._id, { displayEligible: false });
+    }
     return null;
   },
 });

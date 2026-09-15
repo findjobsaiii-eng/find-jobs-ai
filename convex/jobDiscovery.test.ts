@@ -1067,6 +1067,176 @@ describe("stored job activity", () => {
     });
   });
 
+  it("reads historical Sent résumé snapshots as applied", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const jobId = await t.run(
+      async (ctx) => (await ctx.db.query("jobs").first())?._id,
+    );
+    if (!jobId) throw new Error("Expected stored job");
+    await asUser(t, userId).mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: true,
+    });
+    await t.run(async (ctx) => {
+      const application = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", jobId),
+        )
+        .unique();
+      if (!application) throw new Error("Expected application");
+      await ctx.db.patch("jobApplications", application._id, {
+        status: undefined,
+        updatedAt: undefined,
+      });
+    });
+
+    const history = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "inProgress" },
+    );
+    expect(history.jobs[0]).toMatchObject({
+      id: jobId,
+      trackingStatus: "applied",
+    });
+    expect(history.jobs[0].trackingUpdatedAt).toBeTypeOf("number");
+  });
+
+  it("saves once, updates status and bounded notes, and preserves appliedAt", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const jobId = await t.run(
+      async (ctx) => (await ctx.db.query("jobs").first())?._id,
+    );
+    if (!jobId) throw new Error("Expected stored job");
+    const user = asUser(t, userId);
+
+    await user.mutation(api.jobDiscovery.updateJobTracking, {
+      jobId,
+      status: "saved",
+      notes: "  Follow up with Dana on Thursday.  ",
+    });
+    const savedFeed = await user.query(api.jobDiscovery.listCurrentUserJobs, {
+      view: "inProgress",
+    });
+    expect(savedFeed.jobs[0]).toMatchObject({
+      id: jobId,
+      trackingStatus: "saved",
+      trackingNotes: "Follow up with Dana on Thursday.",
+    });
+    await t.run(async (ctx) => {
+      const saved = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", jobId),
+        )
+        .unique();
+      expect(saved?.appliedAt).toBeUndefined();
+    });
+
+    await user.mutation(api.jobDiscovery.setApplicationStatus, {
+      jobId,
+      applied: true,
+    });
+    const firstAppliedAt = await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", jobId),
+        )
+        .take(10);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        status: "applied",
+        notes: "Follow up with Dana on Thursday.",
+      });
+      return rows[0].appliedAt;
+    });
+
+    await user.mutation(api.jobDiscovery.updateJobTracking, {
+      jobId,
+      status: "interview",
+      notes: "Technical interview scheduled.",
+    });
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", jobId),
+        )
+        .unique();
+      expect(row).toMatchObject({
+        status: "interview",
+        notes: "Technical interview scheduled.",
+        appliedAt: firstAppliedAt,
+      });
+    });
+    await expect(
+      user.mutation(api.jobDiscovery.updateJobTracking, {
+        jobId,
+        status: "interview",
+        notes: "x".repeat(3_001),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("keeps tracking records isolated between authenticated users", async () => {
+    const t = convexTest(schema, modules);
+    const ownerId = await createUser(t);
+    const otherId = await t.run((ctx) =>
+      ctx.db.insert("users", {
+        email: "other@example.com",
+        name: "Other candidate",
+      }),
+    );
+    await addCompletedProfile(t, ownerId);
+    await addCompletedProfile(t, otherId);
+    await ingestCandidates(t, ownerId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const jobId = await t.run(
+      async (ctx) => (await ctx.db.query("jobs").first())?._id,
+    );
+    if (!jobId) throw new Error("Expected stored job");
+
+    await asUser(t, ownerId).mutation(api.jobDiscovery.updateJobTracking, {
+      jobId,
+      status: "applied",
+      notes: "Owner note",
+    });
+    await asUser(t, otherId).mutation(api.jobDiscovery.updateJobTracking, {
+      jobId,
+      status: "saved",
+      notes: "Other note",
+    });
+
+    await t.run(async (ctx) => {
+      const owner = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", ownerId).eq("jobId", jobId),
+        )
+        .unique();
+      const other = await ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", otherId).eq("jobId", jobId),
+        )
+        .unique();
+      expect(owner).toMatchObject({ status: "applied", notes: "Owner note" });
+      expect(other).toMatchObject({ status: "saved", notes: "Other note" });
+    });
+  });
+
   it("distinguishes discovery that has not run from a completed empty search", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);

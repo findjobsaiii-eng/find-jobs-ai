@@ -15,19 +15,19 @@ export function SignInScreen() {
     <AuthShell>
       <section
         aria-labelledby="sign-in-title"
-        className="bg-card/90 w-full max-w-md rounded-3xl border p-6 shadow-[0_24px_80px_-32px_oklch(0.25_0.04_165_/_0.28)] backdrop-blur-sm sm:p-8"
+        className="bg-card/95 w-full max-w-md rounded-3xl border p-6 shadow-[var(--brand-shadow-preview)] backdrop-blur-sm sm:p-8"
       >
         <div className="mb-8">
-          <p className="text-primary mb-3 text-sm font-medium">
+          <p className="text-brand-electric mb-3 text-sm font-semibold tracking-wide">
             {t("auth.eyebrow")}
           </p>
           <h1
             id="sign-in-title"
-            className="text-3xl font-semibold tracking-tight"
+            className="text-3xl font-semibold tracking-tight text-balance"
           >
             {t("auth.title")}
           </h1>
-          <p className="text-muted-foreground mt-3 leading-7">
+          <p className="text-muted-foreground mt-3 leading-7 text-pretty">
             {t("auth.description")}
           </p>
         </div>
