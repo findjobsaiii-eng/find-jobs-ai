@@ -18,6 +18,46 @@ const discoveryBucketValidator = v.union(
   v.literal(9),
 );
 type DiscoveryBucket = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+const MAX_DAILY_DISCOVERY_ATTEMPTS = 3;
+const EMPTY_DISCOVERY_RETRY_DELAY_MS = 15 * 60 * 1_000;
+
+type DiscoveryAttempt = {
+  dayKey?: string;
+  nextAttemptAt?: number;
+  attemptCount?: number;
+  lastOutcome: string;
+};
+
+function canQueueAttempt(
+  attempt: DiscoveryAttempt | null,
+  dayKey: string,
+  now: number,
+  hasVisibleJobs: boolean,
+) {
+  if (!attempt || attempt.dayKey !== dayKey) return true;
+  if (attempt.lastOutcome === "queued" || hasVisibleJobs) return false;
+  if ((attempt.attemptCount ?? 1) >= MAX_DAILY_DISCOVERY_ATTEMPTS) return false;
+  return attempt.nextAttemptAt === undefined || attempt.nextAttemptAt <= now;
+}
+
+async function hasVisibleJobs(
+  ctx: MutationCtx,
+  profile: { userId: Id<"users">; updatedAt: number },
+) {
+  return Boolean(
+    await ctx.db
+      .query("jobMatches")
+      .withIndex(
+        "by_userId_profileRevision_displayEligible_relevanceScore",
+        (q) =>
+          q
+            .eq("userId", profile.userId)
+            .eq("profileRevision", profile.updatedAt)
+            .eq("displayEligible", true),
+      )
+      .first(),
+  );
+}
 
 export function discoveryBucket(userId: string) {
   let hash = 2166136261;
@@ -79,7 +119,9 @@ export const dispatch = internalMutation({
         .query("dailyDiscoveryAttempts")
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
-      if (attempt?.dayKey === dayKey) continue;
+      const visible =
+        attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
+      if (!canQueueAttempt(attempt, dayKey, now, visible)) continue;
       const plan = await activePaidPlan(ctx, profile.userId, now);
       if (plan === "free") continue;
       const values = {
@@ -87,6 +129,9 @@ export const dispatch = internalMutation({
         dayKey,
         lastAttemptAt: now,
         lastOutcome: "queued",
+        attemptCount:
+          attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1,
+        nextAttemptAt: undefined,
       };
       if (attempt)
         await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
@@ -127,18 +172,18 @@ export const enqueueUser = internalMutation({
       activePaidPlan(ctx, args.userId, now),
     ]);
     const dayKey = globalDayKey(now);
-    if (
-      !profile?.onboardingCompleted ||
-      !plan ||
-      plan === "free" ||
-      attempt?.dayKey === dayKey
-    )
-      return null;
+    if (!profile?.onboardingCompleted || !plan || plan === "free") return null;
+    const visible =
+      attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
+    if (!canQueueAttempt(attempt, dayKey, now, visible)) return null;
     const values = {
       userId: args.userId,
       dayKey,
       lastAttemptAt: now,
       lastOutcome: "queued",
+      attemptCount:
+        attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1,
+      nextAttemptAt: undefined,
     };
     if (attempt)
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
@@ -153,17 +198,36 @@ export const enqueueUser = internalMutation({
 });
 
 export const finishAttempt = internalMutation({
-  args: { userId: v.id("users"), outcome: v.string() },
+  args: {
+    userId: v.id("users"),
+    outcome: v.string(),
+    retryable: v.boolean(),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const attempt = await ctx.db
       .query("dailyDiscoveryAttempts")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
-    if (attempt)
+    if (attempt) {
+      const attemptCount = attempt.attemptCount ?? 1;
+      const shouldRetry =
+        args.retryable && attemptCount < MAX_DAILY_DISCOVERY_ATTEMPTS;
+      const now = Date.now();
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
         lastOutcome: args.outcome.slice(0, 80),
+        nextAttemptAt: shouldRetry
+          ? now + EMPTY_DISCOVERY_RETRY_DELAY_MS
+          : undefined,
       });
+      if (shouldRetry) {
+        await ctx.scheduler.runAfter(
+          EMPTY_DISCOVERY_RETRY_DELAY_MS,
+          internal.dailyDiscovery.enqueueUser,
+          { userId: args.userId },
+        );
+      }
+    }
     return null;
   },
 });

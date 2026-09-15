@@ -73,13 +73,48 @@ describe("OpenAI job provider boundary", () => {
       totalTokens: 150,
     });
     expect(result.webSearchToolCallCount).toBe(1);
+    expect(result.diagnostics).toMatchObject({
+      responseStatus: "unknown",
+      parsed: true,
+    });
     expect(parse).toHaveBeenCalledWith(
       expect.objectContaining({
         store: false,
         max_output_tokens: 2_000,
-        max_tool_calls: 2,
-        tools: [{ type: "web_search", search_context_size: "low" }],
+        max_tool_calls: 4,
+        tools: [{ type: "web_search", search_context_size: "medium" }],
       }),
     );
+  });
+
+  it("fails loudly and preserves bounded diagnostics when structured output is missing", async () => {
+    const parse = vi.fn().mockResolvedValue({
+      id: "resp_incomplete",
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      error: null,
+      output_text: "partial output",
+      output: [{ type: "reasoning", summary: [] }],
+      output_parsed: null,
+      usage: { input_tokens: 100, output_tokens: 2_000, total_tokens: 2_100 },
+    });
+    const client = { responses: { parse } } as unknown as OpenAI;
+
+    await expect(
+      searchJobsWithOpenAI(client, "test-model", ["query"], {
+        maxQueries: 1,
+        maxAcceptedJobs: 5,
+        maxOutputTokens: 2_000,
+      }),
+    ).rejects.toMatchObject({
+      name: "JobSearchProviderResponseError",
+      diagnostics: {
+        responseId: "resp_incomplete",
+        responseStatus: "incomplete",
+        parsed: false,
+        incompleteReason: "max_output_tokens",
+        outputTextExcerpt: "partial output",
+      },
+    });
   });
 });

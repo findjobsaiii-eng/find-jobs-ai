@@ -53,6 +53,17 @@ const resultSource = v.union(
   v.literal("central"),
 );
 
+export const jobSearchProviderDiagnostics = v.object({
+  responseId: v.optional(v.string()),
+  responseStatus: v.string(),
+  parsed: v.boolean(),
+  incompleteReason: v.optional(v.string()),
+  errorCode: v.optional(v.string()),
+  errorMessage: v.optional(v.string()),
+  outputTextExcerpt: v.optional(v.string()),
+  rawResponseExcerpt: v.string(),
+});
+
 const deepReviewStatus = v.union(
   v.literal("pending"),
   v.literal("completed"),
@@ -480,6 +491,7 @@ const schema = defineSchema({
     userId: v.id("users"),
     dayKey: v.optional(v.string()),
     nextAttemptAt: v.optional(v.number()),
+    attemptCount: v.optional(v.number()),
     lastAttemptAt: v.number(),
     lastOutcome: v.string(),
   }).index("by_userId", ["userId"]),
@@ -520,6 +532,7 @@ const schema = defineSchema({
     reservationId: v.optional(v.string()),
     queryCount: v.optional(v.number()),
     webSearchToolCallCount: v.optional(v.number()),
+    providerDiagnostics: v.optional(jobSearchProviderDiagnostics),
   })
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_startedAt", ["userId", "startedAt"])

@@ -182,16 +182,21 @@ Job discovery runs in a Convex server action using
 the official OpenAI JavaScript SDK. The model is required server configuration
 under `OPENAI_JOB_SEARCH_MODEL`; `gpt-5.6-luna` is the initial cost-conscious
 recommendation because current official documentation lists Web Search support.
-The Responses API call uses the Web Search tool, strict Zod-backed Structured
-Outputs, an output-token limit, a tool-call limit, no response storage, and no
-automatic SDK retries.
+The Responses API call uses medium-context Web Search, strict Zod-backed
+Structured Outputs, an output-token limit, a tool-call limit, no provider-side
+response storage, and no automatic SDK retries. Each run stores bounded local
+diagnostics: response status, incomplete/error details, parse status, output
+text, and a raw response excerpt. A missing structured parse fails the run
+instead of being coerced to an empty job array.
 
 Application code creates one deterministic query for each unique target role,
 capped at five. D-024 defines the current query composition and shared identity.
 Candidate name, email, profile summary, and other identifying text are excluded.
 
-An exact query fingerprint is claimed once per Israel calendar day across all
-users. Plan and global enforcement are defined in D-016.
+An exact query fingerprint can be shared across users on the same Israel day
+when the current user already has a visible materialized match. A completed
+claim with no visible result does not suppress another provider search. Plan
+and global enforcement are defined in D-016.
 
 Every provider record is validated again server-side. A posting must have a
 public HTTP(S) source URL that occurs in returned Web Search sources, plus a
@@ -216,11 +221,14 @@ returns central-database results before loading provider configuration or a
 search profile. Paid automatic searches remain behind the global kill switch and
 daily run/query/concurrency limits.
 
-Each exact normalized query criterion set is atomically claimed once per
-Israel calendar day across all users. A claim records its owning run so an older
-failure cannot clear a newer claim. Failures release their own claim for retry.
-Only one active run per user is allowed and stale reservations recover after ten
-minutes.
+Each exact normalized query criterion set is atomically claimed across users.
+An in-flight same-day claim is shared, and a completed claim is reused only
+when the current profile has a visible materialized match. Otherwise a new run
+is allowed. A claim records its owning run so an older failure cannot clear a
+newer claim. Failures release their own claim for retry. Empty or skipped
+automatic discovery retries after 15 minutes, up to three attempts per Israel
+day. Only one active run per user is allowed and stale reservations recover
+after ten minutes.
 
 The development-only entitlement switch and manual action require
 `DEV_TOOLS_ENABLED=true`. Manual paid searches may be repeated and bypass the

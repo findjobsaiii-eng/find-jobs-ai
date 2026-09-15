@@ -184,6 +184,7 @@ export const backfillMissingSourceRecords = internalMutation({
     unverifiableJobs: v.number(),
     provenanceUpdated: v.number(),
     pendingFailuresReclassified: v.number(),
+    verificationQueued: v.number(),
   }),
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(Math.floor(args.limit), 1), 25);
@@ -198,6 +199,7 @@ export const backfillMissingSourceRecords = internalMutation({
     let unverifiableJobs = 0;
     let provenanceUpdated = 0;
     let pendingFailuresReclassified = 0;
+    let verificationQueued = 0;
     for (const job of jobs) {
       if (job.canonicalJobId || recoveredJobs + unverifiableJobs >= limit) {
         continue;
@@ -219,6 +221,18 @@ export const backfillMissingSourceRecords = internalMutation({
             source.activityStatus = "verification_failed";
             pendingFailuresReclassified += 1;
           }
+          if (
+            source.activityStatus !== "inactive" &&
+            !isFreshActiveSource(source, now) &&
+            (source.verificationLeaseUntil ?? 0) <= now &&
+            source.nextVerificationAt !== now
+          ) {
+            await ctx.db.patch("jobSources", source._id, {
+              nextVerificationAt: now,
+            });
+            source.nextVerificationAt = now;
+            verificationQueued += 1;
+          }
         }
         const lifecycle = deriveJobLifecycle({
           sources: currentSources,
@@ -238,6 +252,7 @@ export const backfillMissingSourceRecords = internalMutation({
           await ctx.db.patch("jobs", job._id, { activityReason: reason });
           provenanceUpdated += 1;
         }
+        await refreshJobLifecycle(ctx, job._id, now);
         continue;
       }
       const recovered = storedSourceUrls(job);
@@ -319,7 +334,7 @@ export const backfillMissingSourceRecords = internalMutation({
         });
       }
     }
-    if (recoveredSources > 0) {
+    if (recoveredSources > 0 || verificationQueued > 0) {
       await ctx.scheduler.runAfter(
         0,
         internal.jobActivityActions.verifyDueSources,
@@ -333,6 +348,7 @@ export const backfillMissingSourceRecords = internalMutation({
       unverifiableJobs,
       provenanceUpdated,
       pendingFailuresReclassified,
+      verificationQueued,
     };
   },
 });

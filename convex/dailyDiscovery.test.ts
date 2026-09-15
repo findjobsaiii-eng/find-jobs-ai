@@ -109,6 +109,53 @@ it("queues a new pilot user immediately without a purchased entitlement", async 
   });
 });
 
+it("retries an empty discovery at most three times in the same day", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-15T09:00:00Z"));
+  const t = convexTest(schema, modules);
+  const userId = await t.run(async (ctx) => {
+    const id = await ctx.db.insert("users", {});
+    await ctx.db.insert("dailyDiscoveryAttempts", {
+      userId: id,
+      dayKey: "2026-09-15",
+      attemptCount: 1,
+      lastAttemptAt: Date.now(),
+      lastOutcome: "queued",
+    });
+    return id;
+  });
+
+  await t.mutation(internal.dailyDiscovery.finishAttempt, {
+    userId,
+    outcome: "completed_empty",
+    retryable: true,
+  });
+  await t.run(async (ctx) => {
+    const attempt = await ctx.db.query("dailyDiscoveryAttempts").unique();
+    if (!attempt) throw new Error("Expected discovery attempt");
+    expect(attempt.nextAttemptAt).toBe(Date.now() + 15 * 60 * 1_000);
+    expect(
+      await ctx.db.system.query("_scheduled_functions").collect(),
+    ).toHaveLength(1);
+    await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
+      attemptCount: 3,
+    });
+  });
+  await t.mutation(internal.dailyDiscovery.finishAttempt, {
+    userId,
+    outcome: "completed_empty",
+    retryable: true,
+  });
+  await t.run(async (ctx) => {
+    const attempt = await ctx.db.query("dailyDiscoveryAttempts").unique();
+    if (!attempt) throw new Error("Expected discovery attempt");
+    expect(attempt.nextAttemptAt).toBeUndefined();
+    expect(
+      await ctx.db.system.query("_scheduled_functions").collect(),
+    ).toHaveLength(1);
+  });
+});
+
 it("disables the manual action and panel by default even for signed-in users", async () => {
   vi.stubEnv("DEV_TOOLS_ENABLED", "false");
   const t = convexTest(schema, modules);

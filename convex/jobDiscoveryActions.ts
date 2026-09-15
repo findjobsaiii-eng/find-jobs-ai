@@ -10,7 +10,10 @@ import { action, internalAction, env } from "./_generated/server";
 import { buildSearchPlan, normalizeTitleIdentity } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
-import { searchJobsWithOpenAI } from "./openAIJobProvider";
+import {
+  JobSearchProviderResponseError,
+  searchJobsWithOpenAI,
+} from "./openAIJobProvider";
 import { classifyJobSource } from "./jobSourceQuality";
 
 const discoveryBucketValidator = v.union(
@@ -112,6 +115,8 @@ function requireConfiguration(name: string, value: string | undefined) {
 }
 
 function classifyProviderError(error: unknown) {
+  if (error instanceof JobSearchProviderResponseError)
+    return "provider_unparsed_response";
   if (error instanceof OpenAI.APIConnectionError) return "provider_connection";
   if (error instanceof OpenAI.RateLimitError) return "provider_rate_limit";
   if (error instanceof OpenAI.AuthenticationError)
@@ -290,6 +295,7 @@ async function discoverForUser(
           rejectedCount: provider.rejectedCount,
           webSearchToolCallCount: provider.webSearchToolCallCount,
           usage: provider.usage,
+          providerDiagnostics: provider.diagnostics,
           jobs,
           profile,
         },
@@ -313,6 +319,10 @@ async function discoverForUser(
         runId: begun.runId,
         reservationId: begun.reservationId,
         errorCategory: category,
+        providerDiagnostics:
+          error instanceof JobSearchProviderResponseError
+            ? error.diagnostics
+            : undefined,
       });
       if (convexErrorCode(error) === "OPENAI_CONFIGURATION_ERROR") throw error;
       lastProviderError = category;
@@ -337,15 +347,29 @@ export const runDailyBatch = internalAction({
   handler: async (ctx, args) => {
     for (const userId of args.userIds) {
       let outcome = "completed";
+      let retryable = false;
       try {
-        await discoverForUser(ctx, userId);
+        const result = await discoverForUser(ctx, userId);
+        if (result.generatedQueryCount === 0) {
+          const hasVisibleJobs = await ctx.runQuery(
+            internal.jobDiscovery.hasVisibleJobsForUser,
+            { userId },
+          );
+          outcome = hasVisibleJobs ? "reused" : "no_search";
+          retryable = !hasVisibleJobs;
+        } else if (result.acceptedCount === 0) {
+          outcome = "completed_empty";
+          retryable = true;
+        }
       } catch (error) {
         // Keep one failed profile/provider from stopping the remaining candidates.
         outcome = convexErrorCode(error) ?? "UNKNOWN";
+        retryable = outcome === "JOB_DISCOVERY_FAILED";
       }
       await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
         userId,
         outcome,
+        retryable,
       });
     }
     if (args.cursor !== null) {

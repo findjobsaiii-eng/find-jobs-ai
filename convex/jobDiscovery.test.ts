@@ -315,6 +315,50 @@ describe("shared job discovery", () => {
     });
   });
 
+  it("allows a same-day query retry when the previous search produced no visible jobs", async () => {
+    const t = convexTest(schema, modules);
+    const firstUser = await createUser(t);
+    const secondUser = await createUser(t);
+    await setPlan(t, firstUser, "pro");
+    await setPlan(t, secondUser, "pro");
+    const first = await t.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs(firstUser, "empty-frontend-tel-aviv"),
+    );
+    if (!first) throw new Error("Expected reservation");
+    await t.mutation(internal.jobDiscovery.completeSearch, {
+      userId: firstUser,
+      runId: first.runId,
+      reservationId: first.reservationId,
+      returnedCandidateCount: 0,
+      rejectedCount: 0,
+      webSearchToolCallCount: 2,
+      usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+      providerDiagnostics: {
+        responseStatus: "completed",
+        parsed: true,
+        outputTextExcerpt: '{"jobs":[]}',
+        rawResponseExcerpt: '{"status":"completed"}',
+      },
+      profile: searchProfile,
+      jobs: [],
+    });
+
+    expect(
+      await t.mutation(
+        internal.jobDiscovery.beginSearch,
+        beginArgs(secondUser, "empty-frontend-tel-aviv"),
+      ),
+    ).not.toBeNull();
+    await t.run(async (ctx) => {
+      const completed = await ctx.db.get("jobSearchRuns", first.runId);
+      expect(completed?.providerDiagnostics).toMatchObject({
+        responseStatus: "completed",
+        parsed: true,
+      });
+    });
+  });
+
   it("treats a user without an entitlement as Pro during the pilot", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
@@ -342,6 +386,13 @@ describe("shared job discovery", () => {
       runId: first.runId,
       reservationId: first.reservationId,
       errorCategory: "provider_failure",
+      providerDiagnostics: {
+        responseId: "resp_failed",
+        responseStatus: "incomplete",
+        parsed: false,
+        incompleteReason: "max_output_tokens",
+        rawResponseExcerpt: '{"status":"incomplete"}',
+      },
     });
     expect(
       await t.mutation(
@@ -349,6 +400,14 @@ describe("shared job discovery", () => {
         beginArgs(secondUser, "qa-tel-aviv"),
       ),
     ).not.toBeNull();
+    await t.run(async (ctx) => {
+      const failed = await ctx.db.get("jobSearchRuns", first.runId);
+      expect(failed?.providerDiagnostics).toMatchObject({
+        responseId: "resp_failed",
+        parsed: false,
+        incompleteReason: "max_output_tokens",
+      });
+    });
   });
 
   it("allows repeated manual paid searches without daily or global limits", async () => {
@@ -905,6 +964,38 @@ describe("canonical job identity", () => {
 });
 
 describe("stored job activity", () => {
+  it("repairs missing lifecycle and best-source links for existing verified sources", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    await t.run(async (ctx) => {
+      const job = await ctx.db.query("jobs").first();
+      if (!job) throw new Error("Expected job");
+      await ctx.db.patch("jobs", job._id, {
+        lifecycleStatus: "unknown",
+        activityStatus: "unknown",
+        bestSourceId: undefined,
+        lastVerifiedAt: undefined,
+      });
+    });
+
+    await t.mutation(internal.jobActivity.backfillMissingSourceRecords, {
+      limit: 25,
+    });
+    await t.run(async (ctx) => {
+      const job = await ctx.db.query("jobs").unique();
+      const source = await ctx.db.query("jobSources").unique();
+      if (!source) throw new Error("Expected source");
+      expect(job).toMatchObject({
+        lifecycleStatus: "verified_active",
+        activityStatus: "active",
+        bestSourceId: source._id,
+      });
+    });
+  });
+
   it("persists alternate provider evidence URLs as pending sources", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);

@@ -2,6 +2,7 @@ import {
   applicationStatus,
   applicationTimelineEvent,
   jobFeedItem,
+  jobSearchProviderDiagnostics,
 } from "./schema";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
@@ -691,6 +692,36 @@ export const getUserPlan = internalQuery({
   handler: (ctx, args) => currentPlan(ctx, args.userId, args.now),
 });
 
+async function hasVisibleMatchesForCurrentProfile(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+) {
+  const profile = await ctx.db
+    .query("candidateProfiles")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
+  if (!profile?.onboardingCompleted) return false;
+  return Boolean(
+    await ctx.db
+      .query("jobMatches")
+      .withIndex(
+        "by_userId_profileRevision_displayEligible_relevanceScore",
+        (q) =>
+          q
+            .eq("userId", userId)
+            .eq("profileRevision", profile.updatedAt)
+            .eq("displayEligible", true),
+      )
+      .first(),
+  );
+}
+
+export const hasVisibleJobsForUser = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.boolean(),
+  handler: (ctx, args) => hasVisibleMatchesForCurrentProfile(ctx, args.userId),
+});
+
 export const beginSearch = internalMutation({
   args: {
     userId: v.id("users"),
@@ -725,7 +756,17 @@ export const beginSearch = internalMutation({
       throw new ConvexError({ code: "JOB_SEARCH_DISABLED" });
     const record = await ensureQueryRecord(ctx, args, now);
     const dayKey = globalDayKey(now);
-    if (!args.manual && record.lastAttemptDay === dayKey) return null;
+    if (!args.manual && record.lastAttemptDay === dayKey) {
+      const claimedRun = record.lastAttemptRunId
+        ? await ctx.db.get("jobSearchRuns", record.lastAttemptRunId)
+        : null;
+      if (
+        claimedRun?.status === "running" ||
+        (await hasVisibleMatchesForCurrentProfile(ctx, args.userId))
+      ) {
+        return null;
+      }
+    }
     const active = await ctx.db
       .query("jobSearchRuns")
       .withIndex("by_userId_and_status", (q) =>
@@ -1291,6 +1332,7 @@ export const completeSearch = internalMutation({
     rejectedCount: v.number(),
     webSearchToolCallCount: v.number(),
     usage: usageValidator,
+    providerDiagnostics: v.optional(jobSearchProviderDiagnostics),
     jobs: v.array(verifiedJobInputValidator),
     profile: searchProfileValidator,
   },
@@ -1502,10 +1544,13 @@ export const completeSearch = internalMutation({
       rejectedCount: totalRejected,
       insertedCount,
       deduplicatedCount,
+      providerDiagnostics: args.providerDiagnostics,
     });
-    await ctx.db.patch("jobSearchQueries", run.queryId, {
-      lastSuccessfulRunAt: now,
-    });
+    if (eligibleCount > 0) {
+      await ctx.db.patch("jobSearchQueries", run.queryId, {
+        lastSuccessfulRunAt: now,
+      });
+    }
     await ctx.db.patch("jobSearchUsage", usageRecord._id, {
       status: "completed",
       completedAt: now,
@@ -1531,6 +1576,7 @@ export const failSearch = internalMutation({
     runId: v.id("jobSearchRuns"),
     reservationId: v.string(),
     errorCategory: v.string(),
+    providerDiagnostics: v.optional(jobSearchProviderDiagnostics),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -1548,6 +1594,7 @@ export const failSearch = internalMutation({
       status: "failed",
       completedAt: now,
       errorCategory: args.errorCategory.slice(0, 80),
+      providerDiagnostics: args.providerDiagnostics,
     });
     if (!run.manual) {
       const query = await ctx.db.get("jobSearchQueries", run.queryId);
@@ -1921,6 +1968,7 @@ function currentDiscoveryState(
   );
   if (
     todaysAttempt?.lastOutcome === "queued" ||
+    todaysAttempt?.nextAttemptAt !== undefined ||
     todaysRuns.some((run) => run.status === "running")
   ) {
     return "running" as const;

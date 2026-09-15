@@ -230,9 +230,13 @@ request. Internal plans are `free`, `pro`, and `admin`. During the beta/pilot,
 accounts without an explicit entitlement resolve to `pro`, so all new users
 receive paid capabilities without checkout. An explicit development `free`
 override still wins and supports testing both experiences.
-An automatic query is claimed once per Israel calendar day across all users, so
-two users seeking the same role, skills, and geographic scope share the same provider work.
-Failed claims are released for retry. The automatic path remains protected by
+An automatic query is shared across users only when the current user already
+has a visible result from the shared catalog. If the prior run produced no
+visible jobs, a fresh provider search is allowed. Empty and skipped searches
+retry up to three times that day with a 15-minute delay. Provider response
+status, incomplete reason, parse status, and bounded raw/output excerpts are
+stored on the search run for diagnosis; an absent structured result is a
+failure, never an empty successful result. The automatic path remains protected by
 the kill switch and global daily run, query, concurrency, and output-token
 limits.
 
