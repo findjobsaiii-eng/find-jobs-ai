@@ -37,12 +37,9 @@ export const siteMetadata: Metadata = {
     images: ["/opengraph-image"],
   },
   icons: {
-    icon: [
-      { url: "/icon", type: "image/png" },
-      { url: "/brand/jobmiter-mark.svg", type: "image/svg+xml" },
-    ],
-    shortcut: "/favicon.svg?v=jobmiter-1",
-    apple: "/apple-icon",
+    icon: [{ url: "/brand/icon.png", type: "image/png" }],
+    shortcut: "/brand/icon.png",
+    apple: "/brand/icon.png",
   },
 };
 

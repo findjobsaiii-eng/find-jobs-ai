@@ -83,9 +83,7 @@ export function AuthenticatedShell({
               className="justify-self-start"
               aria-label={t("brand.name")}
             >
-              <span className="[&_div>span:last-child]:hidden sm:[&_div>span:last-child]:inline">
-                <Brand />
-              </span>
+              <Brand />
             </Link>
 
             <nav

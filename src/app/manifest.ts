@@ -12,12 +12,11 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0B1F3B",
     icons: [
       {
-        src: "/brand/jobmiter-mark.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/brand/icon.png",
+        sizes: "1254x1254",
+        type: "image/png",
         purpose: "any",
       },
-      { src: "/icon", sizes: "512x512", type: "image/png" },
     ],
   };
 }

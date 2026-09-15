@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { ConvexReactClient } from "convex/react";
 import { MotionConfig } from "motion/react";
+import { JobmiterMark } from "@/components/ui/jobmiter-logo";
 import { AuthConfigurationErrorScreen } from "@/features/auth/auth-configuration-error-screen";
 import { AuthFlowProvider } from "@/features/auth/auth-flow-provider";
 import i18n, { initializeI18n } from "@/i18n";
@@ -39,8 +40,16 @@ export function AppProviders({
       <div
         role="status"
         aria-label="Loading"
-        className="bg-background min-h-svh"
-      />
+        className="bg-brand-snow grid min-h-svh place-items-center"
+      >
+        <span className="relative grid size-24 place-items-center">
+          <span
+            aria-hidden="true"
+            className="border-brand-electric/20 absolute inset-0 rounded-full border motion-safe:animate-pulse"
+          />
+          <JobmiterMark className="size-14" />
+        </span>
+      </div>
     );
   }
 

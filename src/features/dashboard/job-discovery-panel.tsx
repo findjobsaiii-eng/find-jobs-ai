@@ -9,12 +9,12 @@ import {
   Check,
   CircleOff,
   ExternalLink,
-  LoaderCircle,
   MapPin,
   Search,
   Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { JobmiterMark } from "@/components/ui/jobmiter-logo";
 import { AnimatePresence, domAnimation, LazyMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { api } from "../../../convex/_generated/api";
@@ -104,10 +104,13 @@ export function JobDiscoveryPanel({
                 exit={{ opacity: 0 }}
                 className="bg-card border-border flex min-h-80 items-center justify-center rounded-3xl border shadow-[var(--brand-shadow-card)]"
               >
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="text-primary size-7 animate-spin"
-                />
+                <span className="relative grid size-20 place-items-center">
+                  <span
+                    aria-hidden="true"
+                    className="border-t-brand-electric absolute inset-0 rounded-full border border-transparent motion-safe:animate-spin motion-reduce:animate-none"
+                  />
+                  <JobmiterMark className="size-11" />
+                </span>
                 <span className="sr-only">{t("jobDiscovery.loading")}</span>
               </m.div>
             ) : jobs.length === 0 ? (

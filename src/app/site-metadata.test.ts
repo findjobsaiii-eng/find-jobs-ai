@@ -27,6 +27,18 @@ describe("JOBMITER production metadata", () => {
       start_url: "/",
       display: "standalone",
       theme_color: "#0B1F3B",
+      icons: [
+        {
+          src: "/brand/icon.png",
+          sizes: "1254x1254",
+          type: "image/png",
+        },
+      ],
+    });
+    expect(siteMetadata.icons).toEqual({
+      icon: [{ url: "/brand/icon.png", type: "image/png" }],
+      shortcut: "/brand/icon.png",
+      apple: "/brand/icon.png",
     });
     expect(webApplicationStructuredData).toMatchObject({
       "@type": "WebApplication",

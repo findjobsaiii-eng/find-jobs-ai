@@ -1,55 +1,55 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+
+const ICON_SIZE = 1254;
 
 export function JobmiterMark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 64 64"
-      fill="none"
-      className={cn("size-9", className)}
-      aria-hidden="true"
-    >
-      <path
-        d="M38 8v30c0 10-6 17-16 17-5 0-9-2-12-5"
-        stroke="var(--brand-electric)"
-        strokeWidth="9"
-        strokeLinecap="round"
-      />
-      <path
-        d="m29 15 9-9 9 9"
-        stroke="var(--brand-electric)"
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="18" cy="39" r="7" fill="var(--brand-teal)" />
-      <path
-        d="M9 52c4 3 8 4 13 4"
-        stroke="var(--brand-teal)"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-    </svg>
+    <Image
+      src="/brand/icon.png"
+      alt=""
+      width={ICON_SIZE}
+      height={ICON_SIZE}
+      className={cn("size-9 object-contain", className)}
+    />
   );
 }
 
 export function JobmiterLogo({
   className,
   compact = false,
+  responsive = false,
 }: {
   className?: string;
   compact?: boolean;
+  responsive?: boolean;
 }) {
+  if (compact) {
+    return (
+      <span role="img" aria-label="JOBMITER" className={className}>
+        <JobmiterMark />
+      </span>
+    );
+  }
+
   return (
     <span
       dir="ltr"
-      className={cn("inline-flex items-center gap-2.5", className)}
+      role="img"
+      aria-label="JOBMITER"
+      className={cn("inline-flex shrink-0 items-center", className)}
     >
-      <JobmiterMark className="size-8" />
-      {compact ? null : (
-        <span className="text-brand-midnight dark:text-brand-snow text-[1.05rem] font-extrabold tracking-[0.08em]">
-          JOBMITER
-        </span>
-      )}
+      {responsive ? <JobmiterMark className="sm:hidden" /> : null}
+      <Image
+        src="/brand/logo.png"
+        alt=""
+        width={2172}
+        height={724}
+        className={cn(
+          "h-9 w-auto object-contain",
+          responsive && "hidden sm:block",
+        )}
+      />
     </span>
   );
 }

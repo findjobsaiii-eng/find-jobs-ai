@@ -1,4 +1,12 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const logoData = await readFile(
+  join(process.cwd(), "public/brand/logo.png"),
+  "base64",
+);
+const logoSrc = `data:image/png;base64,${logoData}`;
 
 export const alt = "JOBMITER — AI Job Search, Simplified";
 export const size = { width: 1200, height: 630 };
@@ -44,32 +52,23 @@ export default function OpenGraphImage() {
         }}
       />
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
-          <svg width="118" height="118" viewBox="0 0 64 64" fill="none">
-            <path
-              d="M38 8v30c0 10-6 17-16 17-5 0-9-2-12-5"
-              stroke="#3B82F6"
-              strokeWidth="9"
-              strokeLinecap="round"
-            />
-            <path
-              d="m29 15 9-9 9 9"
-              stroke="#3B82F6"
-              strokeWidth="7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="18" cy="39" r="7" fill="#14B8A6" />
-            <path
-              d="M9 52c4 3 8 4 13 4"
-              stroke="#14B8A6"
-              strokeWidth="6"
-              strokeLinecap="round"
-            />
-          </svg>
-          <div style={{ fontSize: 72, fontWeight: 800, letterSpacing: 5 }}>
-            JOBMITER
-          </div>
+        <div
+          style={{
+            display: "flex",
+            width: 470,
+            padding: "20px 26px",
+            borderRadius: 24,
+            background: "rgba(255,255,255,.96)",
+          }}
+        >
+          {/* ImageResponse uses Satori and cannot render next/image. */}
+          <img
+            src={logoSrc}
+            alt=""
+            width={420}
+            height={140}
+            style={{ objectFit: "contain" }}
+          />
         </div>
         <div
           style={{
