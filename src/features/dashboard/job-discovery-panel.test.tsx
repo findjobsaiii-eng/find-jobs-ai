@@ -235,7 +235,13 @@ describe("job result cards", () => {
         name: "E-commerce Operations Coordinator",
       }),
     ).toBeVisible();
-    expect(screen.getByText("Partial match · 52/100")).toBeVisible();
+    const score = screen.getByRole("button", {
+      name: "Partial match, match score 52 out of 100 — show calculation",
+    });
+    expect(
+      within(score).getByText("Partial match · 52/100"),
+    ).toBeInTheDocument();
+    expect(within(score).getByText("52/100")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Relevant professional overlap, with some requirements less closely aligned",

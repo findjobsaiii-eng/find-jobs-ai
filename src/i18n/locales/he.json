@@ -274,6 +274,7 @@
     },
     "score": {
       "badge": "{{quality}} · {{score}}/100",
+      "compactBadge": "{{score}}/100",
       "triggerLabel": "{{quality}}, ציון התאמה {{score}} מתוך 100 — הצגת החישוב",
       "heading": "ציון התאמה {{score}} מתוך 100",
       "description": "ציון קבוע שמחושב לפי הפרופיל האפקטיבי שלך ופרטי המשרה.",

@@ -103,11 +103,14 @@ export function JobMatchScore({
               : "border-border bg-muted/70 text-foreground/80",
         )}
       >
-        <span>
+        <span aria-hidden="true" className="hidden @md:inline">
           {t("jobDiscovery.score.badge", {
             quality: qualityLabel,
             score: scoreValue,
           })}
+        </span>
+        <span aria-hidden="true" className="@md:hidden">
+          {t("jobDiscovery.score.compactBadge", { score: scoreValue })}
         </span>
         <Info aria-hidden="true" className="size-3.5" />
       </Tooltip.Trigger>

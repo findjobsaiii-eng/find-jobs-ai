@@ -194,6 +194,36 @@
   }
 }
 
+@layer components {
+  .job-card-skills {
+    flex-wrap: wrap;
+  }
+
+  @media (any-pointer: coarse) {
+    @container (max-width: 27.999rem) {
+      .job-card-skills {
+        margin-inline: -1.25rem;
+        padding-inline: 1.25rem;
+        padding-bottom: 0.25rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scroll-snap-type: inline proximity;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .job-card-skills > li {
+        scroll-snap-align: start;
+      }
+
+      .job-card-skills::-webkit-scrollbar {
+        display: none;
+      }
+    }
+  }
+}
+
 .landing-shell,
 .app-shell-surface,
 .auth-shell-surface {

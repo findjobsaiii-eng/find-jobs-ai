@@ -310,7 +310,7 @@ export function JobDiscoveryPanel({
                             transition={{ duration: 0.45, ease: "easeOut" }}
                           >
                             <article
-                              className={`bg-card isolate overflow-hidden rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none sm:p-6 ${
+                              className={`bg-card @container isolate overflow-hidden rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none @md:p-6 ${
                                 job.unavailable
                                   ? "border-destructive/25"
                                   : trackingStatus === "saved"
@@ -335,7 +335,7 @@ export function JobDiscoveryPanel({
                                   />
                                 </span>
                                 <div className="min-w-0 flex-1">
-                                  <h2 className="text-foreground text-lg leading-6 font-semibold break-words sm:text-xl">
+                                  <h2 className="text-foreground text-lg leading-6 font-semibold break-words @md:text-xl">
                                     {job.title}
                                   </h2>
                                   <p className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-sm font-medium break-words">
@@ -462,11 +462,11 @@ export function JobDiscoveryPanel({
                                   <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                                     {t("jobDiscovery.keySkills")}
                                   </h3>
-                                  <ul className="mt-2 flex flex-wrap gap-2">
+                                  <ul className="job-card-skills mt-2 flex gap-2">
                                     {skills.map((skill) => (
                                       <li
                                         key={skill}
-                                        className="border-border text-foreground/80 rounded-full border px-2.5 py-1 text-xs"
+                                        className="border-border text-foreground/80 shrink-0 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap"
                                       >
                                         {skill}
                                       </li>
