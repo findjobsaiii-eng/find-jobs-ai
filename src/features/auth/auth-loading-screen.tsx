@@ -11,17 +11,17 @@ export function AuthLoadingScreen({
   const { t } = useTranslation();
 
   return (
-    <AuthShell>
+    <AuthShell chrome={false}>
       <div
-        className="text-muted-foreground flex flex-col items-center gap-4 text-sm"
+        className="text-muted-foreground flex flex-col items-center gap-5 text-sm"
         role="status"
       >
-        <span className="relative grid size-20 place-items-center">
+        <span className="bg-brand-midnight relative grid size-22 place-items-center rounded-[1.65rem] shadow-xl shadow-slate-950/16">
           <span
             aria-hidden="true"
-            className="border-brand-electric/20 absolute inset-0 rounded-full border motion-safe:animate-pulse"
+            className="border-brand-electric/30 absolute -inset-2 rounded-[2rem] border motion-safe:animate-pulse"
           />
-          <JobmiterMark className="size-12" />
+          <JobmiterMark className="size-13" />
         </span>
         <span className="flex items-center gap-2">
           <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />

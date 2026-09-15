@@ -118,6 +118,7 @@
   --brand-shadow-card-hover: 0 20px 48px -26px rgb(11 31 59 / 0.34);
   --brand-shadow-preview: 0 34px 80px -38px rgb(11 31 59 / 0.34);
   --brand-shadow-hero: 0 36px 90px -36px rgb(0 0 0 / 0.72);
+  --brand-surface: rgb(255 255 255 / 88%);
 }
 
 .dark {
@@ -157,6 +158,7 @@
   --brand-shadow-card-hover: 0 22px 48px -24px rgb(0 0 0 / 0.68);
   --brand-shadow-preview: 0 34px 80px -36px rgb(0 0 0 / 0.72);
   --brand-shadow-hero: 0 36px 90px -36px rgb(0 0 0 / 0.82);
+  --brand-surface: rgb(30 30 34 / 88%);
 }
 
 @layer base {
@@ -166,6 +168,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     min-width: 320px;
+    background-color: var(--brand-snow);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -191,8 +194,87 @@
   }
 }
 
+.landing-shell,
+.app-shell-surface,
+.auth-shell-surface {
+  background-color: var(--brand-snow);
+  background-image:
+    radial-gradient(circle at 12% 4%, rgb(59 130 246 / 10%), transparent 28rem),
+    radial-gradient(
+      circle at 88% 18%,
+      rgb(20 184 166 / 10%),
+      transparent 30rem
+    ),
+    linear-gradient(rgb(248 250 252 / 94%), rgb(248 250 252 / 98%));
+}
+
+.landing-rays {
+  background-image:
+    linear-gradient(
+      118deg,
+      transparent 7%,
+      rgb(59 130 246 / 7%) 30%,
+      transparent 49%
+    ),
+    linear-gradient(
+      132deg,
+      transparent 46%,
+      rgb(20 184 166 / 8%) 66%,
+      transparent 84%
+    );
+  mask-image: linear-gradient(to bottom, black 0%, transparent 94%);
+}
+
+.landing-app-surface {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(
+      circle at 100% 0%,
+      rgb(20 184 166 / 10%),
+      transparent 20rem
+    ),
+    radial-gradient(circle at 0% 100%, rgb(59 130 246 / 9%), transparent 22rem);
+}
+
+.landing-cta-glow {
+  background-image:
+    radial-gradient(circle at 50% 120%, rgb(20 184 166 / 27%), transparent 48%),
+    radial-gradient(circle at 12% 10%, rgb(59 130 246 / 22%), transparent 38%);
+}
+
+.landing-pulse {
+  animation: landing-pulse 2.8s ease-in-out infinite;
+}
+
+.landing-marquee {
+  animation: landing-marquee 28s linear infinite;
+}
+
+@keyframes landing-pulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 34px -16px rgb(59 130 246 / 42%);
+  }
+  50% {
+    box-shadow: 0 16px 42px -12px rgb(59 130 246 / 56%);
+  }
+}
+
+@keyframes landing-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .landing-pulse,
+  .landing-marquee {
+    animation: none;
   }
 }

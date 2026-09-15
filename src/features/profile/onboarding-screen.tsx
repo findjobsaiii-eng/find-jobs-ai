@@ -8,7 +8,6 @@ import {
   type SetStateAction,
 } from "react";
 import Image from "next/image";
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -16,7 +15,6 @@ import {
   ArrowRight,
   Check,
   LoaderCircle,
-  LogOut,
   Minus,
   Plus,
   Trash2,
@@ -561,7 +559,6 @@ export function OnboardingScreen({
   };
 }) {
   const { i18n, t } = useTranslation();
-  const { signOut } = useAuthActions();
   const saveProfile = useMutation(api.candidateProfiles.saveCurrent);
   const [draft, setDraft] = useState(() => createProfileDraft(initialData));
   const [step, setStep] = useState(() =>
@@ -573,12 +570,10 @@ export function OnboardingScreen({
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [saved, setSaved] = useState(Boolean(initialData.profile));
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
-  const signingOutRef = useRef(false);
   const isRtl = i18n.dir() === "rtl";
   const isDirty = baseline !== JSON.stringify(profileDraftToValues(draft));
 
@@ -658,20 +653,6 @@ export function OnboardingScreen({
     if (await save(PROFILE_LIMITS.steps, true)) editing?.onSaved();
   };
 
-  const handleSignOut = async () => {
-    if (signingOutRef.current) return;
-    signingOutRef.current = true;
-    setIsSigningOut(true);
-    setServerError(null);
-    try {
-      await signOut();
-    } catch {
-      setServerError(t("auth.signOutError"));
-      signingOutRef.current = false;
-      setIsSigningOut(false);
-    }
-  };
-
   const stepContent =
     step === 1 ? (
       <StepOne
@@ -718,27 +699,11 @@ export function OnboardingScreen({
               />
             </div>
           </div>
-          {!editing ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={() => void handleSignOut()}
-              disabled={isSigningOut || isSubmitting}
-              aria-label={t("auth.signOut")}
-            >
-              {isSigningOut ? (
-                <LoaderCircle aria-hidden="true" className="animate-spin" />
-              ) : (
-                <LogOut aria-hidden="true" />
-              )}
-            </Button>
-          ) : null}
         </div>
 
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="bg-card border-border rounded-3xl border p-5 shadow-[var(--brand-shadow-preview)] sm:p-8"
+          className="bg-card/96 border-border rounded-3xl border p-5 shadow-[var(--brand-shadow-preview)] backdrop-blur sm:p-8"
           noValidate
         >
           <div className="mb-7">
@@ -795,7 +760,7 @@ export function OnboardingScreen({
             ) : null}
           </div>
 
-          <div className="border-border mt-2 flex flex-wrap items-center gap-2 border-t pt-5">
+          <div className="border-border mt-2 grid grid-cols-2 items-center gap-2 border-t pt-5 sm:flex sm:flex-wrap">
             <Button
               type="button"
               variant="ghost"
@@ -816,7 +781,7 @@ export function OnboardingScreen({
             <Button
               type="button"
               variant="outline"
-              className="ms-auto"
+              className="sm:ms-auto"
               onClick={() =>
                 editing ? void saveEdits() : void save(step, false)
               }
@@ -841,7 +806,11 @@ export function OnboardingScreen({
               </Button>
             ) : null}
             {!editing || step < PROFILE_LIMITS.steps ? (
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                className="col-span-2 sm:col-auto"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? (
                   <LoaderCircle aria-hidden="true" className="animate-spin" />
                 ) : step === PROFILE_LIMITS.steps ? (

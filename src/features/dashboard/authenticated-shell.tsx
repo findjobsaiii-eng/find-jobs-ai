@@ -63,10 +63,10 @@ export function AuthenticatedShell({
       href={to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-visible:ring-ring/40 min-h-9 rounded-lg px-3 py-2 text-sm font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-3 motion-reduce:transition-none sm:px-4",
+        "min-h-9 rounded-lg px-2.5 py-2 text-xs font-semibold transition-[color,background-color,box-shadow] outline-none focus-visible:ring-3 focus-visible:ring-white/35 motion-reduce:transition-none sm:px-4 sm:text-sm",
         active
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "text-brand-midnight bg-white shadow-sm"
+          : "text-white/65 hover:bg-white/10 hover:text-white",
       )}
     >
       {label}
@@ -75,9 +75,9 @@ export function AuthenticatedShell({
 
   return (
     <DirectionProvider direction={i18n.dir()}>
-      <div className="bg-brand-snow min-h-svh text-start">
-        <header className="border-border sticky top-0 z-30 border-b bg-white/90 backdrop-blur-xl">
-          <PageContainer className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-2">
+      <div className="app-shell-surface min-h-svh text-start">
+        <header className="bg-brand-midnight sticky top-0 z-30 border-b border-white/8 text-white shadow-lg shadow-slate-950/8">
+          <PageContainer className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-2 sm:min-h-17 sm:grid-cols-[1fr_auto_1fr]">
             <Link
               href="/"
               className="justify-self-start"
@@ -87,7 +87,7 @@ export function AuthenticatedShell({
             </Link>
 
             <nav
-              className="flex items-center gap-0.5"
+              className="flex items-center gap-0.5 justify-self-center"
               aria-label={t("dashboard.jobNavigation")}
             >
               {jobLink(
@@ -105,9 +105,9 @@ export function AuthenticatedShell({
             <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
               <Popover.Trigger
                 aria-label={t("dashboard.userMenu")}
-                className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-11 min-w-11 items-center justify-self-end rounded-xl p-1.5 transition-colors outline-none focus-visible:ring-3"
+                className="flex min-h-11 min-w-11 items-center justify-self-end rounded-xl p-1.5 transition-colors outline-none hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/35"
               >
-                <span className="bg-primary/10 text-primary grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold">
+                <span className="bg-brand-teal grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white">
                   {data.identity.profileImage ? (
                     <Image
                       src={data.identity.profileImage}
@@ -126,7 +126,7 @@ export function AuthenticatedShell({
                 </span>
                 <ChevronDown
                   aria-hidden="true"
-                  className="text-muted-foreground hidden size-4 md:block"
+                  className="hidden size-4 text-white/55 md:block"
                 />
               </Popover.Trigger>
               <Popover.Portal>
@@ -199,10 +199,10 @@ export function AuthenticatedShell({
             </PageContainer>
           ) : null}
         </header>
-        <main className="relative py-7 sm:py-10">
+        <main className="relative py-6 sm:py-10">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-56 bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_72%)] opacity-55"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-72 bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_72%)] opacity-70"
           />
           <PageContainer>{children}</PageContainer>
         </main>

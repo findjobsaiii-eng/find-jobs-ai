@@ -213,7 +213,7 @@ export function JobDiscoveryPanel({
                   />
                 ) : null}
                 {visibleJobs.length ? (
-                  <m.ul layout className="space-y-3">
+                  <m.ul className="space-y-3">
                     <AnimatePresence initial={false} propagate>
                       {visibleJobs.map((job) => {
                         const trackingStatus = job.trackingStatus as
@@ -305,18 +305,17 @@ export function JobDiscoveryPanel({
                         ].slice(0, 3);
                         return (
                           <m.li
-                            layout="position"
                             key={job.id}
                             exit={{ opacity: 0, y: -10, scale: 0.985 }}
                             transition={{ duration: 0.45, ease: "easeOut" }}
                           >
                             <article
-                              className={`bg-card rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none sm:p-6 ${
+                              className={`bg-card isolate overflow-hidden rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none sm:p-6 ${
                                 job.unavailable
                                   ? "border-destructive/25"
                                   : trackingStatus === "saved"
-                                    ? "border-primary/35 hover:border-primary/55 hover:-translate-y-0.5 hover:shadow-[var(--brand-shadow-card-hover)]"
-                                    : "border-border hover:border-primary/25 hover:-translate-y-0.5 hover:shadow-[var(--brand-shadow-card-hover)]"
+                                    ? "border-primary/35 hover:border-primary/55 hover:shadow-[var(--brand-shadow-card-hover)]"
+                                    : "border-border hover:border-primary/25 hover:shadow-[var(--brand-shadow-card-hover)]"
                               }`}
                             >
                               {job.unavailable ? (
