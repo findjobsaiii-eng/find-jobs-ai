@@ -292,6 +292,9 @@ adjacent comment action records a standalone private note. Tracked cards show
 their latest status on the control and offer removal as the final picker option.
 The dated event timeline appears inline below Key skills and keeps status changes,
 comments attached to those changes, and standalone notes together.
+Saved shows compact icon-and-count filters only for statuses that currently have
+jobs. The row is omitted when fewer than two statuses are present and otherwise
+starts with All before the statuses in pipeline order.
 Snapshots remain available after a job expires from suggestions; these actions
 record tracking only and never send a CV.
 Suggestions show up to 50 of the highest-ranked materialized matches; In

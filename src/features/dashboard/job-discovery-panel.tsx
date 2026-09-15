@@ -23,11 +23,11 @@ import { JobMatchScore } from "./job-match-score";
 import { ApplicationTimeline } from "./application-timeline";
 import { ApplicationTrackingActions } from "./application-tracking-actions";
 import {
-  APPLICATION_FILTERS,
-  matchesApplicationFilter,
+  applicationStatusesInUse,
   type ApplicationFilter,
   type ApplicationStatus,
 } from "./application-status";
+import { ApplicationStatusFilters } from "./application-status-filters";
 
 export function JobDiscoveryPanel({
   view,
@@ -43,14 +43,20 @@ export function JobDiscoveryPanel({
   const result = useQuery(api.jobDiscovery.listCurrentUserJobs, { view });
 
   const jobs = result?.jobs ?? [];
+  const availableStatuses = applicationStatusesInUse(
+    jobs.map((job) => job.trackingStatus as ApplicationStatus | undefined),
+  );
+  const statusCounts = new Map<ApplicationStatus, number>();
+  for (const job of jobs) {
+    if (!job.trackingStatus) continue;
+    const status = job.trackingStatus as ApplicationStatus;
+    statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
+  }
+  const activeFilter =
+    filter === "all" || availableStatuses.includes(filter) ? filter : "all";
   const visibleJobs =
-    view === "inProgress" && filter !== "all"
-      ? jobs.filter((job) =>
-          matchesApplicationFilter(
-            (job.trackingStatus ?? "applied") as ApplicationStatus,
-            filter,
-          ),
-        )
+    view === "inProgress" && activeFilter !== "all"
+      ? jobs.filter((job) => job.trackingStatus === activeFilter)
       : jobs;
   const plan = result?.plan ?? "free";
   const emptyReason =
@@ -195,30 +201,15 @@ export function JobDiscoveryPanel({
                 transition={{ duration: 0.45, ease: "easeOut" }}
               >
                 {view === "inProgress" ? (
-                  <div
-                    className="mb-4 flex flex-wrap gap-1.5"
-                    aria-label={t("applications.filters.label")}
-                  >
-                    {APPLICATION_FILTERS.map((value) => (
-                      <Button
-                        key={value}
-                        size="sm"
-                        variant={filter === value ? "default" : "ghost"}
-                        aria-pressed={filter === value}
-                        onClick={() => setFilter(value)}
-                      >
-                        {t(`applications.filters.${value}`)}
-                      </Button>
-                    ))}
-                  </div>
+                  <ApplicationStatusFilters
+                    statuses={availableStatuses}
+                    counts={statusCounts}
+                    value={activeFilter}
+                    total={jobs.length}
+                    onChange={setFilter}
+                  />
                 ) : null}
-                {visibleJobs.length === 0 ? (
-                  <div className="bg-card border-border rounded-2xl border px-6 py-10 text-center shadow-sm">
-                    <p className="text-muted-foreground text-sm text-pretty">
-                      {t("applications.filters.empty")}
-                    </p>
-                  </div>
-                ) : (
+                {visibleJobs.length ? (
                   <m.ul layout className="space-y-3">
                     <AnimatePresence initial={false} propagate>
                       {visibleJobs.map((job) => {
@@ -539,7 +530,7 @@ export function JobDiscoveryPanel({
                       })}
                     </AnimatePresence>
                   </m.ul>
-                )}
+                ) : null}
               </m.div>
             )}
           </AnimatePresence>

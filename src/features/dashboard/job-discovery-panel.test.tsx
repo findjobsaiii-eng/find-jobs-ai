@@ -1,5 +1,5 @@
 import { DirectionProvider } from "@base-ui/react/direction-provider";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
@@ -109,6 +109,52 @@ describe("job result cards", () => {
     expect(
       screen.getByText("בחרו סטטוס למשרה בהצעות, והיא תופיע כאן."),
     ).toBeVisible();
+  });
+
+  it("hides status filters when every saved job has the same status", () => {
+    hooks.jobs = [job({ trackingStatus: "saved" })];
+
+    renderPanel("/?tab=in-progress");
+
+    expect(
+      screen.queryByLabelText("Filter applications by stage"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows only statuses in use, with All first, and filters exactly", async () => {
+    hooks.jobs = [
+      job({
+        id: "jobs:applied",
+        title: "Applied role",
+        trackingStatus: "applied",
+      }),
+      job({
+        id: "jobs:interview",
+        title: "Interview role",
+        trackingStatus: "interview",
+      }),
+    ];
+    const user = userEvent.setup();
+
+    renderPanel("/?tab=in-progress");
+
+    const filters = screen.getByLabelText("Filter applications by stage");
+    const buttons = within(filters).getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0]).toHaveTextContent("All");
+    expect(buttons[1]).toHaveTextContent("Applied");
+    expect(buttons[2]).toHaveTextContent("Interview");
+    expect(within(filters).queryByText("Saved")).not.toBeInTheDocument();
+
+    await user.click(buttons[2]);
+    expect(
+      screen.getByRole("heading", { name: "Interview role" }),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Applied role" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("shows a warm Hebrew search-in-progress state before discovery completes", async () => {

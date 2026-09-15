@@ -13,32 +13,11 @@ export const APPLICATION_STATUSES = [
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
-export type ApplicationFilter =
-  "all" | "applied" | "interviewing" | "offer" | "closed";
+export type ApplicationFilter = "all" | ApplicationStatus;
 
-export const APPLICATION_FILTERS: ApplicationFilter[] = [
-  "all",
-  "applied",
-  "interviewing",
-  "offer",
-  "closed",
-];
-
-export function matchesApplicationFilter(
-  status: ApplicationStatus,
-  filter: ApplicationFilter,
+export function applicationStatusesInUse(
+  statuses: ReadonlyArray<ApplicationStatus | undefined>,
 ) {
-  if (filter === "all") return true;
-  if (filter === "applied") return status === "applied" || status === "saved";
-  if (filter === "interviewing") {
-    return [
-      "recruiter_contact",
-      "phone_screen",
-      "interview",
-      "assignment",
-      "final_interview",
-    ].includes(status);
-  }
-  if (filter === "offer") return status === "offer";
-  return status === "rejected" || status === "withdrawn";
+  const inUse = new Set(statuses);
+  return APPLICATION_STATUSES.filter((status) => inUse.has(status));
 }

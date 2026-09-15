@@ -619,12 +619,7 @@
     },
     "filters": {
       "label": "Filter applications by stage",
-      "all": "All",
-      "applied": "Saved & applied",
-      "interviewing": "Interviewing",
-      "offer": "Offer",
-      "closed": "Closed",
-      "empty": "No tracked jobs match this filter."
+      "all": "All"
     },
     "statusPicker": {
       "open": "Choose how to save this job",
