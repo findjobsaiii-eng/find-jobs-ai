@@ -286,9 +286,12 @@ actions. Raw provider and verification diagnostics never appear in the normal
 UI.
 The fixed profile button sits at the logical start (left in English, right in
 Hebrew) and opens profile editing, CV replacement, language switching, and sign-out.
-The footer Save control opens a status picker and moves the job into the selected
-stage. In progress offers a dated event timeline for status changes, comments
-attached to those changes, and standalone notes. Undo removes the tracking record.
+The footer Save/status control opens a colored, icon-based status picker on every
+card. Choosing a new status opens a small optional-comment dialog, while the
+adjacent comment action records a standalone private note. Tracked cards show
+their latest status on the control and offer removal as the final picker option.
+The dated event timeline appears inline below Key skills and keeps status changes,
+comments attached to those changes, and standalone notes together.
 Snapshots remain available after a job expires from suggestions; these actions
 record tracking only and never send a CV.
 Suggestions show up to 50 of the highest-ranked materialized matches; In

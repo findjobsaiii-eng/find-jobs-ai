@@ -123,6 +123,14 @@ export const applicationStatus = v.union(
   v.literal("withdrawn"),
 );
 
+export const applicationTimelineEvent = v.object({
+  id: v.union(v.id("jobApplicationEvents"), v.null()),
+  kind: v.union(v.literal("status_change"), v.literal("note")),
+  status: v.optional(applicationStatus),
+  note: v.optional(v.string()),
+  createdAt: v.number(),
+});
+
 const profileOverrideField = v.union(
   v.literal("targetJobTitles"),
   v.literal("professionalSummary"),
@@ -213,6 +221,7 @@ export const jobFeedItem = v.object({
   trackingStatus: v.optional(applicationStatus),
   trackingNotes: v.optional(v.string()),
   trackingUpdatedAt: v.optional(v.number()),
+  trackingTimeline: v.optional(v.array(applicationTimelineEvent)),
   id: v.id("jobs"),
   title: v.string(),
   companyName: v.string(),
@@ -446,7 +455,9 @@ const schema = defineSchema({
     status: v.optional(applicationStatus),
     note: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_applicationId_and_createdAt", ["applicationId", "createdAt"]),
+  })
+    .index("by_applicationId_and_createdAt", ["applicationId", "createdAt"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
   dailyDiscoveryAttempts: defineTable({
     userId: v.id("users"),
     dayKey: v.optional(v.string()),

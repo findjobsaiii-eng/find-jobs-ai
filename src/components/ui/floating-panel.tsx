@@ -18,7 +18,7 @@ export function FloatingPanel({
   return (
     <Popover.Root>
       <Popover.Trigger
-        render={<Button variant="outline" size="icon" />}
+        render={<Button nativeButton variant="outline" size="icon" />}
         aria-label={label}
         className={`${className} size-12 rounded-full shadow-md`}
       >

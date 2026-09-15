@@ -1132,6 +1132,13 @@ describe("stored job activity", () => {
       id: jobId,
       trackingStatus: "saved",
       trackingNotes: "Follow up with Dana on Thursday.",
+      trackingTimeline: [
+        {
+          kind: "status_change",
+          status: "saved",
+          note: "Follow up with Dana on Thursday.",
+        },
+      ],
     });
     await t.run(async (ctx) => {
       const saved = await ctx.db
@@ -1167,10 +1174,9 @@ describe("stored job activity", () => {
       status: "interview",
       notes: "Technical interview scheduled.",
     });
-    await user.mutation(api.jobDiscovery.updateJobTracking, {
+    await user.mutation(api.jobDiscovery.addJobTrackingNote, {
       jobId,
-      status: "interview",
-      notes: "Bring the architecture case study.",
+      note: "Bring the architecture case study.",
     });
     const timeline = await user.query(
       api.jobDiscovery.listJobTrackingTimeline,
@@ -1216,6 +1222,48 @@ describe("stored job activity", () => {
         notes: "x".repeat(3_001),
       }),
     ).rejects.toThrow();
+  });
+
+  it("saves an untracked suggestion when its first standalone note is added", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await ingestCandidates(t, userId, [
+      { job: normalizedJob(), verification: verification() },
+    ]);
+    const jobId = await t.run(
+      async (ctx) => (await ctx.db.query("jobs").first())?._id,
+    );
+    if (!jobId) throw new Error("Expected stored job");
+    const user = asUser(t, userId);
+
+    await user.mutation(api.jobDiscovery.addJobTrackingNote, {
+      jobId,
+      note: "  Ask about the reporting line.  ",
+    });
+
+    const feed = await user.query(api.jobDiscovery.listCurrentUserJobs, {
+      view: "inProgress",
+    });
+    expect(feed.jobs[0]).toMatchObject({
+      id: jobId,
+      trackingStatus: "saved",
+      trackingNotes: "Ask about the reporting line.",
+    });
+    expect(
+      feed.jobs[0].trackingTimeline?.map(({ kind, status, note }) => ({
+        kind,
+        status,
+        note,
+      })),
+    ).toEqual([
+      {
+        kind: "note",
+        status: undefined,
+        note: "Ask about the reporting line.",
+      },
+      { kind: "status_change", status: "saved", note: undefined },
+    ]);
   });
 
   it("keeps tracking records isolated between authenticated users", async () => {

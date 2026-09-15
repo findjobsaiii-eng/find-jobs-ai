@@ -298,7 +298,11 @@ operation derives the owner from Convex Auth. Historical snapshot-only rows are
 shown as a legacy event and are preserved into the event table on their next
 update. Saved-only rows remain eligible in Suggestions, but later application
 stages are excluded. The immutable posting snapshot keeps tracking readable after
-source expiry. These actions record candidate activity and never submit a résumé.
+source expiry. Job cards use one Save/status picker plus an adjacent standalone
+comment action; status comments are collected only after a new status is chosen.
+The newest timeline events are embedded in the bounded feed result and rendered
+inline below Key skills, avoiding a query per card. These actions record candidate
+activity and never submit a résumé.
 
 ### D-020: Job activity is cached, conservative, and historical
 

@@ -1,8 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LocalizedDate } from "@/components/ui/localized-date";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -12,7 +11,6 @@ import {
   ExternalLink,
   LoaderCircle,
   MapPin,
-  NotebookPen,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -20,8 +18,8 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
 import { JobMatchScore } from "./job-match-score";
-import { ApplicationTrackerDialog } from "./application-tracker-dialog";
-import { ApplicationStatusPicker } from "./application-status-picker";
+import { ApplicationTimeline } from "./application-timeline";
+import { ApplicationTrackingActions } from "./application-tracking-actions";
 import {
   APPLICATION_FILTERS,
   matchesApplicationFilter,
@@ -37,51 +35,10 @@ export function JobDiscoveryPanel({
   onEdit?: () => void;
 }) {
   const { i18n, t } = useTranslation();
-  const [pending, setPending] = useState<Id<"jobs"> | null>(null);
-  const pendingRef = useRef(false);
   const [error, setError] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<ApplicationFilter>("all");
-  const updateApplication = useMutation(api.jobDiscovery.setApplicationStatus);
-  const updateTracking = useMutation(api.jobDiscovery.updateJobTracking);
   const result = useQuery(api.jobDiscovery.listCurrentUserJobs, { view });
-
-  const markApplied = async (jobId: Id<"jobs">, applied: boolean) => {
-    if (pendingRef.current) return;
-    pendingRef.current = true;
-    setPending(jobId);
-    setError(false);
-    setNotice(null);
-    try {
-      await updateApplication({ jobId, applied });
-      setNotice(applied ? "appliedMarked" : "unmarked");
-    } catch {
-      setError(true);
-    } finally {
-      pendingRef.current = false;
-      setPending(null);
-    }
-  };
-
-  const saveWithStatus = async (
-    jobId: Id<"jobs">,
-    status: ApplicationStatus,
-  ) => {
-    if (pendingRef.current) return;
-    pendingRef.current = true;
-    setPending(jobId);
-    setError(false);
-    setNotice(null);
-    try {
-      await updateTracking({ jobId, status });
-      setNotice(status === "saved" ? "marked" : "trackingSaved");
-    } catch {
-      setError(true);
-    } finally {
-      pendingRef.current = false;
-      setPending(null);
-    }
-  };
 
   const jobs = result?.jobs ?? [];
   const visibleJobs =
@@ -361,25 +318,6 @@ export function JobDiscoveryPanel({
                           </div>
                         </div>
 
-                        {view === "inProgress" ? (
-                          <div className="mt-4 flex flex-wrap items-center gap-2">
-                            <span className="bg-primary/10 text-primary rounded-full px-2.5 py-1 text-xs font-semibold">
-                              {t(
-                                `applications.status.${trackingStatus ?? "applied"}`,
-                              )}
-                            </span>
-                            {job.trackingUpdatedAt ? (
-                              <span className="text-muted-foreground text-xs">
-                                <LocalizedDate value={job.trackingUpdatedAt}>
-                                  {(date) =>
-                                    t("applications.lastUpdated", { date })
-                                  }
-                                </LocalizedDate>
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : null}
-
                         <dl className="text-muted-foreground mt-4 flex flex-wrap gap-2 text-sm">
                           {displayLocation ? (
                             <div className="bg-muted/70 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5">
@@ -494,25 +432,7 @@ export function JobDiscoveryPanel({
                           </div>
                         ) : null}
 
-                        {job.appliedAt ? (
-                          <p className="text-primary mt-4 text-sm">
-                            <LocalizedDate value={job.appliedAt}>
-                              {(date) => t("applications.sentAt", { date })}
-                            </LocalizedDate>
-                          </p>
-                        ) : null}
-
-                        {view === "inProgress" && job.trackingNotes ? (
-                          <p className="bg-muted/60 text-foreground/80 mt-4 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm leading-6 text-pretty">
-                            <NotebookPen
-                              aria-hidden="true"
-                              className="text-muted-foreground mt-1 size-4 shrink-0"
-                            />
-                            <span className="line-clamp-2">
-                              {job.trackingNotes}
-                            </span>
-                          </p>
-                        ) : null}
+                        <ApplicationTimeline events={job.trackingTimeline} />
 
                         <JobDeepReview
                           jobId={job.id}
@@ -532,38 +452,19 @@ export function JobDiscoveryPanel({
                             {t(`jobDiscovery.sourceTiers.${job.sourceTier}`)}
                           </span>
                           <div className="flex flex-wrap gap-2">
-                            {view === "inProgress" ? (
-                              <ApplicationTrackerDialog
-                                jobId={job.id}
-                                jobTitle={job.title}
-                                status={trackingStatus}
-                                onSaved={() => setNotice("trackingSaved")}
-                              />
-                            ) : null}
-                            {view === "suggestions" ? (
-                              <ApplicationStatusPicker
-                                status={trackingStatus}
-                                disabled={pending !== null}
-                                onSelect={(status) =>
-                                  saveWithStatus(job.id, status)
-                                }
-                              />
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                className="min-h-11"
-                                disabled={pending !== null}
-                                onClick={() => void markApplied(job.id, false)}
-                              >
-                                {pending === job.id ? (
-                                  <LoaderCircle
-                                    aria-hidden="true"
-                                    className="animate-spin"
-                                  />
-                                ) : null}
-                                {t("applications.undo")}
-                              </Button>
-                            )}
+                            <ApplicationTrackingActions
+                              jobId={job.id}
+                              jobTitle={job.title}
+                              status={trackingStatus}
+                              onChanged={(nextNotice) => {
+                                setError(false);
+                                setNotice(nextNotice);
+                              }}
+                              onRemoveError={() => {
+                                setNotice(null);
+                                setError(true);
+                              }}
+                            />
                             <a
                               href={job.sourceUrl}
                               target="_blank"

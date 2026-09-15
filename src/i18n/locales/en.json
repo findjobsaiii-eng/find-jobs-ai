@@ -629,28 +629,28 @@
       "open": "Choose how to save this job",
       "save": "Save",
       "savedAs": "{{status}}",
-      "title": "Save to a status…"
+      "title": "Save to a status…",
+      "remove": "Remove from saved"
+    },
+    "commentDialog": {
+      "open": "Add a comment",
+      "statusTitle": "Add a comment?",
+      "statusDescription": "Optionally add context for changing {{title}} to {{status}}.",
+      "noteTitle": "Add a comment",
+      "noteDescription": "Add a private note about {{title}} to its timeline.",
+      "comment": "Comment",
+      "statusPlaceholder": "Details about this status change (optional)…",
+      "notePlaceholder": "Interview details, a contact name, or your next step…",
+      "confirmStatus": "Update status",
+      "addComment": "Add comment",
+      "close": "Close comment dialog"
     },
     "tracking": {
-      "open": "Track",
-      "edit": "Update",
-      "title": "Application tracking",
-      "description": "Keep a dated history of your progress for {{title}}.",
-      "status": "Status",
-      "changeStatus": "Change status",
-      "statusComment": "Comment (optional)",
-      "statusCommentPlaceholder": "Add context for this status change…",
-      "saveStatus": "Save status update",
-      "addNote": "Add a note",
-      "note": "Note",
-      "notePlaceholder": "Add interview details, a contact name, or your next step…",
-      "addNoteAction": "Add to timeline",
       "timeline": "Timeline",
-      "loadingTimeline": "Loading application timeline",
-      "emptyTimeline": "Your first update will appear here.",
       "statusChanged": "Status changed to {{status}}",
       "noteAdded": "Note added",
-      "close": "Close application tracking"
+      "showAll": "Show all {{count}} updates",
+      "showLess": "Show less"
     }
   },
   "common": {

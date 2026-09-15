@@ -7,21 +7,17 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
-  timeline: [] as Array<Record<string, unknown>>,
   discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
   setApplication: vi.fn(),
   runReview: vi.fn(),
 }));
 
 vi.mock("convex/react", () => ({
-  useQuery: (_query: unknown, args: unknown) =>
-    typeof args === "object" && args !== null && "jobId" in args
-      ? hooks.timeline
-      : {
-          jobs: hooks.jobs,
-          plan: "pro",
-          discoveryState: hooks.discoveryState,
-        },
+  useQuery: () => ({
+    jobs: hooks.jobs,
+    plan: "pro",
+    discoveryState: hooks.discoveryState,
+  }),
   useMutation: () => hooks.setApplication,
   useAction: () => hooks.runReview,
 }));
@@ -95,7 +91,6 @@ describe("job result cards", () => {
 
   beforeEach(async () => {
     hooks.jobs = [job()];
-    hooks.timeline = [];
     hooks.discoveryState = "complete";
     hooks.setApplication.mockReset().mockResolvedValue(null);
     hooks.runReview.mockReset().mockResolvedValue(null);
@@ -221,7 +216,10 @@ describe("job result cards", () => {
     expect(screen.queryByText("Tel Aviv-Yafo")).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(screen.getByText("נשלחו קורות חיים")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "הסרה" }));
+    await user.click(
+      screen.getByRole("button", { name: "בחירת סטטוס לשמירת המשרה" }),
+    );
+    await user.click(screen.getByRole("button", { name: "הסרה מהשמורות" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
       applied: false,
@@ -236,6 +234,10 @@ describe("job result cards", () => {
       screen.getByRole("button", { name: "Choose how to save this job" }),
     );
     await user.click(screen.getByRole("button", { name: "Saved" }));
+    expect(
+      screen.getByRole("heading", { name: "Add a comment?" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Update status" }));
 
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
       jobId: "jobs:one",
@@ -252,13 +254,14 @@ describe("job result cards", () => {
       screen.getByRole("button", { name: "Choose how to save this job" }),
     );
     await user.click(screen.getByRole("button", { name: "Applied" }));
+    await user.click(screen.getByRole("button", { name: "Update status" }));
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
       status: "applied",
     });
   });
 
-  it("edits a tracked status and notes in an accessible dialog", async () => {
+  it("changes a tracked status with an attached comment", async () => {
     hooks.jobs = [
       job({
         trackingStatus: "applied",
@@ -269,23 +272,16 @@ describe("job result cards", () => {
     const user = userEvent.setup();
     renderPanel("/?tab=in-progress");
 
-    await user.click(screen.getByRole("button", { name: "Update" }));
-    expect(
-      screen.getByRole("heading", { name: "Application tracking" }),
-    ).toBeVisible();
-    expect(screen.getAllByRole("radio")).toHaveLength(10);
-    expect(screen.getByRole("radio", { name: "Applied" })).toBeChecked();
-    const interviewStatus = screen.getByRole("radio", { name: "Interview" });
-    await user.click(interviewStatus);
-    expect(interviewStatus).toBeChecked();
-    const notes = screen.getByRole("textbox", {
-      name: "Comment (optional)",
-    });
-    await user.clear(notes);
-    await user.type(notes, "Interview with the product lead.");
     await user.click(
-      screen.getByRole("button", { name: "Save status update" }),
+      screen.getByRole("button", { name: "Choose how to save this job" }),
     );
+    await user.click(screen.getByRole("button", { name: "Interview" }));
+    expect(
+      screen.getByText(/changing Senior Product Manager to Interview/),
+    ).toBeVisible();
+    const notes = screen.getByRole("textbox", { name: "Comment" });
+    await user.type(notes, "Interview with the product lead.");
+    await user.click(screen.getByRole("button", { name: "Update status" }));
 
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
@@ -294,23 +290,55 @@ describe("job result cards", () => {
     });
   });
 
-  it("adds a standalone note without changing the current status", async () => {
+  it("adds a standalone comment without changing the current status", async () => {
     hooks.jobs = [job({ trackingStatus: "phone_screen" })];
     const user = userEvent.setup();
     renderPanel("/?tab=in-progress");
 
-    await user.click(screen.getByRole("button", { name: "Update" }));
+    await user.click(screen.getByRole("button", { name: "Add a comment" }));
     await user.type(
-      screen.getByRole("textbox", { name: "Note" }),
+      screen.getByRole("textbox", { name: "Comment" }),
       "Send the recruiter my availability.",
     );
-    await user.click(screen.getByRole("button", { name: "Add to timeline" }));
+    await user.click(screen.getByRole("button", { name: "Add comment" }));
 
     expect(hooks.setApplication).toHaveBeenCalledWith({
       jobId: "jobs:one",
-      status: "phone_screen",
-      notes: "Send the recruiter my availability.",
+      note: "Send the recruiter my availability.",
     });
+  });
+
+  it("shows application history inline below key skills", () => {
+    hooks.jobs = [
+      job({
+        trackingStatus: "interview",
+        trackingTimeline: [
+          {
+            id: "events:two",
+            kind: "note",
+            note: "Prepare the product case study.",
+            createdAt: Date.UTC(2026, 8, 8, 10),
+          },
+          {
+            id: "events:one",
+            kind: "status_change",
+            status: "interview",
+            createdAt: Date.UTC(2026, 8, 7, 10),
+          },
+        ],
+      }),
+    ];
+
+    renderPanel("/?tab=in-progress");
+
+    const skillsHeading = screen.getByRole("heading", { name: "Key skills" });
+    const timeline = screen.getByRole("region", { name: "Timeline" });
+    expect(skillsHeading.compareDocumentPosition(timeline)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.getByText("Prepare the product case study.")).toBeVisible();
+    expect(screen.getByText("Status changed to Interview")).toBeVisible();
+    expect(screen.queryByText(/^Applied /)).not.toBeInTheDocument();
   });
 
   it("requests and opens a saved deep AI review", async () => {

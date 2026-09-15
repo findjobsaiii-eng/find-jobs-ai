@@ -630,28 +630,28 @@
       "open": "בחירת סטטוס לשמירת המשרה",
       "save": "שמירה",
       "savedAs": "{{status}}",
-      "title": "שמירה בסטטוס…"
+      "title": "שמירה בסטטוס…",
+      "remove": "הסרה מהשמורות"
+    },
+    "commentDialog": {
+      "open": "הוספת הערה",
+      "statusTitle": "להוסיף הערה?",
+      "statusDescription": "אפשר להוסיף הקשר לשינוי הסטטוס של {{title}} ל{{status}}.",
+      "noteTitle": "הוספת הערה",
+      "noteDescription": "הוספת הערה פרטית על {{title}} לציר הזמן.",
+      "comment": "הערה",
+      "statusPlaceholder": "פרטים על שינוי הסטטוס (לא חובה)…",
+      "notePlaceholder": "פרטי ראיון, שם איש או אשת קשר, או הצעד הבא…",
+      "confirmStatus": "עדכון הסטטוס",
+      "addComment": "הוספת הערה",
+      "close": "סגירת חלון ההערה"
     },
     "tracking": {
-      "open": "מעקב",
-      "edit": "עדכון",
-      "title": "מעקב מועמדות",
-      "description": "היסטוריה מסודרת לפי תאריך של ההתקדמות עבור {{title}}.",
-      "status": "סטטוס",
-      "changeStatus": "שינוי סטטוס",
-      "statusComment": "תגובה (לא חובה)",
-      "statusCommentPlaceholder": "אפשר להוסיף הקשר לשינוי הסטטוס…",
-      "saveStatus": "שמירת שינוי הסטטוס",
-      "addNote": "הוספת הערה",
-      "note": "הערה",
-      "notePlaceholder": "פרטי ראיון, שם איש או אשת קשר, או הצעד הבא…",
-      "addNoteAction": "הוספה לציר הזמן",
       "timeline": "ציר הזמן",
-      "loadingTimeline": "ציר הזמן של המועמדות נטען",
-      "emptyTimeline": "העדכון הראשון יופיע כאן.",
       "statusChanged": "הסטטוס השתנה ל{{status}}",
       "noteAdded": "נוספה הערה",
-      "close": "סגירת מעקב המועמדות"
+      "showAll": "הצגת כל {{count}} העדכונים",
+      "showLess": "הצגת פחות"
     }
   },
   "common": {

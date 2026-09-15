@@ -1,44 +1,57 @@
 import { Popover } from "@base-ui/react/popover";
-import { Bookmark, Check, ChevronDown, LoaderCircle } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  ChevronDown,
+  LoaderCircle,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from "./application-status";
 import { ApplicationStatusIcon } from "./application-status-visual";
+import { APPLICATION_STATUS_VISUALS } from "./application-status-visuals";
 
 export function ApplicationStatusPicker({
   status,
   disabled,
   onSelect,
+  onRemove,
 }: {
   status?: ApplicationStatus;
   disabled?: boolean;
-  onSelect: (status: ApplicationStatus) => Promise<void>;
+  onSelect: (status: ApplicationStatus) => void;
+  onRemove?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [savingStatus, setSavingStatus] = useState<ApplicationStatus | null>(
-    null,
-  );
+  const [removing, setRemoving] = useState(false);
 
-  const selectStatus = async (nextStatus: ApplicationStatus) => {
-    if (savingStatus) return;
-    setSavingStatus(nextStatus);
+  const selectStatus = (nextStatus: ApplicationStatus) => {
+    onSelect(nextStatus);
+    setOpen(false);
+  };
+
+  const remove = async () => {
+    if (!onRemove || removing) return;
+    setRemoving(true);
     try {
-      await onSelect(nextStatus);
+      await onRemove();
       setOpen(false);
     } finally {
-      setSavingStatus(null);
+      setRemoving(false);
     }
   };
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
-        render={<Button variant="outline" className="min-h-11" />}
+        render={<Button nativeButton variant="outline" className="min-h-11" />}
         disabled={disabled}
         aria-label={t("applications.statusPicker.open")}
       >
@@ -74,9 +87,13 @@ export function ApplicationStatusPicker({
                 <button
                   key={value}
                   type="button"
-                  disabled={savingStatus !== null}
-                  onClick={() => void selectStatus(value)}
-                  className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-start text-sm transition-colors outline-none focus-visible:ring-3 disabled:opacity-60 motion-reduce:transition-none"
+                  disabled={removing}
+                  onClick={() => selectStatus(value)}
+                  className={cn(
+                    "hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 w-full items-center gap-3 rounded-xl border border-transparent px-3 text-start text-sm transition-colors outline-none focus-visible:ring-3 disabled:opacity-60 motion-reduce:transition-none",
+                    status === value &&
+                      APPLICATION_STATUS_VISUALS[value].selectedClass,
+                  )}
                 >
                   <ApplicationStatusIcon
                     status={value}
@@ -86,18 +103,33 @@ export function ApplicationStatusPicker({
                     {t(`applications.status.${value}`)}
                   </span>
                   <span className="ms-auto grid size-5 shrink-0 place-items-center">
-                    {savingStatus === value ? (
-                      <LoaderCircle
-                        aria-hidden="true"
-                        className="size-4 animate-spin"
-                      />
-                    ) : status === value ? (
+                    {status === value ? (
                       <Check aria-hidden="true" className="size-4" />
                     ) : null}
                   </span>
                 </button>
               ))}
             </div>
+            {onRemove ? (
+              <div className="border-border mt-2 border-t pt-2">
+                <button
+                  type="button"
+                  disabled={removing}
+                  onClick={() => void remove()}
+                  className="text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/30 flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-start text-sm font-medium transition-colors outline-none focus-visible:ring-3 disabled:opacity-60 motion-reduce:transition-none"
+                >
+                  {removing ? (
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className="size-4 animate-spin"
+                    />
+                  ) : (
+                    <Trash2 aria-hidden="true" className="size-4" />
+                  )}
+                  {t("applications.statusPicker.remove")}
+                </button>
+              </div>
+            ) : null}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
