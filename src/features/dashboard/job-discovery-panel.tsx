@@ -338,13 +338,26 @@ export function JobDiscoveryPanel({
                                   <h2 className="text-foreground text-lg leading-6 font-semibold break-words @md:text-xl">
                                     {job.title}
                                   </h2>
-                                  <p className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-sm font-medium break-words">
-                                    <Building2
-                                      aria-hidden="true"
-                                      className="size-4 shrink-0"
-                                    />
-                                    {job.companyName}
-                                  </p>
+                                  <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm break-words">
+                                    <span className="text-foreground/80 inline-flex items-center gap-1.5 font-medium">
+                                      <Building2
+                                        aria-hidden="true"
+                                        className="size-4 shrink-0"
+                                      />
+                                      {job.companyName}
+                                    </span>
+                                    <span className="basis-full text-xs @md:basis-auto">
+                                      {t("jobDiscovery.source", {
+                                        source:
+                                          job.sourceName ??
+                                          new URL(job.sourceUrl).hostname,
+                                      })}
+                                      {" · "}
+                                      {t(
+                                        `jobDiscovery.sourceTiers.${job.sourceTier}`,
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1.5">
                                   {view === "suggestions" ? (
@@ -484,48 +497,39 @@ export function JobDiscoveryPanel({
                                 unavailable={Boolean(job.unavailable)}
                                 plan={plan}
                                 review={job.deepReview}
-                              />
-
-                              <div className="border-border mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                                <span className="text-muted-foreground text-xs">
-                                  {t("jobDiscovery.source", {
-                                    source:
-                                      job.sourceName ??
-                                      new URL(job.sourceUrl).hostname,
-                                  })}
-                                  {" · "}
-                                  {t(
-                                    `jobDiscovery.sourceTiers.${job.sourceTier}`,
-                                  )}
-                                </span>
-                                <div className="flex flex-wrap gap-2">
-                                  <ApplicationTrackingActions
-                                    jobId={job.id}
-                                    inSuggestions={view === "suggestions"}
-                                    status={trackingStatus}
-                                    onChanged={(nextNotice) => {
-                                      setError(false);
-                                      setNotice({ key: nextNotice });
-                                    }}
-                                    onRemoveError={() => {
-                                      setNotice(null);
-                                      setError(true);
-                                    }}
-                                  />
-                                  <a
-                                    href={job.sourceUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring/40 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none"
-                                  >
-                                    {t("jobDiscovery.openPosting")}
-                                    <ExternalLink
-                                      aria-hidden="true"
-                                      className="size-4"
+                                actions={
+                                  <div className="flex min-w-0 items-center justify-end gap-2">
+                                    <ApplicationTrackingActions
+                                      jobId={job.id}
+                                      inSuggestions={view === "suggestions"}
+                                      status={trackingStatus}
+                                      onChanged={(nextNotice) => {
+                                        setError(false);
+                                        setNotice({ key: nextNotice });
+                                      }}
+                                      onRemoveError={() => {
+                                        setNotice(null);
+                                        setError(true);
+                                      }}
                                     />
-                                  </a>
-                                </div>
-                              </div>
+                                    <a
+                                      href={job.sourceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      aria-label={t("jobDiscovery.openPosting")}
+                                      className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring/40 inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none @2xl:px-3.5"
+                                    >
+                                      <span className="hidden @2xl:inline">
+                                        {t("jobDiscovery.openPosting")}
+                                      </span>
+                                      <ExternalLink
+                                        aria-hidden="true"
+                                        className="size-4"
+                                      />
+                                    </a>
+                                  </div>
+                                }
+                              />
                             </article>
                           </m.li>
                         );

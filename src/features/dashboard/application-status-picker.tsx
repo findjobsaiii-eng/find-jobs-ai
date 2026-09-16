@@ -53,7 +53,13 @@ export function ApplicationStatusPicker({
       <Popover.Trigger
         render={<Button nativeButton variant="outline" className="min-h-11" />}
         disabled={disabled}
-        aria-label={t("applications.statusPicker.open")}
+        aria-label={
+          status
+            ? t("applications.statusPicker.openWithStatus", {
+                status: t(`applications.status.${status}`),
+              })
+            : t("applications.statusPicker.open")
+        }
       >
         {status ? (
           <ApplicationStatusIcon
@@ -63,11 +69,13 @@ export function ApplicationStatusPicker({
         ) : (
           <Bookmark aria-hidden="true" />
         )}
-        {status
-          ? t("applications.statusPicker.savedAs", {
-              status: t(`applications.status.${status}`),
-            })
-          : t("applications.statusPicker.save")}
+        <span className="hidden @2xl:inline">
+          {status
+            ? t("applications.statusPicker.savedAs", {
+                status: t(`applications.status.${status}`),
+              })
+            : t("applications.statusPicker.save")}
+        </span>
         <ChevronDown aria-hidden="true" className="size-3.5" />
       </Popover.Trigger>
       <Popover.Portal>

@@ -628,6 +628,7 @@
     },
     "statusPicker": {
       "open": "Choose how to save this job",
+      "openWithStatus": "Change status: {{status}}",
       "save": "Save",
       "savedAs": "{{status}}",
       "title": "Save to a status…",

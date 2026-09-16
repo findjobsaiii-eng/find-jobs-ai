@@ -283,7 +283,7 @@ describe("job result cards", () => {
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(screen.getByText("נשלחו קורות חיים")).toBeVisible();
     await user.click(
-      screen.getByRole("button", { name: "בחירת סטטוס לשמירת המשרה" }),
+      screen.getByRole("button", { name: "שינוי סטטוס: נשלחו קורות חיים" }),
     );
     await user.click(screen.getByRole("button", { name: "הסרה מהשמורות" }));
     expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
@@ -316,7 +316,7 @@ describe("job result cards", () => {
     renderPanel();
 
     await user.click(
-      screen.getByRole("button", { name: "Choose how to save this job" }),
+      screen.getByRole("button", { name: "Change status: Saved" }),
     );
     await user.click(screen.getByRole("button", { name: "Applied" }));
     await user.click(screen.getByRole("button", { name: "Update status" }));
@@ -338,7 +338,7 @@ describe("job result cards", () => {
     renderPanel("/?tab=in-progress");
 
     await user.click(
-      screen.getByRole("button", { name: "Choose how to save this job" }),
+      screen.getByRole("button", { name: "Change status: Applied" }),
     );
     await user.click(screen.getByRole("button", { name: "Interview" }));
     expect(

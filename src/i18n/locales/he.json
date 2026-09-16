@@ -629,6 +629,7 @@
     },
     "statusPicker": {
       "open": "בחירת סטטוס לשמירת המשרה",
+      "openWithStatus": "שינוי סטטוס: {{status}}",
       "save": "שמירה",
       "savedAs": "{{status}}",
       "title": "שמירה בסטטוס…",

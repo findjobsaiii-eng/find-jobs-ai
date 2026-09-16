@@ -45,11 +45,13 @@ export function JobDeepReview({
   unavailable,
   plan,
   review,
+  actions,
 }: {
   jobId: Id<"jobs">;
   unavailable: boolean;
   plan: "free" | "pro" | "admin";
   review?: Review;
+  actions: ReactNode;
 }) {
   const { i18n, t } = useTranslation();
   const runReview = useAction(api.jobReviewActions.reviewJob);
@@ -78,13 +80,20 @@ export function JobDeepReview({
 
   const hasReview = review?.status === "completed" && review.summary;
   return (
-    <div className="mt-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="border-border mt-5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 border-t pt-4 @2xl:gap-3">
+      <div className="flex items-center gap-2">
         <Button
           type="button"
           variant="outline"
-          className="relative min-h-11 overflow-hidden"
+          className="relative min-h-11 min-w-11 overflow-hidden @2xl:min-w-0"
           disabled={isLoading || (!hasReview && (!isPaid || unavailable))}
+          aria-label={
+            isLoading
+              ? t("jobReview.loading")
+              : hasReview
+                ? t("jobReview.open", { score: review.matchPercentage })
+                : t("jobReview.action")
+          }
           aria-expanded={hasReview ? expanded : undefined}
           onClick={() => {
             if (hasReview) setExpanded((value) => !value);
@@ -99,24 +108,28 @@ export function JobDeepReview({
           ) : (
             <LockKeyhole aria-hidden="true" />
           )}
-          {isLoading
-            ? t("jobReview.loading")
-            : hasReview
-              ? t("jobReview.open", { score: review.matchPercentage })
-              : t("jobReview.action")}
+          <span className="hidden @2xl:inline">
+            {isLoading
+              ? t("jobReview.loading")
+              : hasReview
+                ? t("jobReview.open", { score: review.matchPercentage })
+                : t("jobReview.action")}
+          </span>
           {hasReview ? (
             <ChevronDown
               aria-hidden="true"
-              className={`transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+              className={`hidden transition-transform motion-reduce:transition-none @2xl:block ${expanded ? "rotate-180" : ""}`}
             />
           ) : null}
         </Button>
         {!isPaid && !hasReview ? (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground hidden text-xs @2xl:inline">
             {t("jobReview.proOnly")}
           </span>
         ) : null}
       </div>
+
+      {actions}
 
       <AnimatePresence initial={false}>
         {isLoading && expanded ? (
@@ -125,7 +138,7 @@ export function JobDeepReview({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-primary/15 bg-primary/5 mt-3 overflow-hidden rounded-xl border"
+            className="border-primary/15 bg-primary/5 col-span-full overflow-hidden rounded-xl border"
           >
             <div className="flex items-center gap-3 px-4 py-4">
               <span className="bg-primary/10 text-primary grid size-10 place-items-center rounded-xl">
@@ -151,7 +164,7 @@ export function JobDeepReview({
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18 }}
             aria-label={t("jobReview.heading")}
-            className="border-border bg-muted/35 mt-3 rounded-xl border p-4 sm:p-5"
+            className="border-border bg-muted/35 col-span-full rounded-xl border p-4 sm:p-5"
           >
             <div className="flex items-start gap-4">
               <div className="border-primary/20 bg-card grid size-16 shrink-0 place-items-center rounded-2xl border shadow-sm">
@@ -304,7 +317,7 @@ export function JobDeepReview({
       </AnimatePresence>
 
       {(failed || review?.status === "failed") && !isLoading ? (
-        <p role="alert" className="text-destructive mt-2 text-sm">
+        <p role="alert" className="text-destructive col-span-full text-sm">
           {t(
             review?.errorCode === "job_inactive"
               ? "jobReview.inactive"
