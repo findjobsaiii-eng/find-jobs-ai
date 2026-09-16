@@ -67,7 +67,7 @@ export function ApplicationTimeline({
               </span>
             )}
             <div className="min-w-0 flex-1 pt-0.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <div className="flex flex-col items-start gap-0.5">
                 <p className="text-sm font-medium">
                   {event.kind === "status_change"
                     ? t("applications.tracking.statusChanged", {
