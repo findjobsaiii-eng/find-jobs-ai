@@ -61,7 +61,7 @@ export default function OpenGraphImage() {
             background: "rgba(255,255,255,.96)",
           }}
         >
-          {/* ImageResponse uses Satori and cannot render next/image. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse uses Satori and cannot render next/image. */}
           <img
             src={logoSrc}
             alt=""

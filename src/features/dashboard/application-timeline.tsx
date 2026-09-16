@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { BookmarkMinus, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,12 @@ export type ApplicationTimelineEvent =
       id: string;
       kind: "note";
       note: string;
+      createdAt: number;
+    }
+  | {
+      id: string;
+      kind: "status_removed";
+      previousStatus: ApplicationStatus;
       createdAt: number;
     };
 
@@ -46,11 +52,15 @@ export function ApplicationTimeline({
                 className="bg-border absolute start-4 top-8 h-[calc(100%-1rem)] w-px"
               />
             ) : null}
-            {event.kind === "status_change" && event.status ? (
+            {event.kind === "status_change" ? (
               <ApplicationStatusIcon
                 status={event.status}
                 className="ring-card relative z-10 size-8 rounded-full ring-4"
               />
+            ) : event.kind === "status_removed" ? (
+              <span className="bg-muted text-muted-foreground ring-card relative z-10 grid size-8 shrink-0 place-items-center rounded-full ring-4">
+                <BookmarkMinus aria-hidden="true" className="size-4" />
+              </span>
             ) : (
               <span className="bg-muted text-muted-foreground ring-card relative z-10 grid size-8 shrink-0 place-items-center rounded-full ring-4">
                 <MessageCircle aria-hidden="true" className="size-4" />
@@ -59,18 +69,24 @@ export function ApplicationTimeline({
             <div className="min-w-0 flex-1 pt-0.5">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <p className="text-sm font-medium">
-                  {event.kind === "status_change" && event.status
+                  {event.kind === "status_change"
                     ? t("applications.tracking.statusChanged", {
                         status: t(`applications.status.${event.status}`),
                       })
-                    : t("applications.tracking.noteAdded")}
+                    : event.kind === "status_removed"
+                      ? t("applications.tracking.statusRemoved", {
+                          status: t(
+                            `applications.status.${event.previousStatus}`,
+                          ),
+                        })
+                      : t("applications.tracking.noteAdded")}
                 </p>
                 <LocalizedDate
                   value={event.createdAt}
                   className="text-muted-foreground text-xs"
                 />
               </div>
-              {event.note ? (
+              {"note" in event && event.note ? (
                 <p className="text-foreground/80 mt-1 text-sm leading-6 text-pretty whitespace-pre-wrap">
                   {event.note}
                 </p>

@@ -23,7 +23,12 @@ export function ApplicationTrackingActions({
   inSuggestions: boolean;
   status?: ApplicationStatus;
   onChanged: (
-    notice: "marked" | "movedToSaved" | "trackingSaved" | "unmarked",
+    notice:
+      | "marked"
+      | "movedToSaved"
+      | "trackingSaved"
+      | "commentAdded"
+      | "statusRemoved",
   ) => void;
   onRemoveError: () => void;
 }) {
@@ -55,7 +60,7 @@ export function ApplicationTrackingActions({
         );
       } else {
         await addNote({ jobId, note: comment });
-        onChanged(status ? "trackingSaved" : "marked");
+        onChanged(status ? "trackingSaved" : "commentAdded");
       }
       setDialogMode(null);
     } catch {
@@ -70,7 +75,7 @@ export function ApplicationTrackingActions({
     setSaving(true);
     try {
       await removeTracking({ jobId });
-      onChanged("unmarked");
+      onChanged("statusRemoved");
     } catch {
       onRemoveError();
     } finally {

@@ -373,6 +373,24 @@ describe("job result cards", () => {
     });
   });
 
+  it("adds a comment to an untracked suggestion without assigning a status", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: "Add a comment" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "Ask whether the team works remotely.",
+    );
+    await user.click(screen.getByRole("button", { name: "Add comment" }));
+
+    expect(hooks.setApplication).toHaveBeenCalledExactlyOnceWith({
+      jobId: "jobs:one",
+      note: "Ask whether the team works remotely.",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Comment added.");
+  });
+
   it("shows application history inline below key skills", () => {
     hooks.jobs = [
       job({
@@ -404,6 +422,32 @@ describe("job result cards", () => {
     expect(screen.getByText("Prepare the product case study.")).toBeVisible();
     expect(screen.getByText("Status changed to Interview")).toBeVisible();
     expect(screen.queryByText(/^Applied /)).not.toBeInTheDocument();
+  });
+
+  it("shows status removal as history instead of deleting the timeline", () => {
+    hooks.jobs = [
+      job({
+        trackingTimeline: [
+          {
+            id: "events:removed",
+            kind: "status_removed",
+            previousStatus: "saved",
+            createdAt: Date.UTC(2026, 8, 9, 10),
+          },
+          {
+            id: "events:note",
+            kind: "note",
+            note: "Keep this contact for later.",
+            createdAt: Date.UTC(2026, 8, 8, 10),
+          },
+        ],
+      }),
+    ];
+
+    renderPanel();
+
+    expect(screen.getByText("Saved status removed")).toBeVisible();
+    expect(screen.getByText("Keep this contact for later.")).toBeVisible();
   });
 
   it("requests and opens a saved deep AI review", async () => {

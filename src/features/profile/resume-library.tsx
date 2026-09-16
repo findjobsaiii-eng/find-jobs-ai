@@ -1,4 +1,10 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import {
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -8,10 +14,19 @@ import {
   Pencil,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SectionHeader, Surface } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
 import { processingErrorKey } from "./resume-errors";
@@ -28,6 +43,7 @@ export function ResumeLibrary() {
   const updateMetadata = useMutation(api.resumes.updateMetadata);
   const deleteResume = useMutation(api.resumes.deleteResume);
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState<Id<"resumeDocuments"> | "upload" | null>(
     null,
@@ -39,45 +55,66 @@ export function ResumeLibrary() {
     null,
   );
   const [deleteId, setDeleteId] = useState<Id<"resumeDocuments"> | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
   const [editLabel, setEditLabel] = useState("");
   const [editNote, setEditNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const upload = async (files: FileList | File[]) => {
+  const selectFile = (files: FileList | File[]) => {
     const selected = Array.from(files);
     if (selected.length !== 1) return setError("multiple");
     const file = selected[0];
     if (!validResume(file)) return setError("unsupported");
     if (file.size > MAX_BYTES) return setError("tooLarge");
+    setError(null);
+    setLabel("");
+    setNote("");
+    setPendingFile(file);
+  };
+
+  const closeUploadDialog = () => {
+    if (busy === "upload") return;
+    setPendingFile(null);
+    setLabel("");
+    setNote("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const upload = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!pendingFile || busy === "upload") return;
     setBusy("upload");
     setError(null);
     try {
       const uploadUrl = await generateUploadUrl({});
       const response = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
+        headers: {
+          "Content-Type": pendingFile.type || "application/octet-stream",
+        },
+        body: pendingFile,
       });
       if (!response.ok) throw new Error("UPLOAD_FAILED");
       const { storageId } = (await response.json()) as { storageId: string };
       const resumeId = await createFromUpload({
         storageId: storageId as never,
-        fileName: file.name,
-        mimeType: file.type,
-        size: file.size,
+        fileName: pendingFile.name,
+        mimeType: pendingFile.type,
+        size: pendingFile.size,
         ...(label.trim() ? { displayName: label } : {}),
         ...(note.trim() ? { note } : {}),
       });
       await processResume({ resumeId });
+      setPendingFile(null);
       setLabel("");
       setNote("");
+      if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
       setError(processingErrorKey(cause));
     } finally {
       setBusy(null);
-      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
@@ -111,7 +148,7 @@ export function ResumeLibrary() {
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
-    void upload(event.dataTransfer.files);
+    selectFile(event.dataTransfer.files);
   };
   const handleDropKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -165,29 +202,9 @@ export function ResumeLibrary() {
         className="sr-only"
         accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         onChange={(event) => {
-          if (event.target.files) void upload(event.target.files);
+          if (event.target.files) selectFile(event.target.files);
         }}
       />
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm font-medium">
-          {t("resumeLibrary.label")}
-          <input
-            value={label}
-            maxLength={80}
-            onChange={(event) => setLabel(event.target.value)}
-            className="border-input bg-background focus:ring-ring/30 mt-2 h-11 w-full rounded-xl border px-3 outline-none focus:ring-3"
-          />
-        </label>
-        <label className="text-sm font-medium">
-          {t("resumeLibrary.note")}
-          <input
-            value={note}
-            maxLength={300}
-            onChange={(event) => setNote(event.target.value)}
-            className="border-input bg-background focus:ring-ring/30 mt-2 h-11 w-full rounded-xl border px-3 outline-none focus:ring-3"
-          />
-        </label>
-      </div>
       {error ? (
         <p role="alert" className="text-destructive mt-3 text-sm">
           {t("resumeLibrary.errors." + error)}
@@ -401,6 +418,97 @@ export function ResumeLibrary() {
           ))}
         </ul>
       )}
+
+      <Dialog
+        open={pendingFile !== null}
+        onOpenChange={(open) => {
+          if (!open) closeUploadDialog();
+        }}
+      >
+        <DialogContent className="max-w-md" initialFocus={labelInputRef}>
+          <div className="flex items-start justify-between gap-4">
+            <DialogHeader>
+              <DialogTitle>{t("resumeLibrary.uploadTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("resumeLibrary.uploadDescription")}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogClose
+              aria-label={t("resumeLibrary.closeUpload")}
+              disabled={busy === "upload"}
+              className="hover:bg-muted focus-visible:ring-ring/40 grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-3 disabled:opacity-50"
+            >
+              <X aria-hidden="true" className="size-4" />
+            </DialogClose>
+          </div>
+
+          {pendingFile ? (
+            <div className="bg-muted/60 mt-5 flex items-center gap-3 rounded-xl px-3 py-2.5">
+              <span className="bg-background text-primary grid size-9 shrink-0 place-items-center rounded-lg shadow-xs">
+                <FileText aria-hidden="true" className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {pendingFile.name}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {t("resumeLibrary.selectedFileSize", {
+                    size: Math.ceil(pendingFile.size / 1024),
+                  })}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <form
+            onSubmit={(event) => void upload(event)}
+            className="mt-5 space-y-4"
+          >
+            <label className="block text-sm font-medium">
+              {t("resumeLibrary.label")}
+              <input
+                ref={labelInputRef}
+                value={label}
+                maxLength={80}
+                onChange={(event) => setLabel(event.target.value)}
+                className="border-input bg-background focus:border-ring focus:ring-ring/30 mt-2 h-11 w-full rounded-xl border px-3 outline-none focus:ring-3"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              {t("resumeLibrary.note")}
+              <input
+                value={note}
+                maxLength={300}
+                onChange={(event) => setNote(event.target.value)}
+                className="border-input bg-background focus:border-ring focus:ring-ring/30 mt-2 h-11 w-full rounded-xl border px-3 outline-none focus:ring-3"
+              />
+            </label>
+            {error ? (
+              <p role="alert" className="text-destructive text-sm">
+                {t("resumeLibrary.errors." + error)}
+              </p>
+            ) : null}
+            <div className="border-border flex justify-end gap-2 border-t pt-4">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy === "upload"}
+                onClick={closeUploadDialog}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={busy === "upload"}>
+                {busy === "upload" ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <Upload aria-hidden="true" />
+                )}
+                {t("resumeLibrary.uploadAction")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Surface>
   );
 }

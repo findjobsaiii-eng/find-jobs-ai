@@ -14,7 +14,7 @@ const lifecycleValidator = v.union(
 );
 
 function hidesSuggestion(application: Doc<"jobApplications"> | null) {
-  return Boolean(application && application.status !== "saved");
+  return Boolean(application?.status && application.status !== "saved");
 }
 
 async function loadProfile(

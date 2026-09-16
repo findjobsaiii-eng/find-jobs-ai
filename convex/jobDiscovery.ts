@@ -405,20 +405,29 @@ type ApplicationStatus =
   | "withdrawn";
 
 function timelineEventView(event: Doc<"jobApplicationEvents">) {
-  return event.kind === "status_change"
-    ? {
-        id: event._id,
-        kind: event.kind,
-        status: event.status,
-        note: event.note,
-        createdAt: event.createdAt,
-      }
-    : {
-        id: event._id,
-        kind: event.kind,
-        note: event.note,
-        createdAt: event.createdAt,
-      };
+  if (event.kind === "status_change") {
+    return {
+      id: event._id,
+      kind: event.kind,
+      status: event.status,
+      note: event.note,
+      createdAt: event.createdAt,
+    };
+  }
+  if (event.kind === "status_removed") {
+    return {
+      id: event._id,
+      kind: event.kind,
+      previousStatus: event.previousStatus,
+      createdAt: event.createdAt,
+    };
+  }
+  return {
+    id: event._id,
+    kind: event.kind,
+    note: event.note,
+    createdAt: event.createdAt,
+  };
 }
 
 function timelineEventsByApplication(events: Doc<"jobApplicationEvents">[]) {
@@ -438,7 +447,14 @@ function trackingFields(
   application: Doc<"jobApplications"> | undefined,
   events: ReturnType<typeof timelineEventView>[] = [],
 ) {
-  if (!application) return {};
+  if (!application) {
+    return {
+      appliedAt: undefined,
+      trackingStatus: undefined,
+      trackingUpdatedAt: undefined,
+      trackingTimeline: undefined,
+    };
+  }
   return {
     appliedAt: application.appliedAt,
     trackingStatus: application.status,
@@ -466,7 +482,12 @@ async function addApplicationEvent(
         note?: string;
         createdAt: number;
       }
-    | { kind: "note"; note: string; createdAt: number },
+    | { kind: "note"; note: string; createdAt: number }
+    | {
+        kind: "status_removed";
+        previousStatus: ApplicationStatus;
+        createdAt: number;
+      },
 ) {
   await ctx.db.insert("jobApplicationEvents", {
     userId: application.userId,
@@ -1875,35 +1896,37 @@ export const listCurrentUserJobs = query({
     );
     if (args.view === "inProgress") {
       const jobs = await Promise.all(
-        applications.map(async (application) => {
-          const current = await ctx.db.get("jobs", application.jobId);
-          const currentSource = current?.bestSourceId
-            ? await ctx.db.get("jobSources", current.bestSourceId)
-            : null;
-          if (
-            current &&
-            (isDevelopmentFixtureJob(current) ||
-              (currentSource && !isUserFacingJobSource(currentSource)))
-          ) {
-            return null;
-          }
-          const review = current
-            ? deepReviewView(
-                reviewsByJob.get(application.jobId),
-                current,
-                profileRecord?.updatedAt ?? 0,
-              )
-            : application.snapshot.deepReview;
-          return {
-            ...application.snapshot,
-            ...trackingFields(
-              application,
-              eventsByApplication.get(application._id),
-            ),
-            unavailable: !current || !isDisplayEligibleJob(current),
-            deepReview: review,
-          };
-        }),
+        applications
+          .filter((application) => application.status)
+          .map(async (application) => {
+            const current = await ctx.db.get("jobs", application.jobId);
+            const currentSource = current?.bestSourceId
+              ? await ctx.db.get("jobSources", current.bestSourceId)
+              : null;
+            if (
+              current &&
+              (isDevelopmentFixtureJob(current) ||
+                (currentSource && !isUserFacingJobSource(currentSource)))
+            ) {
+              return null;
+            }
+            const review = current
+              ? deepReviewView(
+                  reviewsByJob.get(application.jobId),
+                  current,
+                  profileRecord?.updatedAt ?? 0,
+                )
+              : application.snapshot.deepReview;
+            return {
+              ...application.snapshot,
+              ...trackingFields(
+                application,
+                eventsByApplication.get(application._id),
+              ),
+              unavailable: !current || !isDisplayEligibleJob(current),
+              deepReview: review,
+            };
+          }),
       );
       const visibleJobs = jobs.filter((job) => job !== null);
       visibleJobs.sort(
@@ -2019,7 +2042,7 @@ async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
     ]);
   const appliedJobIds = new Set(
     applications
-      .filter((item) => item.status !== "saved")
+      .filter((item) => item.status && item.status !== "saved")
       .map((item) => item.jobId),
   );
   const fixtureJobIds = new Set(
@@ -2705,16 +2728,17 @@ export const removeJobTracking = mutation({
       )
       .unique();
     if (existing) {
-      const events = await ctx.db
-        .query("jobApplicationEvents")
-        .withIndex("by_applicationId_and_createdAt", (q) =>
-          q.eq("applicationId", existing._id),
-        )
-        .take(1_000);
-      await Promise.all(
-        events.map((event) => ctx.db.delete("jobApplicationEvents", event._id)),
-      );
-      await ctx.db.delete("jobApplications", existing._id);
+      if (!existing.status) return null;
+      const now = Date.now();
+      await ctx.db.patch("jobApplications", existing._id, {
+        status: undefined,
+        updatedAt: now,
+      });
+      await addApplicationEvent(ctx, existing, {
+        kind: "status_removed",
+        previousStatus: existing.status,
+        createdAt: now,
+      });
     }
     await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
       userId,
@@ -2834,17 +2858,11 @@ export const addJobTrackingNote = mutation({
     const applicationId = await ctx.db.insert("jobApplications", {
       userId,
       jobId: trackedJob.jobId,
-      status: "saved",
       updatedAt: now,
       snapshot: item,
     });
     const application = await ctx.db.get("jobApplications", applicationId);
     if (application) {
-      await addApplicationEvent(ctx, application, {
-        kind: "status_change",
-        status: "saved",
-        createdAt: now,
-      });
       await addApplicationEvent(ctx, application, {
         kind: "note",
         note,

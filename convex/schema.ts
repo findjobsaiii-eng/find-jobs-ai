@@ -148,6 +148,12 @@ export const applicationTimelineEvent = v.union(
     note: v.string(),
     createdAt: v.number(),
   }),
+  v.object({
+    id: v.id("jobApplicationEvents"),
+    kind: v.literal("status_removed"),
+    previousStatus: applicationStatus,
+    createdAt: v.number(),
+  }),
 );
 
 const profileOverrideField = v.union(
@@ -458,7 +464,7 @@ const schema = defineSchema({
     userId: v.id("users"),
     jobId: v.id("jobs"),
     appliedAt: v.optional(v.number()),
-    status: applicationStatus,
+    status: v.optional(applicationStatus),
     updatedAt: v.number(),
     snapshot: jobFeedItem,
   })
@@ -481,6 +487,14 @@ const schema = defineSchema({
         jobId: v.id("jobs"),
         kind: v.literal("note"),
         note: v.string(),
+        createdAt: v.number(),
+      }),
+      v.object({
+        userId: v.id("users"),
+        applicationId: v.id("jobApplications"),
+        jobId: v.id("jobs"),
+        kind: v.literal("status_removed"),
+        previousStatus: applicationStatus,
         createdAt: v.number(),
       }),
     ),

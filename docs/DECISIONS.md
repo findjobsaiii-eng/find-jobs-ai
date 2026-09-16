@@ -556,6 +556,22 @@ cookie in browsers with strict tracking prevention. Each deployment must set
 `CUSTOM_AUTH_SITE_URL` to its exact frontend origin and register
 `<origin>/api/auth/callback/google` with Google; PKCE remains enabled.
 
+### D-030: Job activity history is independent from the current status
+
+Status: Accepted (2026-09-16)
+
+Evidence: `convex/schema.ts`, `convex/jobDiscovery.ts`,
+`convex/jobMatching.ts`, and `convex/jobDiscovery.test.ts`.
+
+A user-owned job activity record may exist without a current application
+status. Standalone notes create timeline events without implicitly assigning
+Saved, while the Saved view contains only records that currently have a
+status. Removing a job from Saved clears only that current status and appends a
+status-removal event; it does not delete the activity record, notes, earlier
+status changes, snapshot, or application timestamps. A status-free record does
+not hide an otherwise eligible job from Suggestions, so its retained timeline
+can be shown again when the job is visible there.
+
 ## Job activity freshness (2026-09-09)
 
 Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.

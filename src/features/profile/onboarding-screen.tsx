@@ -8,12 +8,14 @@ import {
   type SetStateAction,
 } from "react";
 import Image from "next/image";
+import { Popover } from "@base-ui/react/popover";
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronDown,
   LoaderCircle,
   Minus,
   Plus,
@@ -426,107 +428,155 @@ export function StepFour({
   showReady = true,
 }: StepProps & { showReady?: boolean }) {
   const { t } = useTranslation();
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const availableLanguages = SUPPORTED_LANGUAGES.filter(
     (code) =>
       !draft.languages.some((language) => language.languageCode === code),
   );
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        {draft.languages.map((language) => {
-          const id = `proficiency-${language.languageCode}`;
-          return (
-            <div
-              key={language.languageCode}
-              className="border-border grid items-end gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(8rem,1fr)_minmax(11rem,1.4fr)_auto]"
-            >
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  {t(`onboarding.options.languages.${language.languageCode}`)}
-                </p>
-                <span className="text-muted-foreground text-xs">
-                  {language.languageCode.toUpperCase()}
-                </span>
-              </div>
-              <div>
-                <label htmlFor={id} className="mb-2 block text-sm font-medium">
-                  {t("onboarding.fields.proficiency")}
-                </label>
-                <SelectInput
-                  id={id}
-                  value={language.proficiency}
-                  onChange={(event) =>
+      <div className="space-y-4">
+        <div className="bg-muted/35 divide-border divide-y rounded-2xl px-4">
+          {draft.languages.map((language) => {
+            const id = `proficiency-${language.languageCode}`;
+            return (
+              <div
+                key={language.languageCode}
+                className="grid items-center gap-3 py-4 sm:grid-cols-[minmax(8rem,1fr)_minmax(11rem,1.4fr)_auto]"
+              >
+                <div>
+                  <p className="text-sm font-semibold">
+                    {t(`onboarding.options.languages.${language.languageCode}`)}
+                  </p>
+                  <span className="text-muted-foreground mt-0.5 block text-xs tracking-wide">
+                    {language.languageCode.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <label
+                    htmlFor={id}
+                    className="mb-2 block text-sm font-medium"
+                  >
+                    {t("onboarding.fields.proficiency")}
+                  </label>
+                  <SelectInput
+                    id={id}
+                    value={language.proficiency}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        languages: current.languages.map((item) =>
+                          item.languageCode === language.languageCode
+                            ? {
+                                ...item,
+                                proficiency: event.target
+                                  .value as typeof language.proficiency,
+                              }
+                            : item,
+                        ),
+                      }))
+                    }
+                    aria-invalid={Boolean(errors.languages)}
+                  >
+                    <option value="">
+                      {t("onboarding.placeholders.proficiency")}
+                    </option>
+                    {LANGUAGE_PROFICIENCIES.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`onboarding.options.proficiency.${option}`)}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive justify-self-end"
+                  onClick={() =>
                     setDraft((current) => ({
                       ...current,
-                      languages: current.languages.map((item) =>
-                        item.languageCode === language.languageCode
-                          ? {
-                              ...item,
-                              proficiency: event.target
-                                .value as typeof language.proficiency,
-                            }
-                          : item,
+                      languages: current.languages.filter(
+                        (item) => item.languageCode !== language.languageCode,
                       ),
                     }))
                   }
-                  aria-invalid={Boolean(errors.languages)}
-                >
-                  <option value="">
-                    {t("onboarding.placeholders.proficiency")}
-                  </option>
-                  {LANGUAGE_PROFICIENCIES.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`onboarding.options.proficiency.${option}`)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </div>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() =>
-                  setDraft((current) => ({
-                    ...current,
-                    languages: current.languages.filter(
-                      (item) => item.languageCode !== language.languageCode,
+                  aria-label={t("onboarding.removeLanguage", {
+                    language: t(
+                      `onboarding.options.languages.${language.languageCode}`,
                     ),
-                  }))
-                }
-                aria-label={t("onboarding.removeLanguage", {
-                  language: t(
-                    `onboarding.options.languages.${language.languageCode}`,
-                  ),
-                })}
-              >
-                <Trash2 aria-hidden="true" />
-              </Button>
-            </div>
-          );
-        })}
+                  })}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
         {availableLanguages.length > 0 ? (
-          <SelectInput
-            value=""
-            onChange={(event) => {
-              const languageCode = event.target.value as LanguageCode;
-              if (!languageCode) return;
-              setDraft((current) => ({
-                ...current,
-                languages: [
-                  ...current.languages,
-                  { languageCode, proficiency: "" },
-                ],
-              }));
-            }}
-            aria-label={t("onboarding.addLanguage")}
+          <Popover.Root
+            open={languageMenuOpen}
+            onOpenChange={setLanguageMenuOpen}
           >
-            <option value="">{t("onboarding.addLanguage")}</option>
-            {availableLanguages.map((code) => (
-              <option key={code} value={code}>
-                {t(`onboarding.options.languages.${code}`)}
-              </option>
-            ))}
-          </SelectInput>
+            <Popover.Trigger
+              render={
+                <Button
+                  nativeButton
+                  type="button"
+                  variant="outline"
+                  className="border-primary/20 text-primary hover:bg-primary/5 min-h-11 w-full justify-between px-4 shadow-xs sm:w-auto"
+                />
+              }
+            >
+              <span className="flex items-center gap-2">
+                <Plus aria-hidden="true" className="size-4" />
+                {t("onboarding.addLanguage")}
+              </span>
+              <ChevronDown aria-hidden="true" className="size-4" />
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Positioner
+                side="bottom"
+                align="start"
+                sideOffset={8}
+                collisionPadding={12}
+                className="z-50"
+              >
+                <Popover.Popup className="bg-popover text-popover-foreground border-border max-h-[min(22rem,var(--available-height))] w-64 max-w-[calc(100vw-2rem)] origin-[var(--transform-origin)] overflow-y-auto rounded-2xl border p-2 text-start shadow-xl transition-[transform,opacity] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-none">
+                  <p className="px-3 py-2 text-sm font-semibold">
+                    {t("onboarding.chooseLanguage")}
+                  </p>
+                  <div className="space-y-0.5">
+                    {availableLanguages.map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          setDraft((current) => ({
+                            ...current,
+                            languages: [
+                              ...current.languages,
+                              {
+                                languageCode: code as LanguageCode,
+                                proficiency: "",
+                              },
+                            ],
+                          }));
+                          setLanguageMenuOpen(false);
+                        }}
+                        className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 w-full items-center justify-between gap-3 rounded-xl px-3 text-start text-sm transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none"
+                      >
+                        <span>{t(`onboarding.options.languages.${code}`)}</span>
+                        <span className="text-muted-foreground text-xs tracking-wide">
+                          {code.toUpperCase()}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
         ) : null}
         {errors.languages ? (
           <p className="text-destructive text-sm" role="alert">
