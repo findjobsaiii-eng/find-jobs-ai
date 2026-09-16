@@ -31,17 +31,13 @@ export function DiscardProfileChangesDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<AlertDialogClose />}
-          >
+          <Button variant="outline" nativeButton render={<AlertDialogClose />}>
             {t("dashboard.keepEditing")}
           </Button>
           <Button
             type="button"
             variant="destructive"
-            nativeButton={false}
+            nativeButton
             render={<AlertDialogClose />}
             onClick={onDiscard}
           >
