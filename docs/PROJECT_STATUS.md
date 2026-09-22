@@ -35,6 +35,9 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Optional PostHog browser initialization for anonymous page views and client-side
   navigation. Automatic interaction capture and session recording are disabled;
   deployment configuration and live ingestion remain unverified.
+- Sentry browser and Next.js server error capture is wired, with a temporary
+  `/sentry-test` button for a controlled verification event. Vercel configuration,
+  source-map uploads, and live event delivery remain unverified.
 - Google-only OAuth wiring through Convex Auth, including a first-party Next.js auth proxy, HTTP callback routes, and auth tables in the Convex schema.
 - Server-only Google provider credentials with required environment validation for `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
 - A validated public Convex client URL that rejects credentials, unexpected paths, queries, fragments, and insecure non-local origins.

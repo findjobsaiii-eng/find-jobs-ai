@@ -61,6 +61,8 @@ export default function OpenGraphImage() {
             background: "rgba(255,255,255,.96)",
           }}
         >
+          {/* ImageResponse renders this as SVG; next/image cannot run here. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoSrc}
             alt=""

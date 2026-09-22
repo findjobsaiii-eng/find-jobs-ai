@@ -1,16 +1,24 @@
 "use client";
 
+import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
 
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   const { t } = useTranslation();
+
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <AuthShell>
       <section className="max-w-md text-center" aria-labelledby="error-title">

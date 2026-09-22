@@ -31,6 +31,23 @@ Automatic interaction capture and session recording are disabled because the app
 handles candidate profiles and resumes. Custom events and user identification
 should be added only for specific product questions with a reviewed data policy.
 
+## Error monitoring
+
+Sentry captures browser and Next.js server errors when `NEXT_PUBLIC_SENTRY_DSN`
+is configured. It does not collect session replays or performance traces. The
+temporary `/sentry-test` page has a button that throws and reports one controlled
+error, then displays its event ID for lookup in Sentry. Remove that route after
+verifying deployment.
+
+For Vercel, configure `NEXT_PUBLIC_SENTRY_DSN` for each environment where events
+should be captured. Set `SENTRY_ORG`, `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` in
+Vercel for production source-map uploads. These four variables are sufficient;
+no additional Sentry variable is required. The auth token is used only during
+the Vercel build and must never use a `NEXT_PUBLIC_` prefix. Local builds skip
+source-map upload. Source-map upload uses Vercel's automatically exposed
+`VERCEL=1` system variable; enable system environment variables in Vercel if
+they were disabled for the project.
+
 Current implementation status, known gaps, and the recommended next milestone are tracked in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md). Durable technical choices and pending decisions are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Commands
