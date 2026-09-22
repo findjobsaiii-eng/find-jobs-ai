@@ -181,9 +181,9 @@ describe("resume-first onboarding", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a specific message when a valid PDF has no text layer", async () => {
+  it("does not tell users to replace a previously scanned PDF", async () => {
     expect(processingErrorKey(new ConvexError({ code: "SCANNED_PDF" }))).toBe(
-      "scannedPdf",
+      "parsing",
     );
     render(
       <ResumeOnboarding
@@ -199,7 +199,7 @@ describe("resume-first onboarding", () => {
       />,
     );
     expect(
-      await screen.findByText(/scanned PDF without selectable text/),
+      await screen.findByText(/couldn’t analyze the CV/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Fill in my profile manually" }),

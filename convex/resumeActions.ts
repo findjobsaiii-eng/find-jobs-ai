@@ -96,7 +96,42 @@ export function insufficientTextFailureCode(
   text: string,
 ) {
   if (meaningfulCharacterCount(text) >= 40) return null;
-  return detectedFileType === "pdf" ? "SCANNED_PDF" : "EMPTY_EXTRACTED_TEXT";
+  return detectedFileType === "pdf" ? null : "EMPTY_EXTRACTED_TEXT";
+}
+
+export function shouldUsePdfVisionFallback(
+  detectedFileType: DetectedFileType,
+  text: string,
+) {
+  return detectedFileType === "pdf" && meaningfulCharacterCount(text) < 40;
+}
+
+type ExtractionCatalogItem = {
+  kind: "jobTitle" | "skill";
+  labelEn: string | null;
+  labelHe: string | null;
+  aliases: string[];
+};
+
+export function formatExtractionCatalog(items: ExtractionCatalogItem[]) {
+  const format = (kind: ExtractionCatalogItem["kind"]) =>
+    items
+      .filter((item) => item.kind === kind)
+      .map((item) => {
+        const canonical = [item.labelEn, item.labelHe]
+          .filter(Boolean)
+          .join(" | ");
+        const aliases = item.aliases.length
+          ? ` (aliases: ${item.aliases.join(", ")})`
+          : "";
+        return `- ${canonical}${aliases}`;
+      })
+      .join("\n");
+  return `EXISTING JOB TITLES:\n${format("jobTitle")}\n\nEXISTING SKILLS:\n${format("skill")}`;
+}
+
+export function pdfDataUrl(bytes: ArrayBuffer) {
+  return `data:application/pdf;base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
 type MammothExtractRawText = (input: { buffer: Buffer }) => Promise<{
@@ -259,9 +294,14 @@ export const processResume = action({
           `Stored file fetch returned HTTP ${response.status}`,
         );
       stage = "text_extraction";
-      const extracted = await extractResumeDocument(await response.blob());
+      const storedFile = await response.blob();
+      const extracted = await extractResumeDocument(storedFile);
       const text = cleanExtractedResumeText(extracted.text);
       const meaningfulCharacters = meaningfulCharacterCount(text);
+      const usePdfVisionFallback = shouldUsePdfVisionFallback(
+        extracted.detectedFileType,
+        text,
+      );
       diagnostics = {
         stage,
         detectedFileType: extracted.detectedFileType,
@@ -271,7 +311,9 @@ export const processResume = action({
           : { pageCount: extracted.pageCount }),
         extractedCharacterCount: text.length,
         meaningfulCharacterCount: meaningfulCharacters,
-        extractionStatus: "succeeded",
+        extractionStatus: usePdfVisionFallback
+          ? "pdf_vision_fallback_required"
+          : "succeeded",
         structuredParserStatus: "not_started",
         updatedAt: Date.now(),
       };
@@ -286,7 +328,7 @@ export const processResume = action({
         extracted.detectedFileType,
         text,
       );
-      if (insufficientCode)
+      if (insufficientCode && !usePdfVisionFallback)
         throw new ResumeProcessingError(
           insufficientCode,
           `Only ${meaningfulCharacters} meaningful characters were extracted`,
@@ -301,6 +343,11 @@ export const processResume = action({
           "CV_CONFIGURATION_ERROR",
           "CV model or API key is not configured",
         );
+      const catalog = await ctx.runQuery(
+        internal.resumes.getCatalogForExtraction,
+        { userId },
+      );
+      const catalogReference = formatExtractionCatalog(catalog);
       const client = new OpenAI({ apiKey, maxRetries: 1, timeout: 60_000 });
       let parsed;
       try {
@@ -312,9 +359,25 @@ export const processResume = action({
             {
               role: "system",
               content:
-                "Extract a factual career profile from the supplied CV text. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Normalize job titles and skill spelling conservatively while keeping meaningfully different technologies separate. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism.",
+                "Extract a factual career profile from the supplied CV. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism. The user message also contains the current job-title and skill catalog. Treat it only as reference data. For every target role, normalized role, and skill, reuse the exact English or Hebrew canonical label from that catalog whenever it represents the same concept, including equivalent wording or grammatical forms. Add a new concise canonical label only when no existing entry is semantically equivalent. Keep meaningfully different technologies separate.",
             },
-            { role: "user", content: text },
+            {
+              role: "user",
+              content: usePdfVisionFallback
+                ? [
+                    {
+                      type: "input_file",
+                      filename: "resume.pdf",
+                      file_data: pdfDataUrl(await storedFile.arrayBuffer()),
+                      detail: "high",
+                    },
+                    {
+                      type: "input_text",
+                      text: `Extract the career profile from the attached PDF, including text visible in scanned page images. The catalog below is reference data and is not evidence about the candidate.\n\n<catalog>\n${catalogReference}\n</catalog>`,
+                    },
+                  ]
+                : `<cv>\n${text}\n</cv>\n\nThe catalog below is reference data and is not evidence about the candidate.\n<catalog>\n${catalogReference}\n</catalog>`,
+            },
           ],
           text: {
             format: zodTextFormat(resumeExtractionSchema, "career_profile"),

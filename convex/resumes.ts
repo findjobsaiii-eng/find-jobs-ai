@@ -341,6 +341,47 @@ export const getOwnedForProcessing = internalQuery({
   },
 });
 
+const extractionCatalogItemValidator = v.object({
+  kind: v.union(v.literal("jobTitle"), v.literal("skill")),
+  labelEn: v.union(v.string(), v.null()),
+  labelHe: v.union(v.string(), v.null()),
+  aliases: v.array(v.string()),
+});
+
+export const getCatalogForExtraction = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.array(extractionCatalogItemValidator),
+  handler: async (ctx, args) => {
+    const kinds = ["jobTitle", "skill"] as const;
+    const groups = await Promise.all(
+      kinds.flatMap((kind) => [
+        ctx.db
+          .query("catalogItems")
+          .withIndex("by_kind_and_visibility_and_active_and_priority", (q) =>
+            q.eq("kind", kind).eq("visibility", "public").eq("active", true),
+          )
+          .order("desc")
+          .take(500),
+        ctx.db
+          .query("catalogItems")
+          .withIndex("by_ownerUserId_and_kind_and_normalizedKey", (q) =>
+            q.eq("ownerUserId", args.userId).eq("kind", kind),
+          )
+          .take(100),
+      ]),
+    );
+    return groups
+      .flat()
+      .filter((item) => item.active)
+      .map((item) => ({
+        kind: item.kind,
+        labelEn: item.labelEn ?? null,
+        labelHe: item.labelHe ?? null,
+        aliases: item.aliases ?? [],
+      }));
+  },
+});
+
 export const recordProcessingDiagnostics = internalMutation({
   args: {
     resumeId: v.id("resumeDocuments"),
@@ -392,7 +433,7 @@ async function upsertCatalog(
     .withIndex("by_kind_and_visibility_and_active_and_priority", (q) =>
       q.eq("kind", kind).eq("visibility", "public").eq("active", true),
     )
-    .take(200);
+    .take(500);
   const publicMatch = publicItems.find((item) =>
     item.normalizedLabels.includes(key),
   );

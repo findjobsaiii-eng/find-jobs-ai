@@ -5,9 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cleanExtractedResumeText,
   extractResumeText,
+  formatExtractionCatalog,
   insufficientTextFailureCode,
   meaningfulCharacterCount,
+  pdfDataUrl,
   resolveMammothExtractRawText,
+  shouldUsePdfVisionFallback,
 } from "./resumeActions";
 
 async function docxWithText(text: string) {
@@ -98,8 +101,8 @@ describe("CV text extraction", () => {
     ).toBeGreaterThan(20);
   });
 
-  it("distinguishes a scanned PDF from an empty DOCX", () => {
-    expect(insufficientTextFailureCode("pdf", " \n ")).toBe("SCANNED_PDF");
+  it("does not reject a scanned PDF as empty", () => {
+    expect(insufficientTextFailureCode("pdf", " \n ")).toBeNull();
     expect(insufficientTextFailureCode("docx", " \n ")).toBe(
       "EMPTY_EXTRACTED_TEXT",
     );
@@ -109,6 +112,34 @@ describe("CV text extraction", () => {
         "ניסיון מקצועי משמעותי בניהול מסחר אלקטרוני ופיתוח אתרים Shopify",
       ),
     ).toBeNull();
+  });
+
+  it("routes image-only PDFs to the model file input", () => {
+    expect(shouldUsePdfVisionFallback("pdf", " \n ")).toBe(true);
+    expect(shouldUsePdfVisionFallback("docx", " \n ")).toBe(false);
+    expect(pdfDataUrl(new Uint8Array([1, 2, 3]).buffer)).toBe(
+      "data:application/pdf;base64,AQID",
+    );
+  });
+
+  it("formats existing roles, skills, and aliases as extraction references", () => {
+    const catalog = formatExtractionCatalog([
+      {
+        kind: "jobTitle",
+        labelEn: "Data Entry Clerk",
+        labelHe: "קלדן נתונים",
+        aliases: ["מקליד נתונים"],
+      },
+      {
+        kind: "skill",
+        labelEn: "Fast Typing",
+        labelHe: "הקלדה מהירה",
+        aliases: ["מקליד מהר"],
+      },
+    ]);
+    expect(catalog).toContain("Data Entry Clerk | קלדן נתונים");
+    expect(catalog).toContain("Fast Typing | הקלדה מהירה");
+    expect(catalog).toContain("aliases: מקליד מהר");
   });
 
   it("rejects malformed DOCX bytes and keeps empty extraction visibly empty", async () => {
