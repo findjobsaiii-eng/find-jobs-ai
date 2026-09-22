@@ -15,7 +15,11 @@ export function AuthShell({
   identity?: CurrentProfile["identity"];
 }) {
   return (
-    <main className="auth-shell-surface relative isolate flex min-h-svh overflow-hidden px-4 py-4 text-start sm:px-8 sm:py-6">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="auth-shell-surface relative isolate flex min-h-svh overflow-hidden px-4 py-4 text-start sm:px-8 sm:py-6"
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-[34rem] max-w-5xl bg-[radial-gradient(circle_at_top,var(--color-brand-glow),transparent_68%)]"

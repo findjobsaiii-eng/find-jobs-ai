@@ -229,7 +229,6 @@ export const processResume = action({
       meaningfulCharacterCount?: number;
       extractionStatus: string;
       structuredParserStatus: string;
-      technicalMessage?: string;
       updatedAt: number;
     } = {
       stage,
@@ -421,7 +420,6 @@ export const processResume = action({
               : "failed",
         structuredParserStatus:
           stage === "structured_parsing" ? "failed" : "not_started",
-        technicalMessage: technicalMessage(error),
         updatedAt: Date.now(),
       };
       await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {

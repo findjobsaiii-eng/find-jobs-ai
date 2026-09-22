@@ -26,6 +26,14 @@ async function seedUserAndResume(
       email: "candidate@example.com",
       name,
     });
+    await ctx.db.insert("legalConsents", {
+      userId,
+      termsVersion: "2026-09-22-draft-1",
+      privacyVersion: "2026-09-22-draft-1",
+      acceptedAt: Date.now(),
+      marketingOptIn: false,
+      marketingUpdatedAt: Date.now(),
+    });
     const storageId = await ctx.storage.store(
       new Blob(["fixture"], { type: "application/pdf" }),
     );
@@ -103,6 +111,18 @@ function completion(
 }
 
 describe("CV-derived effective profiles", () => {
+  it("limits signed upload URLs per user", async () => {
+    const t = convexTest(schema, modules);
+    const { userId } = await seedUserAndResume(t);
+    const user = asUser(t, userId);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await user.mutation(api.resumes.generateUploadUrl, {});
+    }
+    await expect(
+      user.mutation(api.resumes.generateUploadUrl, {}),
+    ).rejects.toThrow();
+  });
+
   it("creates a usable profile and exposes it to job search after lightweight review", async () => {
     const t = convexTest(schema, modules);
     const { userId, resumeId } = await seedUserAndResume(t);
@@ -387,6 +407,14 @@ describe("CV-derived effective profiles", () => {
     const userId = await t.run((ctx) =>
       ctx.db.insert("users", { email: "candidate@example.com" }),
     );
+    await expect(
+      asUser(t, userId).mutation(api.resumes.generateUploadUrl, {}),
+    ).rejects.toThrow();
+    await asUser(t, userId).mutation(api.legalConsents.acceptCurrent, {
+      termsVersion: "2026-09-22-draft-1",
+      privacyVersion: "2026-09-22-draft-1",
+      marketingOptIn: false,
+    });
     const storageId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["plain"], { type: "text/plain" })),
     );
@@ -413,7 +441,7 @@ describe("CV-derived effective profiles", () => {
         mimeType: "application/octet-stream",
         size: 16,
       }),
-    ).resolves.toBeTruthy();
+    ).rejects.toThrow();
   });
 
   it("fails safely when structured extraction has no usable roles or skills", async () => {

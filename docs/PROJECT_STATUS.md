@@ -1,6 +1,14 @@
 # Project status
 
-Last repository audit: 2026-09-09
+Last repository audit: 2026-09-22
+
+## Production readiness work in progress
+
+- Implemented on the current branch: consent-gated PostHog page views, Sentry event scrubbing, bilingual draft legal routes and shared footer, skip link, sitemap/robots, noindex on protected routes, a web-to-Convex health endpoint, and a Convex record of terms/privacy acceptance with a separate marketing choice. CV upload checks acceptance server-side.
+- Incomplete: comprehensive accessibility remediation and axe/Lighthouse audit; verified data export; retention and backup deletion policy; complete security and production configuration verification; full browser journey tests. Self-service deletion now removes user-linked Convex data and files in scheduled batches, but shared job data, vendor logs and backups remain outside that automatic path. Data-copy requests use the owner-supplied email.
+- Unknown outside the repository: production vendor settings and callback URLs, hosting countries, backup/restore results, mailbox monitoring, and legal operator identity. See `docs/LAUNCH_OWNER_CHECKLIST.md`.
+- The incident response outline is in `docs/INCIDENT_RESPONSE.md`; it has not been rehearsed.
+- These changes are not evidence of WCAG 2.1 AA / Israeli Standard 5568 conformance or legal compliance. Legal pages are drafts pending Israeli counsel review.
 
 This document reports what is present in the repository. It does not confirm external service configuration unless that configuration is represented and testable from the repository.
 

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/product-layout";
+import { DataControls } from "@/features/privacy/data-controls";
 import { cn } from "@/lib/utils";
 import type { CurrentProfile } from "./profile-types";
 import { ProfileEditor } from "./profile-editor";
@@ -113,6 +114,7 @@ export function ProfileOverview({
           {activeSection === "resumes" ? <ResumeLibrary /> : null}
         </div>
       </div>
+      <DataControls />
       <DiscardProfileChangesDialog
         open={pendingSection !== null}
         onOpenChange={(open) => {

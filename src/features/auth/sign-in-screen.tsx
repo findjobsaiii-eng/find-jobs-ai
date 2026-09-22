@@ -4,6 +4,7 @@ import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./auth-shell";
+import { PrivacyNotice } from "@/features/privacy/privacy-notice";
 import { GoogleMark } from "./google-mark";
 import { useGoogleSignIn } from "./use-google-sign-in";
 
@@ -46,6 +47,9 @@ export function SignInScreen() {
           )}
           {isSubmitting ? t("auth.connecting") : t("auth.continueWithGoogle")}
         </Button>
+        <div className="mt-4">
+          <PrivacyNotice context="signIn" />
+        </div>
 
         <div aria-live="polite" className="min-h-6 pt-3 text-center text-sm">
           {error ? <p className="text-destructive">{error}</p> : null}

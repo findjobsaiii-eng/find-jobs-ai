@@ -16,6 +16,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <ConvexAuthNextjsServerProvider shouldHandleCode={false}>
       <html lang="he" dir="rtl" suppressHydrationWarning>
         <body>
+          <a
+            href="#main-content"
+            className="bg-background text-foreground fixed start-4 top-2 z-50 -translate-y-24 rounded-lg px-4 py-2 shadow-lg focus:translate-y-0"
+          >
+            דלג לתוכן / Skip to content
+          </a>
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
