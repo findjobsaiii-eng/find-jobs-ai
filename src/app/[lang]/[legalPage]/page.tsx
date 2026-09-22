@@ -74,7 +74,7 @@ export default async function LegalPage({ params }: Props) {
         </h1>
         <p className="text-muted-foreground mt-3 text-sm">
           {lang === "he" ? "גרסה" : "Version"} {legalVersion} ·{" "}
-          {lang === "he" ? "עודכן" : "Updated"} 22.09.2026
+          {lang === "he" ? "עודכן" : "Updated"} 23.09.2026
         </p>
         <p className="mt-7 text-lg leading-8">{page.content.introduction}</p>
         {legalPage === "contact" ? (

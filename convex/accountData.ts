@@ -174,6 +174,16 @@ export const deleteBatch = internalMutation({
         break;
       }
       case 13: {
+        const rows = await ctx.db
+          .query("emailPreferences")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows)
+          await ctx.db.delete("emailPreferences", row._id);
+        break;
+      }
+      case 14: {
         const sessions = await ctx.db
           .query("authSessions")
           .withIndex("userId", (q) => q.eq("userId", userId))
@@ -198,7 +208,7 @@ export const deleteBatch = internalMutation({
         }
         break;
       }
-      case 14: {
+      case 15: {
         const accounts = await ctx.db
           .query("authAccounts")
           .withIndex("userIdAndProvider", (q) => q.eq("userId", userId))
@@ -216,7 +226,7 @@ export const deleteBatch = internalMutation({
         }
         break;
       }
-      case 15: {
+      case 16: {
         const rows = await ctx.db
           .query("resumeUploadRateLimits")
           .withIndex("by_userId", (q) => q.eq("userId", userId))

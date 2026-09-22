@@ -1,10 +1,11 @@
 # Project status
 
-Last repository audit: 2026-09-22
+Last repository audit: 2026-09-23
 
 ## Production readiness work in progress
 
 - Implemented on the current branch: consent-gated PostHog page views, Sentry event scrubbing, bilingual draft legal routes and shared footer, skip link, sitemap/robots, noindex on protected routes, a web-to-Convex health endpoint, and a Convex record of terms/privacy acceptance with a separate marketing choice. CV upload checks acceptance server-side.
+- Implemented: Resend service notifications after automatic searches that produce visible matches, with Hebrew RTL content, daily/weekly/never user controls, duplicate-send protection, and removal of email state during account deletion.
 - Incomplete: comprehensive accessibility remediation and axe/Lighthouse audit; verified data export; retention and backup deletion policy; complete security and production configuration verification; full browser journey tests. Self-service deletion now removes user-linked Convex data and files in scheduled batches, but shared job data, vendor logs and backups remain outside that automatic path. Data-copy requests use the owner-supplied email.
 - Unknown outside the repository: production vendor settings and callback URLs, hosting countries, backup/restore results, mailbox monitoring, and legal operator identity. See `docs/LAUNCH_OWNER_CHECKLIST.md`.
 - The incident response outline is in `docs/INCIDENT_RESPONSE.md`; it has not been rehearsed.
@@ -25,6 +26,7 @@ This document reports what is present in the repository. It does not confirm ext
 | Package management     | npm with a committed `package-lock.json`                               |
 | Static validation      | TypeScript, Next ESLint, Prettier, Vitest, and `next build`            |
 | Continuous integration | GitHub Actions on pull requests and pushes to `main`, using Node.js 22 |
+| Service email          | Resend, called only from a Convex Node action                          |
 
 Node.js 22 or newer is documented and enforced through `package.json` engines; CI uses Node.js 22.
 

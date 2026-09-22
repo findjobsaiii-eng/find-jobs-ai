@@ -15,6 +15,7 @@ import {
   searchJobsWithOpenAI,
 } from "./openAIJobProvider";
 import { classifyJobSource } from "./jobSourceQuality";
+import { globalDayKey } from "./jobSearchPolicy";
 
 const discoveryBucketValidator = v.union(
   v.null(),
@@ -348,13 +349,15 @@ export const runDailyBatch = internalAction({
     for (const userId of args.userIds) {
       let outcome = "completed";
       let retryable = false;
+      let shouldNotify = false;
       try {
         const result = await discoverForUser(ctx, userId);
+        const hasVisibleJobs = await ctx.runQuery(
+          internal.jobDiscovery.hasVisibleJobsForUser,
+          { userId },
+        );
+        shouldNotify = hasVisibleJobs;
         if (result.generatedQueryCount === 0) {
-          const hasVisibleJobs = await ctx.runQuery(
-            internal.jobDiscovery.hasVisibleJobsForUser,
-            { userId },
-          );
           outcome = hasVisibleJobs ? "reused" : "no_search";
           retryable = !hasVisibleJobs;
         } else if (result.acceptedCount === 0) {
@@ -371,6 +374,16 @@ export const runDailyBatch = internalAction({
         outcome,
         retryable,
       });
+      if (shouldNotify) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.jobEmailActions.sendJobMatches,
+          {
+            userId,
+            dayKey: globalDayKey(Date.now()),
+          },
+        );
+      }
     }
     if (args.cursor !== null) {
       await ctx.scheduler.runAfter(0, internal.dailyDiscovery.dispatch, {

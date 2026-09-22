@@ -28,8 +28,8 @@ async function seedUserAndResume(
     });
     await ctx.db.insert("legalConsents", {
       userId,
-      termsVersion: "2026-09-22-draft-1",
-      privacyVersion: "2026-09-22-draft-1",
+      termsVersion: "2026-09-23-draft-2",
+      privacyVersion: "2026-09-23-draft-2",
       acceptedAt: Date.now(),
       marketingOptIn: false,
       marketingUpdatedAt: Date.now(),
@@ -411,8 +411,8 @@ describe("CV-derived effective profiles", () => {
       asUser(t, userId).mutation(api.resumes.generateUploadUrl, {}),
     ).rejects.toThrow();
     await asUser(t, userId).mutation(api.legalConsents.acceptCurrent, {
-      termsVersion: "2026-09-22-draft-1",
-      privacyVersion: "2026-09-22-draft-1",
+      termsVersion: "2026-09-23-draft-2",
+      privacyVersion: "2026-09-23-draft-2",
       marketingOptIn: false,
     });
     const storageId = await t.run((ctx) =>

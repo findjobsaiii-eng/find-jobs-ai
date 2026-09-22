@@ -1,12 +1,13 @@
 import type { EditableProfileSection } from "./profile-editor";
 
-export type ProfileSection = EditableProfileSection | "resumes";
+export type ProfileSection = EditableProfileSection | "resumes" | "emails";
 
 export const PROFILE_SECTION_IDS: readonly ProfileSection[] = [
   "professional",
   "preferences",
   "languages",
   "resumes",
+  "emails",
 ];
 
 export function isProfileSection(value: string): value is ProfileSection {

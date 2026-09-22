@@ -47,7 +47,7 @@ verifying deployment.
 ## Launch documents and consent
 
 Draft bilingual terms, privacy, cookie, accessibility and contact pages have
-stable `/he/...` and `/en/...` URLs. Their version is `2026-09-22-draft-1`.
+stable `/he/...` and `/en/...` URLs. Their version is `2026-09-23-draft-2`.
 Authentication leads to a terms/privacy acceptance gate; Convex records its
 version, server timestamp and separate optional marketing preference. CV upload
 is blocked on the server until that acceptance is stored. The owner supplied
@@ -257,11 +257,19 @@ JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
 JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
 JOB_SEARCH_MAX_CONCURRENT_RUNS
 JOB_SEARCH_OUTPUT_TOKEN_LIMIT
+RESEND_API_KEY
 ```
 
 Use at least `4000` for `JOB_SEARCH_OUTPUT_TOKEN_LIMIT`; the structured job
 batch can contain up to ten candidates and a smaller limit can truncate useful
 provider results.
+
+After an automatic search finds visible matches, Convex schedules a Hebrew RTL
+notification through Resend from `JOBMITER <info@jobmiter.com>`. The first
+search after onboarding uses the same path. Users can choose daily, weekly, or
+never at `/profile/emails`; the default is daily. Delivery claims are stored per
+user and Resend idempotency keys prevent duplicate sends during retries. The
+sending domain `jobmiter.com` must be verified in Resend.
 
 The model must support the Responses API, Web Search, and Structured Outputs.
 The initial recommended development value is `gpt-5.6-luna`; keep the model in
@@ -403,7 +411,7 @@ header or content layout.
 
 Authenticated routes live under the `(app)` route group. Profile topics have
 stable URLs: `/profile`, `/profile/preferences`, `/profile/languages`, and
-`/profile/resumes`. Opening one while signed out keeps that exact URL visible and
+`/profile/resumes`, and `/profile/emails`. Opening one while signed out keeps that exact URL visible and
 shows the sign-in prompt; after Google sign-in, the requested page is revealed.
 This client-side presentation gate complements the owner checks in Convex, which
 remain the authorization boundary. Unsaved profile edits require confirmation

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LocalizedDate } from "@/components/ui/localized-date";
 import { useQuery } from "convex/react";
@@ -41,6 +42,7 @@ export function JobDiscoveryPanel({
   const [notice, setNotice] = useState<{ key: string } | null>(null);
   const [filter, setFilter] = useState<ApplicationFilter>("all");
   const result = useQuery(api.jobDiscovery.listCurrentUserJobs, { view });
+  const emailPreference = useQuery(api.emailPreferences.getMine);
 
   const jobs = result?.jobs ?? [];
   const availableStatuses = applicationStatusesInUse(
@@ -195,6 +197,25 @@ export function JobDiscoveryPanel({
                   <Button className="mt-5" onClick={onEdit}>
                     {t("jobDiscovery.expandSearchRadius")}
                   </Button>
+                ) : null}
+                {view === "suggestions" &&
+                !discoveryPending &&
+                emailPreference ? (
+                  <p className="text-muted-foreground mt-5 max-w-md text-sm leading-6">
+                    {emailPreference.frequency === "never" ? (
+                      <>
+                        {t("jobDiscovery.emailNotice.disabled")}{" "}
+                        <Link
+                          href="/profile/emails"
+                          className="text-primary font-medium underline underline-offset-4"
+                        >
+                          {t("jobDiscovery.emailNotice.enable")}
+                        </Link>
+                      </>
+                    ) : (
+                      t("jobDiscovery.emailNotice.enabled")
+                    )}
+                  </p>
                 ) : null}
               </m.div>
             ) : (

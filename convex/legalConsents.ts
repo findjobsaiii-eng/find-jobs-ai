@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-const VERSION = "2026-09-22-draft-1";
+const VERSION = "2026-09-23-draft-2";
 
 export const getCurrent = query({
   args: {},

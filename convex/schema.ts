@@ -306,6 +306,24 @@ const schema = defineSchema({
     marketingOptIn: v.boolean(),
     marketingUpdatedAt: v.number(),
   }).index("by_userId", ["userId"]),
+  emailPreferences: defineTable({
+    userId: v.id("users"),
+    frequency: v.union(
+      v.literal("daily"),
+      v.literal("weekly"),
+      v.literal("never"),
+    ),
+    updatedAt: v.number(),
+    pendingDeliveryKey: v.optional(v.string()),
+    pendingAt: v.optional(v.number()),
+    lastSentAt: v.optional(v.number()),
+    lastSentPeriodKey: v.optional(v.string()),
+    lastAttemptAt: v.optional(v.number()),
+    lastStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    ),
+    resendEmailId: v.optional(v.string()),
+  }).index("by_userId", ["userId"]),
   resumeUploadRateLimits: defineTable({
     userId: v.id("users"),
     windowStartedAt: v.number(),

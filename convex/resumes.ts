@@ -18,7 +18,7 @@ const SUPPORTED_TYPES = new Set([
 const MAX_BYTES = 10 * 1024 * 1024;
 const UPLOADS_PER_HOUR = 10;
 const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
-const CURRENT_TERMS_VERSION = "2026-09-22-draft-1";
+const CURRENT_TERMS_VERSION = "2026-09-23-draft-2";
 
 const processingDiagnosticsValidator = v.object({
   stage: v.string(),

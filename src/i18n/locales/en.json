@@ -45,6 +45,7 @@
     "cookies": "Cookie policy",
     "accessibility": "Accessibility statement",
     "contact": "Contact",
+    "emailPreferences": "Stop job emails",
     "preferences": "Cookie preferences"
   },
   "legalAcceptance": {
@@ -282,6 +283,11 @@
     "expandSearchRadius": "Expand search radius",
     "noActiveEmptyTitle": "No verified active jobs are available right now.",
     "noActiveEmptyDescription": "We'll show new opportunities here when verified active jobs matching your profile become available.",
+    "emailNotice": {
+      "enabled": "When matching jobs are found, we'll email you at your selected frequency.",
+      "disabled": "Job email updates are turned off.",
+      "enable": "Enable them in settings"
+    },
     "location": "Location",
     "remoteLocation": "Location flexible",
     "arrangement": "Work arrangement",
@@ -748,8 +754,30 @@
       "professional": "Roles and experience",
       "preferences": "Preferences",
       "languages": "Languages",
-      "resumes": "Resumes"
+      "resumes": "Resumes",
+      "emails": "Email updates"
     }
+  },
+  "emailPreferences": {
+    "title": "Job email updates",
+    "description": "We send an update only after a search finds matching jobs for you.",
+    "frequency": "Job email frequency",
+    "options": {
+      "daily": {
+        "label": "Daily",
+        "description": "At most one update on each day matching jobs are found."
+      },
+      "weekly": {
+        "label": "Weekly",
+        "description": "At most one update every seven days."
+      },
+      "never": {
+        "label": "Never",
+        "description": "Do not send job updates by email."
+      }
+    },
+    "saved": "Your email preference was saved.",
+    "error": "We couldn't save your preference. Please try again."
   },
   "resumeLibrary": {
     "title": "My resumes",

@@ -33,11 +33,16 @@ describe("account deletion", () => {
       });
       await ctx.db.insert("legalConsents", {
         userId,
-        termsVersion: "2026-09-22-draft-1",
-        privacyVersion: "2026-09-22-draft-1",
+        termsVersion: "2026-09-23-draft-2",
+        privacyVersion: "2026-09-23-draft-2",
         acceptedAt: Date.now(),
         marketingOptIn: false,
         marketingUpdatedAt: Date.now(),
+      });
+      await ctx.db.insert("emailPreferences", {
+        userId,
+        frequency: "weekly",
+        updatedAt: Date.now(),
       });
       const sessionId = await ctx.db.insert("authSessions", {
         userId,
@@ -76,6 +81,7 @@ describe("account deletion", () => {
       expect(await ctx.storage.get(storageId)).toBeNull();
       expect(await ctx.db.query("resumeDocuments").collect()).toHaveLength(0);
       expect(await ctx.db.query("legalConsents").collect()).toHaveLength(0);
+      expect(await ctx.db.query("emailPreferences").collect()).toHaveLength(0);
       expect(await ctx.db.query("authSessions").collect()).toHaveLength(0);
       expect(await ctx.db.query("authAccounts").collect()).toHaveLength(0);
       expect(await ctx.db.query("accountDeletionJobs").collect()).toHaveLength(

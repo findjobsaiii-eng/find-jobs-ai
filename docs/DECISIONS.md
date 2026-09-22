@@ -8,7 +8,7 @@ This log contains decisions that can be verified from committed files. Unresolve
 - Retention periods, backup purge windows, data export method, and full account deletion workflow are not decided. Legal drafts describe these limits instead of inventing commitments.
 - The contact address is `info@jobmiter.com`; mailbox monitoring and response ownership remain unverified.
 - PostHog is opt-in page-view analytics, with autocapture and session recording disabled. Sentry event content is reduced to error category and event ID. Production network verification remains pending.
-- Legal drafts use version `2026-09-22-draft-1` and require Israeli counsel approval before launch.
+- Legal drafts use version `2026-09-23-draft-2` and require Israeli counsel approval before launch.
 
 ## Verified decisions
 
@@ -581,6 +581,19 @@ status-removal event; it does not delete the activity record, notes, earlier
 status changes, snapshot, or application timestamps. A status-free record does
 not hide an otherwise eligible job from Suggestions, so its retained timeline
 can be shown again when the job is visible there.
+
+### D-031: Job-match email follows automatic discovery
+
+Status: Accepted (2026-09-23)
+
+Evidence: `convex/jobDiscoveryActions.ts`, `convex/emailPreferences.ts`,
+`convex/jobEmailActions.ts`, and `src/features/profile/email-preferences.tsx`.
+
+The existing automatic discovery path schedules a Resend service notification
+only when the current profile has visible matches. A newly completed profile
+uses that same path. Frequency defaults to daily and can be changed to weekly or
+never. Per-user delivery state and provider idempotency keys suppress duplicate
+sends; email preferences remain separate from matching profile revisions.
 
 ## Job activity freshness (2026-09-09)
 

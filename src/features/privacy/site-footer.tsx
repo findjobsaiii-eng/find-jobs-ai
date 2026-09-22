@@ -32,6 +32,12 @@ export function SiteFooter() {
         >
           {t("siteFooter.contact")}
         </Link>
+        <Link
+          href="/profile/emails"
+          className="hover:text-foreground underline-offset-4 focus-visible:underline"
+        >
+          {t("siteFooter.emailPreferences")}
+        </Link>
         <button
           type="button"
           onClick={openPreferences}

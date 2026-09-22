@@ -8,6 +8,7 @@ import {
   Check,
   FileText,
   Languages,
+  Mail,
   SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -19,12 +20,14 @@ import { ProfileEditor } from "./profile-editor";
 import { ResumeLibrary } from "./resume-library";
 import { DiscardProfileChangesDialog } from "./discard-profile-changes-dialog";
 import { profileSectionHref, type ProfileSection } from "./profile-section";
+import { EmailPreferences } from "./email-preferences";
 
 const PROFILE_SECTIONS = [
   { id: "professional", icon: BriefcaseBusiness },
   { id: "preferences", icon: SlidersHorizontal },
   { id: "languages", icon: Languages },
   { id: "resumes", icon: FileText },
+  { id: "emails", icon: Mail },
 ] as const;
 
 export function ProfileOverview({
@@ -112,6 +115,7 @@ export function ProfileOverview({
           ) : null}
 
           {activeSection === "resumes" ? <ResumeLibrary /> : null}
+          {activeSection === "emails" ? <EmailPreferences /> : null}
         </div>
       </div>
       <DataControls />

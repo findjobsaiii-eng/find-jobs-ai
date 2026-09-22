@@ -1,6 +1,6 @@
 // Draft copy grounded in the services currently used by JOBMITER.
 // Owner identity, contact channel and retention periods still require decisions.
-export const legalVersion = "2026-09-22-draft-1";
+export const legalVersion = "2026-09-23-draft-2";
 
 type Section = { heading: string; body: string };
 type Page = { title: string; introduction: string; sections: Section[] };
@@ -57,15 +57,15 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "מידע שנאסף",
-          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, הערות, סטטוס מועמדויות ואינטראקציות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. PostHog אמור לקבל צפיות בעמודים בלבד אחרי הסכמה לעוגיות לא חיוניות.",
+          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, העדפת תדירות עדכוני משרות וסטטוס מסירה, הערות, סטטוס מועמדויות ואינטראקציות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. PostHog אמור לקבל צפיות בעמודים בלבד אחרי הסכמה לעוגיות לא חיוניות.",
         },
         {
           heading: "מטרות העיבוד",
-          body: "המידע משמש לאימות, שמירת החשבון, ניתוח קורות חיים, איתור ודירוג משרות, מעקב מועמדויות, אבטחה, טיפול בתקלות ושיפור שימושיות בכפוף להסכמה לניתוח שימוש. אין בקוד כיום מנגנון דיוור שיווקי פעיל.",
+          body: "המידע משמש לאימות, שמירת החשבון, ניתוח קורות חיים, איתור ודירוג משרות, שליחת עדכוני משרות לפי התדירות שבחר המשתמש, מעקב מועמדויות, אבטחה, טיפול בתקלות ושיפור שימושיות בכפוף להסכמה לניתוח שימוש. אין בקוד מנגנון דיוור שיווקי פעיל.",
         },
         {
           heading: "ספקים והעברות",
-          body: "Vercel מארחת את אתר האינטרנט; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה באמצעות OAuth והצעות מיקום ב־Maps; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח צפיות לאחר הסכמה. שימוש בספקים אלה עשוי לכלול עיבוד מחוץ לישראל. מדינות האחסון, תנאי ההעברה ורשימת ספקי המשנה המעודכנת טעונים אימות בעלים.",
+          body: "Vercel מארחת את אתר האינטרנט; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה באמצעות OAuth והצעות מיקום ב־Maps; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות לכתובת האימייל של המשתמש; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח צפיות לאחר הסכמה. שימוש בספקים אלה עשוי לכלול עיבוד מחוץ לישראל. מדינות האחסון, תנאי ההעברה ורשימת ספקי המשנה המעודכנת טעונים אימות בעלים.",
         },
         {
           heading: "שמירה ומחיקה",
@@ -178,15 +178,15 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "Information collected",
-          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, notes and application status. Hosting and security services may process IP address, browser, request time and technical error data. PostHog is intended to receive page views only after optional analytics consent.",
+          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, job-email frequency and delivery status, notes and application status. Hosting and security services may process IP address, browser, request time and technical error data. PostHog is intended to receive page views only after optional analytics consent.",
         },
         {
           heading: "Purposes",
-          body: "Data is used for authentication, account storage, resume analysis, job discovery and ranking, application tracking, security, error handling and usability analytics with consent. No active marketing email mechanism was found in the code.",
+          body: "Data is used for authentication, account storage, resume analysis, job discovery and ranking, user-controlled job-match email notifications, application tracking, security, error handling and usability analytics with consent. The code does not send marketing email.",
         },
         {
           heading: "Providers and transfers",
-          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides OAuth sign-in and Maps location suggestions; OpenAI processes content for resume and job analysis; Sentry reports errors; PostHog provides consent-based page analytics. Processing may take place outside Israel. Hosting countries, transfer terms and current subprocessors require owner verification.",
+          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides OAuth sign-in and Maps location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications to the user's email address; Sentry reports errors; PostHog provides consent-based page analytics. Processing may take place outside Israel. Hosting countries, transfer terms and current subprocessors require owner verification.",
         },
         {
           heading: "Retention and deletion",
