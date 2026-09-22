@@ -23,21 +23,49 @@ The Convex setup creates the local environment configuration used by `NEXT_PUBLI
 
 ## Analytics
 
-PostHog captures anonymous page views, including client-side navigation, when
+PostHog captures anonymous page views only after the visitor accepts optional
+analytics in the cookie banner. It captures client-side navigation when
 `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` are set in the
 ignored `.env.local` file. Set the same variables in the Next.js hosting
 environment for deployment. Restart or rebuild Next.js after changing them.
 Automatic interaction capture and session recording are disabled because the app
 handles candidate profiles and resumes. Custom events and user identification
 should be added only for specific product questions with a reviewed data policy.
+Visitors can reject optional analytics or change their choice from the footer.
+The PostHog client is loaded lazily after opt-in and uses memory-only persistence.
 
 ## Error monitoring
 
 Sentry captures browser and Next.js server errors when `NEXT_PUBLIC_SENTRY_DSN`
-is configured. It does not collect session replays or performance traces. The
+is configured. Error events are scrubbed before sending: user, request,
+breadcrumbs, arbitrary messages and extras are removed. It does not collect
+session replays or performance traces. The
 temporary `/sentry-test` page has a button that throws and reports one controlled
 error, then displays its event ID for lookup in Sentry. Remove that route after
 verifying deployment.
+
+## Launch documents and consent
+
+Draft bilingual terms, privacy, cookie, accessibility and contact pages have
+stable `/he/...` and `/en/...` URLs. Their version is `2026-09-22-draft-1`.
+Authentication leads to a terms/privacy acceptance gate; Convex records its
+version, server timestamp and separate optional marketing preference. CV upload
+is blocked on the server until that acceptance is stored. The owner supplied
+`info@jobmiter.com` for requests. The drafts require review by an Israeli
+lawyer, and the remaining owner decisions are in
+[`docs/LAUNCH_OWNER_CHECKLIST.md`](docs/LAUNCH_OWNER_CHECKLIST.md).
+
+Users can delete individual resumes or start account deletion in their profile.
+The account job removes user-linked Convex records, uploaded files and auth
+records in batches. Shared job records, vendor logs and backups need a separate
+approved retention/deletion process; this operation does not erase them.
+Signed CV upload URLs are limited to 10 per account per rolling hour. The
+backend also checks accepted terms, file size and type and refuses reuse of a
+stored file ID.
+
+`/api/health` returns 200 only when the web deployment can query Convex; it
+returns 503 when the backend is unavailable or not configured. It does not
+check Google OAuth, OpenAI, PostHog or Sentry delivery.
 
 For Vercel, configure `NEXT_PUBLIC_SENTRY_DSN` for each environment where events
 should be captured. Set `SENTRY_ORG`, `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` in

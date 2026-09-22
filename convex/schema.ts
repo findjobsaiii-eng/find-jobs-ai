@@ -287,6 +287,30 @@ export const jobFeedItem = v.object({
 
 const schema = defineSchema({
   ...authTables,
+  authVerifiers: defineTable({
+    sessionId: v.optional(v.id("authSessions")),
+    signature: v.optional(v.string()),
+  })
+    .index("signature", ["signature"])
+    .index("by_sessionId", ["sessionId"]),
+  accountDeletionJobs: defineTable({
+    userId: v.id("users"),
+    stage: v.number(),
+    createdAt: v.number(),
+  }).index("by_userId", ["userId"]),
+  legalConsents: defineTable({
+    userId: v.id("users"),
+    termsVersion: v.string(),
+    privacyVersion: v.string(),
+    acceptedAt: v.number(),
+    marketingOptIn: v.boolean(),
+    marketingUpdatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+  resumeUploadRateLimits: defineTable({
+    userId: v.id("users"),
+    windowStartedAt: v.number(),
+    attempts: v.number(),
+  }).index("by_userId", ["userId"]),
   catalogItems: defineTable({
     kind: v.union(v.literal("jobTitle"), v.literal("skill")),
     labelEn: v.optional(v.string()),
@@ -450,7 +474,6 @@ const schema = defineSchema({
         meaningfulCharacterCount: v.optional(v.number()),
         extractionStatus: v.string(),
         structuredParserStatus: v.string(),
-        technicalMessage: v.optional(v.string()),
         updatedAt: v.number(),
       }),
     ),
@@ -459,6 +482,7 @@ const schema = defineSchema({
     processedAt: v.optional(v.number()),
   })
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_storageId", ["storageId"])
     .index("by_userId_and_status", ["userId", "status"]),
   jobApplications: defineTable({
     userId: v.id("users"),
@@ -549,6 +573,7 @@ const schema = defineSchema({
     providerDiagnostics: v.optional(jobSearchProviderDiagnostics),
   })
     .index("by_userId_and_status", ["userId", "status"])
+    .index("by_queryId", ["queryId"])
     .index("by_userId_and_startedAt", ["userId", "startedAt"])
     .index("by_startedAt", ["startedAt"])
     .index("by_fingerprint_and_status_and_completedAt", [

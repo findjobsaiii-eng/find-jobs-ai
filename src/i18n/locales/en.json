@@ -6,6 +6,7 @@
     "name": "JOBMITER"
   },
   "errors": {
+    "loading": "Loading JOBMITER…",
     "notFoundTitle": "This page wandered off.",
     "notFoundDescription": "The page you’re looking for doesn’t exist or has moved.",
     "backHome": "Back to JOBMITER",
@@ -21,6 +22,56 @@
     "sent": "Test error sent. Event ID:",
     "failed": "The test error could not be confirmed. Event ID:",
     "unconfigured": "Sentry is not configured for this build."
+  },
+  "cookieConsent": {
+    "title": "Cookie choices",
+    "description": "Essential storage keeps sign-in and language choices working. With your permission, anonymous page views help us improve JOBMITER.",
+    "policy": "Cookie policy",
+    "acceptAll": "Accept all",
+    "rejectOptional": "Reject non-essential cookies",
+    "manage": "Manage preferences",
+    "preferencesDescription": "Choose whether to allow anonymous analytics. You can change this choice at any time from the footer.",
+    "necessary": "Essential",
+    "necessaryDescription": "Required for sign-in, security and your language choice. Always active.",
+    "analytics": "Anonymous analytics",
+    "analyticsDescription": "PostHog receives page paths after you opt in. No form input, resume, profile, session recording or interaction capture is sent.",
+    "save": "Save choices",
+    "storageError": "We could not save your choice in this browser. Analytics remains off."
+  },
+  "siteFooter": {
+    "navigation": "Legal and support",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy",
+    "cookies": "Cookie policy",
+    "accessibility": "Accessibility statement",
+    "contact": "Contact",
+    "preferences": "Cookie preferences"
+  },
+  "legalAcceptance": {
+    "loading": "Loading your consent choices…",
+    "title": "Before you continue",
+    "description": "JOBMITER uses your Google account and, if you upload a resume, processes it with AI to suggest jobs. Please review how your information is used before creating a profile or uploading a file.",
+    "required": "I have read and accept the current terms of use and privacy notice.",
+    "marketing": "I would like optional marketing emails if this feature becomes available. This choice is separate and can be changed later.",
+    "continue": "Continue to JOBMITER",
+    "error": "We could not save your choice. Please try again."
+  },
+  "privacyNotice": {
+    "signIn": "Google sign-in creates an account. If you later upload a resume, AI will analyze it to suggest jobs. Review:",
+    "upload": "Your file and extracted information are stored in Convex and sent to OpenAI for analysis. You can delete a resume later. Review:"
+  },
+  "dataControls": {
+    "title": "Your data",
+    "description": "You can edit your profile, delete individual resumes and delete your account here. Request a data copy by email. Backup and vendor retention still need verification.",
+    "marketing": "Allow optional marketing email if offered in future",
+    "copy": "Request a copy",
+    "delete": "Delete my account",
+    "deleteTitle": "Delete your account?",
+    "deleteDescription": "This starts deletion of your account, resumes and personal app data and signs you out. Shared job records, service logs and backups may remain under policies still being finalized. This cannot be undone.",
+    "deleteConfirm": "I understand that my account and uploaded resumes will be deleted.",
+    "deleteFinal": "Delete account and data",
+    "deleteError": "Deletion could not be started. Please try again or contact info@jobmiter.com.",
+    "error": "We could not update this choice. Try again."
   },
   "language": {
     "switchLabel": "Switch language to Hebrew",
@@ -432,6 +483,7 @@
       "empty": "We couldn’t find text in this file.",
       "parsing": "We read the file but couldn’t analyze the CV. Please try again.",
       "tooLarge": "This file is too large. The maximum supported size is 10 MB.",
+      "rateLimited": "Too many upload attempts. Please try again in an hour.",
       "review": "We couldn’t save your profile. Please try again.",
       "multiple": "Upload one file at a time."
     },
@@ -730,6 +782,7 @@
       "multiple": "Upload one file at a time.",
       "unsupported": "Choose a PDF or DOCX file.",
       "tooLarge": "The file is larger than 10MB.",
+      "rateLimited": "Too many upload attempts. Please try again in an hour.",
       "save": "We could not save the details.",
       "delete": "We could not delete the resume.",
       "upload": "We could not upload the file.",

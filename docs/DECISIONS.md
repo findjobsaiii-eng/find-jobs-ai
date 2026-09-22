@@ -2,6 +2,14 @@
 
 This log contains decisions that can be verified from committed files. Unresolved choices are listed separately and are not treated as approved.
 
+## Production readiness choices pending approval
+
+- Legal operator identity and address have not been provided. The owner reports that the service is free and there is no registered business at present.
+- Retention periods, backup purge windows, data export method, and full account deletion workflow are not decided. Legal drafts describe these limits instead of inventing commitments.
+- The contact address is `info@jobmiter.com`; mailbox monitoring and response ownership remain unverified.
+- PostHog is opt-in page-view analytics, with autocapture and session recording disabled. Sentry event content is reduced to error category and event ID. Production network verification remains pending.
+- Legal drafts use version `2026-09-22-draft-1` and require Israeli counsel approval before launch.
+
 ## Verified decisions
 
 ### D-001: Next.js App Router, React, TypeScript, and Convex form the application stack

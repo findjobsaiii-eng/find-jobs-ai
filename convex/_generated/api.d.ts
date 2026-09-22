@@ -8,12 +8,14 @@
  * @module
  */
 
+import type * as accountData from "../accountData.js";
 import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
 import type * as companySourceMemory from "../companySourceMemory.js";
 import type * as crons from "../crons.js";
 import type * as dailyDiscovery from "../dailyDiscovery.js";
+import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as jobActivity from "../jobActivity.js";
 import type * as jobActivityActions from "../jobActivityActions.js";
@@ -34,6 +36,7 @@ import type * as jobSearchRuntimeConfig from "../jobSearchRuntimeConfig.js";
 import type * as jobSourceProvenance from "../jobSourceProvenance.js";
 import type * as jobSourceQuality from "../jobSourceQuality.js";
 import type * as jobSourceVerification from "../jobSourceVerification.js";
+import type * as legalConsents from "../legalConsents.js";
 import type * as openAIJobProvider from "../openAIJobProvider.js";
 import type * as referenceCatalogData from "../referenceCatalogData.js";
 import type * as referenceData from "../referenceData.js";
@@ -49,12 +52,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accountData: typeof accountData;
   auth: typeof auth;
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;
   companySourceMemory: typeof companySourceMemory;
   crons: typeof crons;
   dailyDiscovery: typeof dailyDiscovery;
+  health: typeof health;
   http: typeof http;
   jobActivity: typeof jobActivity;
   jobActivityActions: typeof jobActivityActions;
@@ -75,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   jobSourceProvenance: typeof jobSourceProvenance;
   jobSourceQuality: typeof jobSourceQuality;
   jobSourceVerification: typeof jobSourceVerification;
+  legalConsents: typeof legalConsents;
   openAIJobProvider: typeof openAIJobProvider;
   referenceCatalogData: typeof referenceCatalogData;
   referenceData: typeof referenceData;

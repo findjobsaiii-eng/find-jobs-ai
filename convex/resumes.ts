@@ -16,6 +16,9 @@ const SUPPORTED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 const MAX_BYTES = 10 * 1024 * 1024;
+const UPLOADS_PER_HOUR = 10;
+const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
+const CURRENT_TERMS_VERSION = "2026-09-22-draft-1";
 
 const processingDiagnosticsValidator = v.object({
   stage: v.string(),
@@ -26,7 +29,6 @@ const processingDiagnosticsValidator = v.object({
   meaningfulCharacterCount: v.optional(v.number()),
   extractionStatus: v.string(),
   structuredParserStatus: v.string(),
-  technicalMessage: v.optional(v.string()),
   updatedAt: v.number(),
 });
 
@@ -38,11 +40,45 @@ async function requireUser(ctx: QueryCtx | MutationCtx) {
   return { userId, user };
 }
 
+async function requireUploadConsent(ctx: MutationCtx, userId: Id<"users">) {
+  const consent = await ctx.db
+    .query("legalConsents")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
+  if (consent?.termsVersion !== CURRENT_TERMS_VERSION) {
+    throw new ConvexError({ code: "CONSENT_REQUIRED" });
+  }
+}
+
 export const generateUploadUrl = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireUser(ctx);
+    const { userId } = await requireUser(ctx);
+    await requireUploadConsent(ctx, userId);
+    const now = Date.now();
+    const rate = await ctx.db
+      .query("resumeUploadRateLimits")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (rate && now - rate.windowStartedAt < UPLOAD_WINDOW_MS) {
+      if (rate.attempts >= UPLOADS_PER_HOUR)
+        throw new ConvexError({ code: "UPLOAD_RATE_LIMITED" });
+      await ctx.db.patch("resumeUploadRateLimits", rate._id, {
+        attempts: rate.attempts + 1,
+      });
+    } else if (rate) {
+      await ctx.db.patch("resumeUploadRateLimits", rate._id, {
+        windowStartedAt: now,
+        attempts: 1,
+      });
+    } else {
+      await ctx.db.insert("resumeUploadRateLimits", {
+        userId,
+        windowStartedAt: now,
+        attempts: 1,
+      });
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -61,6 +97,12 @@ export const createFromUpload = mutation({
   returns: v.id("resumeDocuments"),
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
+    await requireUploadConsent(ctx, userId);
+    const alreadyUsed = await ctx.db
+      .query("resumeDocuments")
+      .withIndex("by_storageId", (q) => q.eq("storageId", args.storageId))
+      .first();
+    if (alreadyUsed) throw new ConvexError({ code: "FILE_ALREADY_USED" });
     const replacement = args.replacementForId
       ? await ctx.db.get("resumeDocuments", args.replacementForId)
       : null;
@@ -77,9 +119,12 @@ export const createFromUpload = mutation({
       throw new ConvexError({ code: "FILE_TOO_LARGE" });
     }
     if (
-      !SUPPORTED_TYPES.has(type) &&
-      extension !== "pdf" &&
-      extension !== "docx"
+      !SUPPORTED_TYPES.has(type) ||
+      (extension !== "pdf" && extension !== "docx") ||
+      (extension === "pdf" && type !== "application/pdf") ||
+      (extension === "docx" &&
+        type !==
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     ) {
       if (metadata) await ctx.storage.delete(args.storageId);
       throw new ConvexError({ code: "UNSUPPORTED_MIME" });
@@ -307,10 +352,7 @@ export const recordProcessingDiagnostics = internalMutation({
     const resume = await ctx.db.get("resumeDocuments", args.resumeId);
     if (resume?.userId === args.userId)
       await ctx.db.patch("resumeDocuments", resume._id, {
-        processingDiagnostics: {
-          ...args.diagnostics,
-          technicalMessage: args.diagnostics.technicalMessage?.slice(0, 300),
-        },
+        processingDiagnostics: args.diagnostics,
         updatedAt: Date.now(),
       });
     return null;

@@ -19,6 +19,7 @@ import { Brand } from "@/features/auth/brand";
 import { GoogleMark } from "@/features/auth/google-mark";
 import { LanguageButton } from "@/features/auth/language-button";
 import { useGoogleSignIn } from "@/features/auth/use-google-sign-in";
+import { PrivacyNotice } from "@/features/privacy/privacy-notice";
 import { AnimatedMatchingMap } from "./animated-matching-map";
 
 const STEPS = [
@@ -143,6 +144,8 @@ export function LandingPage() {
 
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="landing-shell text-brand-midnight relative min-h-svh overflow-hidden"
       dir={i18n.dir()}
     >
@@ -252,7 +255,9 @@ export function LandingPage() {
               />
             </Button>
           </div>
-          <p className="mt-4 text-xs text-slate-500">{t("landing.privacy")}</p>
+          <div className="mt-4 max-w-xl">
+            <PrivacyNotice context="signIn" />
+          </div>
           <div aria-live="polite" className="min-h-6 pt-2 text-sm">
             {error ? <p className="text-red-600">{error}</p> : null}
           </div>
@@ -432,11 +437,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      <footer className="mx-auto flex max-w-[88rem] items-center justify-between px-5 py-8 text-xs text-slate-500 sm:px-10">
-        <Brand />
-        <p>{t("landing.footer")}</p>
-      </footer>
     </main>
   );
 }

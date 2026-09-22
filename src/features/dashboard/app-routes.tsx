@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AuthBoundary } from "@/features/auth/auth-gate";
 import { SignInScreen } from "@/features/auth/sign-in-screen";
 import { LandingPage } from "@/features/landing/landing-page";
+import { LegalAcceptanceGate } from "@/features/privacy/legal-acceptance-gate";
 import {
   ProfileProvider,
   useCurrentProfile,
@@ -78,23 +79,25 @@ export function HomeRoute({
       unauthenticated={<LandingPage />}
       initiallyAuthenticated={initiallyAuthenticated}
     >
-      <ProfileGate loading={loading}>
-        {(data) => (
-          <ProfileProvider data={data}>
-            <AuthenticatedShell
-              data={data}
-              currentPage="jobs"
-              jobView={jobNavigation.view}
-              onJobViewChange={jobNavigation.selectView}
-            >
-              <DashboardScreen
-                view={jobNavigation.view}
-                onEdit={() => router.push("/profile")}
-              />
-            </AuthenticatedShell>
-          </ProfileProvider>
-        )}
-      </ProfileGate>
+      <LegalAcceptanceGate>
+        <ProfileGate loading={loading}>
+          {(data) => (
+            <ProfileProvider data={data}>
+              <AuthenticatedShell
+                data={data}
+                currentPage="jobs"
+                jobView={jobNavigation.view}
+                onJobViewChange={jobNavigation.selectView}
+              >
+                <DashboardScreen
+                  view={jobNavigation.view}
+                  onEdit={() => router.push("/profile")}
+                />
+              </AuthenticatedShell>
+            </ProfileProvider>
+          )}
+        </ProfileGate>
+      </LegalAcceptanceGate>
     </AuthBoundary>
   );
 }
@@ -105,15 +108,17 @@ export function ProtectedAppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AuthBoundary unauthenticated={<SignInScreen />}>
-      <ProfileGate>
-        {(data) => (
-          <ProfileProvider data={data}>
-            <AuthenticatedShell data={data} currentPage={currentPage}>
-              {children}
-            </AuthenticatedShell>
-          </ProfileProvider>
-        )}
-      </ProfileGate>
+      <LegalAcceptanceGate>
+        <ProfileGate>
+          {(data) => (
+            <ProfileProvider data={data}>
+              <AuthenticatedShell data={data} currentPage={currentPage}>
+                {children}
+              </AuthenticatedShell>
+            </ProfileProvider>
+          )}
+        </ProfileGate>
+      </LegalAcceptanceGate>
     </AuthBoundary>
   );
 }

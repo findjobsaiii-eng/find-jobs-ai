@@ -140,7 +140,7 @@ export function AuthenticatedShell({
             )}
           </PageContainer>
         </header>
-        <main className="flex-1 py-6 sm:py-10">
+        <main id="main-content" tabIndex={-1} className="flex-1 py-6 sm:py-10">
           <PageContainer>{children}</PageContainer>
         </main>
       </div>

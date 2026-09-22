@@ -8,6 +8,7 @@ export function processingErrorKey(error: unknown) {
         ? "UPLOAD_FAILED"
         : null;
   if (code === "FILE_TOO_LARGE") return "tooLarge";
+  if (code === "UPLOAD_RATE_LIMITED") return "rateLimited";
   if (code === "SCANNED_PDF") return "scannedPdf";
   if (code === "EMPTY_FILE" || code === "EMPTY_EXTRACTED_TEXT") return "empty";
   if (code === "CV_AI_PARSE_FAILED" || code === "CV_SCHEMA_INVALID")

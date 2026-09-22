@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "catalog:seed": "convex run referenceData:seedCatalog",
     "check": "npm run typecheck && npm run lint && npm run format:check"
@@ -51,9 +52,11 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@convex-dev/eslint-plugin": "^4.0.0",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
