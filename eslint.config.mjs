@@ -23,6 +23,12 @@ export default defineConfig([
       "import/no-anonymous-default-export": "off",
     },
   },
+  {
+    files: ["src/app/opengraph-image.tsx"],
+    rules: {
+      "@next/next/no-img-element": "off",
+    },
+  },
   ...convexPlugin.configs.recommended,
   prettier,
   globalIgnores([
