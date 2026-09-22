@@ -179,7 +179,7 @@
       "profile": "Profile"
     },
     "filters": "Job search filters",
-    "temporaryFilters": "Temporary search filters - your saved profile changes only when you choose to save preferences.",
+    "temporaryFilters": "Temporary search filters — your saved profile changes only when you choose to save preferences.",
     "searchQuery": "Search for a role",
     "anyLocation": "Any location",
     "anyRole": "Any role",
@@ -283,7 +283,7 @@
     "score": {
       "badge": "{{quality}} · {{score}}/100",
       "compactBadge": "{{score}}/100",
-      "triggerLabel": "{{quality}}, match score {{score}} out of 100 - show calculation",
+      "triggerLabel": "{{quality}}, match score {{score}} out of 100 — show calculation",
       "heading": "Match score {{score}} out of 100",
       "description": "A deterministic score based on your effective profile and this job.",
       "components": {
