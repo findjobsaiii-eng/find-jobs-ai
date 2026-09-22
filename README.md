@@ -21,6 +21,16 @@ npm run dev
 
 The Convex setup creates the local environment configuration used by `NEXT_PUBLIC_CONVEX_URL`. Do not commit local environment files.
 
+## Analytics
+
+PostHog captures anonymous page views, including client-side navigation, when
+`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` are set in the
+ignored `.env.local` file. Set the same variables in the Next.js hosting
+environment for deployment. Restart or rebuild Next.js after changing them.
+Automatic interaction capture and session recording are disabled because the app
+handles candidate profiles and resumes. Custom events and user identification
+should be added only for specific product questions with a reviewed data policy.
+
 Current implementation status, known gaps, and the recommended next milestone are tracked in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md). Durable technical choices and pending decisions are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Commands
