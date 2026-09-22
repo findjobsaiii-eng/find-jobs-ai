@@ -148,10 +148,14 @@ removes it from the address bar, and stores the verifier/session in first-party
 `HttpOnly` cookies. The client presents a recoverable callback-error state and
 delegates session storage and invalidation to Convex Auth.
 
-The provider-facing `/api/auth/signin/*` and `/api/auth/callback/*` requests are
-reverse-proxied to the deployment's Convex HTTP Actions origin. Standard
-`*.convex.cloud` URLs are mapped to `*.convex.site`; custom or self-hosted
-deployments must also define `NEXT_PUBLIC_CONVEX_SITE_URL` in Next.js.
+The provider-facing `/api/auth/signin/google` and
+`/api/auth/callback/google` requests pass through a restricted Next.js route
+handler to the deployment's Convex HTTP Actions origin. The handler preserves
+the secure, HTTP-only OAuth cookies while making them first-party
+`SameSite=Lax` cookies without the `Partitioned` attribute. This avoids Safari
+CHIPS failures during the top-level Google redirect. Standard `*.convex.cloud`
+URLs are mapped to `*.convex.site`; custom or self-hosted deployments must also
+define `NEXT_PUBLIC_CONVEX_SITE_URL` in Next.js.
 
 Exact manual Google OAuth smoke-test steps and the latest external configuration
 status are recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).

@@ -229,10 +229,15 @@ logs, screenshots, or documentation.
     browser permission in separate checks, and confirm neither path blocks manual
     search.
 
-The product owner subsequently reported that the previous direct Convex callback
-failed in Safari during the OAuth token exchange. The first-party proxy change is
-covered locally, but the updated Google callback and live Safari account flow
-still require the manual configuration and smoke test above.
+The product owner subsequently reported Safari token-exchange failures even with
+the first-party callback. The production callback, client ID/secret pair, and
+PKCE authorization request were validated. The remaining Safari-specific risk
+was Convex Auth's `Partitioned` OAuth cookie: older Safari releases do not
+support CHIPS and affected releases have had partitioned-cookie regressions.
+The restricted Next.js OAuth proxy now emits the PKCE and redirect cookies as
+secure, HTTP-only, first-party `SameSite=Lax` cookies without `Partitioned`.
+Unit tests, a production build, and a local HTTP header round trip prove this
+behavior. A live Safari login remains the final post-deployment smoke test.
 
 ## Activity filtering update (2026-09-09)
 

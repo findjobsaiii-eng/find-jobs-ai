@@ -85,18 +85,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/auth/signin/:path*",
-        destination: `${convexSiteUrl}/api/auth/signin/:path*`,
-      },
-      {
-        source: "/api/auth/callback/:path*",
-        destination: `${convexSiteUrl}/api/auth/callback/:path*`,
-      },
-    ];
-  },
 };
 
 export default withSentryConfig(nextConfig, {

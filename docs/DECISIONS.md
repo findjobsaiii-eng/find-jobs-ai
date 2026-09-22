@@ -552,17 +552,19 @@ boundary, not an authorization boundary.
 
 Status: Accepted (2026-09-15)
 
-Evidence: `src/proxy.ts`, `next.config.ts`, `src/app/layout.tsx`, and
+Evidence: `src/proxy.ts`, `src/app/api/auth/[...path]/route.ts`,
+`src/lib/auth-oauth-proxy.ts`, `src/app/layout.tsx`, and
 `src/app/app-providers.tsx`.
 
 Google sign-in is initiated through the Convex Auth Next.js adapter. The
-provider-facing sign-in and callback paths are narrowly reverse-proxied to the
-Convex HTTP handler, while the final application callback is exchanged by the
-Next.js auth middleware. This keeps the PKCE verifier, provider state, and
-session in first-party cookies rather than depending on a cross-site callback
-cookie in browsers with strict tracking prevention. Each deployment must set
-`CUSTOM_AUTH_SITE_URL` to its exact frontend origin and register
-`<origin>/api/auth/callback/google` with Google; PKCE remains enabled.
+provider-facing Google sign-in and callback paths are narrowly proxied by a
+Next.js route handler to the Convex HTTP handler, while the final application
+callback is exchanged by the Next.js auth middleware. The proxy keeps the PKCE
+verifier secure and HTTP-only, and normalizes its cookie to first-party
+`SameSite=Lax` without `Partitioned`. The Google flow is a top-level navigation,
+so this avoids Safari CHIPS compatibility failures without weakening PKCE. Each
+deployment must set `CUSTOM_AUTH_SITE_URL` to its exact frontend origin and
+register `<origin>/api/auth/callback/google` with Google.
 
 ### D-030: Job activity history is independent from the current status
 
