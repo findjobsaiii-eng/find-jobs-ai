@@ -544,6 +544,7 @@ export const completeProcessing = internalMutation({
       resume.activateOnSuccess === true ||
       replacement?._id === existing.activeResumeId ||
       Boolean(replacement && !existing.activeResumeId);
+    const replacesActiveResume = Boolean(replacement && shouldActivate);
     const legacyOverrides =
       existing?.onboardingCompleted &&
       existing.profileSourceVersion === undefined
@@ -562,19 +563,33 @@ export const completeProcessing = internalMutation({
     const overrides = new Set(
       existing?.manualOverrideFields ?? legacyOverrides,
     );
+    if (replacesActiveResume) {
+      for (const field of [
+        "targetJobTitles",
+        "professionalSummary",
+        "yearsOfExperience",
+        "skills",
+        "location",
+        "languages",
+        "seniority",
+      ] as const) {
+        overrides.delete(field);
+      }
+    }
     const now = Date.now();
     const usable = Boolean(args.normalizedLocation);
     const derived = {
       ...(!overrides.has("targetJobTitles") ? { targetJobTitleIds } : {}),
-      ...(!overrides.has("professionalSummary") && args.summary
+      ...(!overrides.has("professionalSummary")
         ? {
-            professionalSummary:
-              args.summary.length >= 40
+            professionalSummary: args.summary
+              ? args.summary.length >= 40
                 ? args.summary
                 : `${args.summary} ${args.skills.slice(0, 6).join(" · ")}`.slice(
                     0,
                     1_200,
-                  ),
+                  )
+              : undefined,
           }
         : {}),
       ...(!overrides.has("yearsOfExperience")
@@ -592,7 +607,13 @@ export const completeProcessing = internalMutation({
             preferredPlaceIds: [args.normalizedLocation.placeId],
             locationRadiusKm: args.normalizedLocation.radiusKm,
           }
-        : {}),
+        : !overrides.has("location") && replacesActiveResume
+          ? {
+              primaryLocation: undefined,
+              preferredPlaceIds: undefined,
+              locationRadiusKm: undefined,
+            }
+          : {}),
       ...(!overrides.has("workArrangements") && !existing?.workArrangements
         ? {
             workArrangements: ["onsite", "hybrid", "remote"] as Array<
@@ -607,7 +628,8 @@ export const completeProcessing = internalMutation({
             >,
           }
         : {}),
-      ...(!overrides.has("languages") && args.languages.length
+      ...(!overrides.has("languages") &&
+      (args.languages.length || replacesActiveResume)
         ? { languages: args.languages }
         : {}),
       ...(!overrides.has("seniority") ? { seniority: args.seniority } : {}),

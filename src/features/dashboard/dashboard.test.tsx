@@ -276,6 +276,19 @@ describe("dashboard and completed profile editing", () => {
     view.rerender(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
 
     expect(
+      screen.getByRole("status", { name: "Reading your CV…" }),
+    ).toBeInTheDocument();
+
+    hooks.data = {
+      ...hooks.data!,
+      profile: {
+        ...hooks.data!.profile!,
+        activeResumeId: "resumeDocuments:two" as never,
+      },
+    };
+    view.rerender(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+
+    expect(
       screen.getByRole("heading", { name: "Let's review your profile" }),
     ).toBeInTheDocument();
     expect(

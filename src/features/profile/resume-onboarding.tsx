@@ -113,11 +113,8 @@ export function ResumeOnboarding({
   const [replacementForId] = useState(() =>
     replaceMode ? resume?.id : undefined,
   );
-  const [replacementStarted, setReplacementStarted] = useState(false);
   const visibleResume =
-    replaceMode && (!replacementStarted || resume?.id === replacementForId)
-      ? null
-      : resume;
+    replaceMode && resume?.id === replacementForId ? null : resume;
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +133,6 @@ export function ResumeOnboarding({
       setError("tooLarge");
       return;
     }
-    setReplacementStarted(true);
     setUploading(true);
     setError(null);
     try {
@@ -176,7 +172,12 @@ export function ResumeOnboarding({
     void upload(event.dataTransfer.files[0]);
   };
 
-  const analyzing = uploading || visibleResume?.status === "processing";
+  const analyzing =
+    uploading ||
+    visibleResume?.status === "processing" ||
+    (replaceMode &&
+      (visibleResume?.status === "ready" ||
+        visibleResume?.status === "needs_confirmation"));
 
   return (
     <AuthShell identity={identity}>

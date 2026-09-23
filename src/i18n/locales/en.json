@@ -518,7 +518,7 @@
     },
     "replaceResume": {
       "title": "Upload a different CV?",
-      "description": "Unsaved changes on this page will be lost. Your current CV stays in place until the new one is ready.",
+      "description": "When the new CV is ready, its extracted details will replace your current profile details and edits. Your job preferences will stay. Your current CV stays in place until then.",
       "cancel": "Stay here",
       "confirm": "Choose another CV"
     },

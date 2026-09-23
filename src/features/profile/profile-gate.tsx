@@ -64,7 +64,8 @@ function ProfileRoute({
   const replacementComplete =
     replacementSourceId !== null &&
     resumeReady &&
-    resume?.id !== replacementSourceId;
+    resume?.id !== replacementSourceId &&
+    profileState.profile?.activeResumeId === resume?.id;
 
   if (replacementSourceId !== null && !replacementComplete) {
     return (

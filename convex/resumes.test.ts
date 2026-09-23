@@ -355,6 +355,24 @@ describe("CV-derived effective profiles", () => {
       displayName: "Main CV",
       note: "Primary version",
     });
+    const originalProfile = (await user.query(api.candidateProfiles.getCurrent))
+      .profile!;
+    await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: {
+        targetJobTitleIds: originalProfile.targetJobTitleIds!,
+        professionalSummary:
+          "This manually edited summary belongs only to the old resume data.",
+        yearsOfExperience: 17,
+        skillIds: originalProfile.skillIds!,
+        primaryLocation: telAviv,
+        preferredPlaceIds: [telAviv.placeId],
+        locationRadiusKm: 25,
+        languages: [{ languageCode: "he", proficiency: "native" }],
+        workArrangements: ["remote"],
+      },
+      onboardingStep: 3,
+      complete: false,
+    });
     const storageId = await t.run((ctx) =>
       ctx.storage.store(
         new Blob(["replacement fixture"], { type: "application/pdf" }),
@@ -367,10 +385,20 @@ describe("CV-derived effective profiles", () => {
       size: 19,
       replacementForId: first.resumeId,
     });
-    await t.mutation(
-      internal.resumes.completeProcessing,
-      completion(replacementId, first.userId),
-    );
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(replacementId, first.userId),
+      currentTitle: "Product Manager",
+      summary:
+        "Product manager with deep analytics and product strategy experience.",
+      targetRoles: ["Product Manager"],
+      skills: ["Product Strategy", "Analytics"],
+      normalizedLocation: rishon,
+      totalExperienceMonths: 48,
+      normalizedPastRoles: ["Product Manager"],
+      domains: ["Product"],
+      experienceByDomain: [{ domain: "product", months: 48 }],
+      languages: [],
+    });
     expect(
       await t.run((ctx) => ctx.db.get("resumeDocuments", first.resumeId)),
     ).toBeNull();
@@ -382,6 +410,33 @@ describe("CV-derived effective profiles", () => {
         isActive: true,
       }),
     ]);
+    const updated = await user.query(api.candidateProfiles.getCurrent);
+    expect(updated.profile).toMatchObject({
+      professionalSummary:
+        "Product manager with deep analytics and product strategy experience.",
+      yearsOfExperience: 4,
+      primaryLocation: expect.objectContaining({ city: "Rishon LeZion" }),
+      languages: [],
+      workArrangements: ["remote"],
+    });
+    expect(updated.selections.targetJobTitles).toEqual([
+      expect.objectContaining({ labelEn: "Product Manager" }),
+    ]);
+    expect(updated.selections.skills).toEqual([
+      expect.objectContaining({ labelEn: "Product Strategy" }),
+      expect.objectContaining({ labelEn: "Analytics" }),
+    ]);
+    expect(updated.profile?.manualOverrideFields).not.toEqual(
+      expect.arrayContaining([
+        "targetJobTitles",
+        "professionalSummary",
+        "yearsOfExperience",
+        "skills",
+        "location",
+        "languages",
+      ]),
+    );
+    expect(updated.profile?.manualOverrideFields).toContain("workArrangements");
   });
 
   it("does not invent a location or complete a broken profile", async () => {
