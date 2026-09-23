@@ -26,7 +26,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "AI והחלטות תעסוקה",
-          body: "ניתוח קורות החיים, דירוג והתאמת משרות נעשים גם באמצעות OpenAI ועלולים להיות שגויים או לא שלמים. יש לבדוק משרות, דרישות והמלצות באופן עצמאי. אין התחייבות למציאת עבודה, לקבלת ראיון או לדיוק ההתאמות.",
+          body: "ניתוח קורות החיים, דירוג והתאמת משרות נעשים גם באמצעות כלי AI ועלולים להיות שגויים או לא שלמים. יש לבדוק משרות, דרישות והמלצות באופן עצמאי. אין התחייבות למציאת עבודה, לקבלת ראיון או לדיוק ההתאמות.",
         },
         {
           heading: "משרות וקישורים חיצוניים",
@@ -57,7 +57,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "מידע שנאסף",
-          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, העדפת תדירות עדכוני משרות וסטטוס מסירה, הערות, סטטוס מועמדויות ואינטראקציות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. PostHog אמור לקבל צפיות בעמודים בלבד אחרי הסכמה לעוגיות לא חיוניות.",
+          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, העדפת תדירות עדכוני משרות וסטטוס מסירה, הערות, סטטוס מועמדויות ואינטראקציות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. צפיות אנונימיות בעמודים נאספות רק לאחר הסכמה לעוגיות לא חיוניות.",
         },
         {
           heading: "מטרות העיבוד",
@@ -69,7 +69,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "שמירה ומחיקה",
-          body: "עדיין לא נקבעו תקופות שמירה לקורות חיים, פרופילים, חשבונות, יומנים או גיבויים. אפשר למחוק קורות חיים בודדים או ליזום מחיקת חשבון מתוך הפרופיל. מחיקת חשבון מסירה בשלבים נתונים וקבצים המשויכים למשתמש ב־Convex, לרבות רשומות אימות. נתוני משרות משותפים, לוגים, נתוני ספקים וגיבויים אינם נכללים כיום במחיקה אוטומטית מלאה. מדיניות מחיקה וזמני השלמה עדיין טעונים אימות.",
+          body: "עדיין לא נקבעו תקופות שמירה לקורות חיים, פרופילים, חשבונות, יומנים או גיבויים. אפשר למחוק קורות חיים בודדים או ליזום מחיקת חשבון מתוך הפרופיל. מחיקת חשבון מסירה בשלבים נתונים וקבצים המשויכים למשתמש, לרבות רשומות אימות. נתוני משרות משותפים, לוגים, נתוני ספקים וגיבויים אינם נכללים כיום במחיקה אוטומטית מלאה. מדיניות מחיקה וזמני השלמה עדיין טעונים אימות.",
         },
         {
           heading: "זכויות ובקשות",
@@ -88,11 +88,11 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "אחסון חיוני",
-          body: "אימות באמצעות Convex Auth, שמירת בחירת שפה ושמירת החלטת ההסכמה נדרשים לתפקוד השירות. הם פועלים ללא הסכמה לניתוח שימוש. סוגי העוגיות, משך חייהן והדומיינים שלהם דורשים בדיקה בדפדפן הייצור.",
+          body: "אחסון הנדרש להתחברות מאובטחת, לשמירת בחירת השפה ולשמירת החלטת ההסכמה חיוני לתפקוד השירות. הוא פועל ללא הסכמה לניתוח שימוש. סוגי העוגיות, משך חייהן והדומיינים שלהם דורשים בדיקה בדפדפן הייצור.",
         },
         {
           heading: "ניתוח שימוש אופציונלי",
-          body: "PostHog נטען רק לאחר אישור מפורש. התצורה מתירה צפיות בעמודים בלבד, ללא איסוף אוטומטי של לחיצות, ללא הקלטת שימוש וללא שליחת תוכן פרופיל או קורות חיים. עצם החיבור לספק עשוי להעביר אליו מידע טכני כגון כתובת IP; יש לאמת בייצור שהגדרת מחיקת IP פעילה בפרויקט PostHog. בחירת דחייה מונעת את טעינתו; ביטול הסכמה מפסיק איסוף נוסף.",
+          body: "ניתוח שימוש נטען רק לאחר אישור מפורש. התצורה מתירה צפיות בעמודים בלבד, ללא איסוף אוטומטי של לחיצות, ללא הקלטת שימוש וללא שליחת תוכן פרופיל או קורות חיים. החיבור עשוי להעביר מידע טכני כגון כתובת IP; בחירת דחייה מונעת את טעינתו וביטול הסכמה מפסיק איסוף נוסף. פרטי הספק מופיעים במדיניות הפרטיות.",
         },
         {
           heading: "ניהול הבחירה",
@@ -147,7 +147,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "AI and employment decisions",
-          body: "Resume analysis, ranking and job matches use OpenAI and may be inaccurate or incomplete. Verify listings and advice independently. We do not promise a job, an interview or accurate matches.",
+          body: "Resume analysis, ranking and job matches use AI tools and may be inaccurate or incomplete. Verify listings and advice independently. We do not promise a job, an interview or accurate matches.",
         },
         {
           heading: "Jobs and third-party links",
@@ -178,7 +178,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "Information collected",
-          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, job-email frequency and delivery status, notes and application status. Hosting and security services may process IP address, browser, request time and technical error data. PostHog is intended to receive page views only after optional analytics consent.",
+          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, job-email frequency and delivery status, notes and application status. Hosting and security services may process IP address, browser, request time and technical error data. Anonymous page views are collected only after optional analytics consent.",
         },
         {
           heading: "Purposes",
@@ -190,7 +190,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Retention and deletion",
-          body: "Retention periods for resumes, profiles, accounts, logs and backups have not been set. You can delete individual resumes or start account deletion from your profile. Account deletion removes user-linked Convex records and files in stages, including authentication records. Shared job data, logs, vendor data and backups are not fully covered by automatic deletion. The deletion policy and completion time still require verification.",
+          body: "Retention periods for resumes, profiles, accounts, logs and backups have not been set. You can delete individual resumes or start account deletion from your profile. Account deletion removes user-linked records and files in stages, including authentication records. Shared job data, logs, vendor data and backups are not fully covered by automatic deletion. The deletion policy and completion time still require verification.",
         },
         {
           heading: "Rights and requests",
@@ -209,11 +209,11 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "Essential storage",
-          body: "Convex Auth sign-in, language preference and consent choice are needed for the service. They work without optional analytics consent. Actual cookie names, lifetimes and domains require verification in the production browser.",
+          body: "Storage needed for secure sign-in, language preference and consent choice is essential to the service. It works without optional analytics consent. Actual cookie names, lifetimes and domains require verification in the production browser.",
         },
         {
           heading: "Optional analytics",
-          body: "PostHog loads only after an explicit opt-in. The configuration allows page views only, with no automatic click capture, session recording, profile or resume content. Connecting to the provider may transmit technical data such as IP address; its project-level IP discard setting must be verified in production. Rejecting keeps it unloaded; revoking consent stops further capture.",
+          body: "Analytics loads only after an explicit opt-in. The configuration allows page views only, with no automatic click capture, session recording, profile or resume content. The connection may transmit technical data such as an IP address. Rejecting keeps it unloaded and revoking consent stops further capture. Provider details appear in the privacy policy.",
         },
         {
           heading: "Managing your choice",

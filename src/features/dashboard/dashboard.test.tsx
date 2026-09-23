@@ -122,7 +122,7 @@ function completedProfile(): CurrentProfile {
 }
 
 function renderProfile(
-  section: "professional" | "preferences" = "professional",
+  section: "professional" | "preferences" | "emails" = "professional",
 ) {
   return render(
     <ProfileOverview data={completedProfile()} activeSection={section} />,
@@ -190,6 +190,20 @@ describe("dashboard and completed profile editing", () => {
       screen.getByRole("status", { name: "Loading discovered jobs…" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("shows data controls only in the email updates section", () => {
+    const view = renderProfile("professional");
+    expect(
+      screen.queryByRole("heading", { name: "Your data" }),
+    ).not.toBeInTheDocument();
+
+    view.rerender(
+      <ProfileOverview data={completedProfile()} activeSection="emails" />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Your data" }),
+    ).toBeInTheDocument();
   });
 
   it("opens the full editable onboarding review after CV extraction", async () => {

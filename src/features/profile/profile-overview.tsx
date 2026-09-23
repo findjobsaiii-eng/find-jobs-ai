@@ -115,10 +115,14 @@ export function ProfileOverview({
           ) : null}
 
           {activeSection === "resumes" ? <ResumeLibrary /> : null}
-          {activeSection === "emails" ? <EmailPreferences /> : null}
+          {activeSection === "emails" ? (
+            <div className="space-y-6">
+              <EmailPreferences />
+              <DataControls />
+            </div>
+          ) : null}
         </div>
       </div>
-      <DataControls />
       <DiscardProfileChangesDialog
         open={pendingSection !== null}
         onOpenChange={(open) => {

@@ -15,13 +15,13 @@
     "retry": "Try again"
   },
   "sentryTest": {
-    "title": "Sentry test",
+    "title": "Error reporting test",
     "description": "Send one test error to check that error reporting works.",
     "send": "Send test error",
     "sending": "Sending…",
     "sent": "Test error sent. Event ID:",
     "failed": "The test error could not be confirmed. Event ID:",
-    "unconfigured": "Sentry is not configured for this build."
+    "unconfigured": "Error reporting is not configured for this build."
   },
   "cookieConsent": {
     "title": "Cookie choices",
@@ -34,7 +34,7 @@
     "necessary": "Essential",
     "necessaryDescription": "Required for sign-in, security and your language choice. Always active.",
     "analytics": "Anonymous analytics",
-    "analyticsDescription": "PostHog receives page paths after you opt in. No form input, resume, profile, session recording or interaction capture is sent.",
+    "analyticsDescription": "Anonymous page views are collected after you opt in. No form input, resume, profile, session recording or interaction capture is sent.",
     "save": "Save choices",
     "storageError": "We could not save your choice in this browser. Analytics remains off."
   },
@@ -59,11 +59,11 @@
   },
   "privacyNotice": {
     "signIn": "Google sign-in creates an account. If you later upload a resume, AI will analyze it to suggest jobs. Review:",
-    "upload": "Your file and extracted information are stored in Convex and sent to OpenAI for analysis. You can delete a resume later. Review:"
+    "upload": "Your file and extracted information are stored in your account and processed with AI to build your profile and suggest jobs. You can delete the resume later. Review:"
   },
   "dataControls": {
     "title": "Your data",
-    "description": "You can edit your profile, delete individual resumes and delete your account here. Request a data copy by email. Backup and vendor retention still need verification.",
+    "description": "Choose which updates to receive, request a copy of your information or delete your account here.",
     "marketing": "Allow optional marketing email if offered in future",
     "copy": "Request a copy",
     "delete": "Delete my account",
@@ -197,7 +197,7 @@
     "callbackErrorDescription": "Google didn't complete the sign-in request. No account changes were made.",
     "tryAgain": "Try again",
     "configurationErrorTitle": "Authentication isn't configured.",
-    "configurationErrorDescription": "The app is missing its public Convex connection. Check the local setup and reload the page.",
+    "configurationErrorDescription": "We could not connect to the service. Reload the page and try again.",
     "welcomeTitle": "You're signed in.",
     "welcomeDescription": "Your workspace is ready. We'll build the first job-search tools here next.",
     "signOut": "Sign out",
