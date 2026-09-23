@@ -8,19 +8,26 @@ import { JobDiscoveryPanel } from "./job-discovery-panel";
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
   discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
+  emailFrequency: "daily" as "daily" | "weekly" | "never",
   setApplication: vi.fn(),
   runReview: vi.fn(),
 }));
 
-vi.mock("convex/react", () => ({
-  useQuery: () => ({
-    jobs: hooks.jobs,
-    plan: "pro",
-    discoveryState: hooks.discoveryState,
-  }),
-  useMutation: () => hooks.setApplication,
-  useAction: () => hooks.runReview,
-}));
+vi.mock("convex/react", async () => {
+  const { getFunctionName } = await import("convex/server");
+  return {
+    useQuery: (reference: unknown) =>
+      getFunctionName(reference as never) === "emailPreferences:getMine"
+        ? { frequency: hooks.emailFrequency }
+        : {
+            jobs: hooks.jobs,
+            plan: "pro",
+            discoveryState: hooks.discoveryState,
+          },
+    useMutation: () => hooks.setApplication,
+    useAction: () => hooks.runReview,
+  };
+});
 
 function renderPanel(path = "/") {
   const view = path.includes("tab=in-progress")
@@ -92,6 +99,7 @@ describe("job result cards", () => {
   beforeEach(async () => {
     hooks.jobs = [job()];
     hooks.discoveryState = "complete";
+    hooks.emailFrequency = "daily";
     hooks.setApplication.mockReset().mockResolvedValue(null);
     hooks.runReview.mockReset().mockResolvedValue(null);
     await i18n.changeLanguage("en");
@@ -169,9 +177,40 @@ describe("job result cards", () => {
         name: "כבר מחפשים עבורך משרות",
       }),
     ).toBeVisible();
-    expect(screen.getByText(/אפשר לחזור בעוד כמה דקות/)).toBeVisible();
+    expect(screen.getByText(/משרות חדשות יופיעו כאן אוטומטית/)).toBeVisible();
+    expect(screen.getByText(/נשלח לך אימייל/)).toBeVisible();
     expect(
       screen.queryByText("לא נמצאו כרגע משרות שמתאימות לפרופיל שלך."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows ongoing discovery and email delivery after the last initial match", async () => {
+    await i18n.changeLanguage("he");
+    hooks.discoveryState = "running";
+
+    renderPanel();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "אנחנו ממשיכים לחפש עבורך משרות נוספות",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText(/אלה ההתאמות הראשונות שמצאנו/)).toBeVisible();
+    expect(screen.getByText(/אפשר לצאת מהעמוד/)).toBeVisible();
+  });
+
+  it("does not promise an email when job updates are disabled", async () => {
+    hooks.discoveryState = "running";
+    hooks.emailFrequency = "never";
+
+    renderPanel();
+
+    expect(screen.getByText("Job email updates are turned off.")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Enable them in settings" }),
+    ).toHaveAttribute("href", "/profile/emails");
+    expect(
+      screen.queryByText(/we’ll email you when this search/i),
     ).not.toBeInTheDocument();
   });
 

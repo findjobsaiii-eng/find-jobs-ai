@@ -252,7 +252,9 @@
     },
     "retry": "Try again",
     "pendingTitle": "We’re already searching for jobs for you",
-    "pendingDescription": "JOBMITER is analyzing your profile and looking for opportunities that genuinely fit. You can come back in a few minutes.",
+    "pendingDescription": "JOBMITER is analyzing your profile and looking for opportunities that genuinely fit. New matches will appear here automatically.",
+    "morePendingTitle": "We’re still searching for more matches",
+    "morePendingDescription": "These are the first matches we found. More relevant jobs will appear here automatically as we verify them.",
     "emptyTitle": "No jobs currently match your profile.",
     "emptyDescription": "Only jobs that pass your profile and location relevance threshold appear here.",
     "locationEmptyTitle": "No active jobs are currently within your search area.",
@@ -264,6 +266,7 @@
     "noActiveEmptyDescription": "We'll show new opportunities here when verified active jobs matching your profile become available.",
     "emailNotice": {
       "enabled": "When matching jobs are found, we'll email you at your selected frequency.",
+      "pending": "You can leave this page — we’ll email you when this search finds matching jobs.",
       "disabled": "Job email updates are turned off.",
       "enable": "Enable them in settings"
     },

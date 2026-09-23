@@ -30,6 +30,40 @@ import {
 } from "./application-status";
 import { ApplicationStatusFilters } from "./application-status-filters";
 
+type EmailFrequency = "daily" | "weekly" | "never";
+
+function JobEmailNotice({
+  frequency,
+  pending,
+}: {
+  frequency: EmailFrequency;
+  pending: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <p className="text-muted-foreground mt-4 max-w-md text-sm leading-6">
+      {frequency === "never" ? (
+        <>
+          {t("jobDiscovery.emailNotice.disabled")}{" "}
+          <Link
+            href="/profile/emails"
+            className="text-primary font-medium underline underline-offset-4"
+          >
+            {t("jobDiscovery.emailNotice.enable")}
+          </Link>
+        </>
+      ) : (
+        t(
+          pending
+            ? "jobDiscovery.emailNotice.pending"
+            : "jobDiscovery.emailNotice.enabled",
+        )
+      )}
+    </p>
+  );
+}
+
 export function JobDiscoveryPanel({
   view,
   onEdit,
@@ -198,24 +232,11 @@ export function JobDiscoveryPanel({
                     {t("jobDiscovery.expandSearchRadius")}
                   </Button>
                 ) : null}
-                {view === "suggestions" &&
-                !discoveryPending &&
-                emailPreference ? (
-                  <p className="text-muted-foreground mt-5 max-w-md text-sm leading-6">
-                    {emailPreference.frequency === "never" ? (
-                      <>
-                        {t("jobDiscovery.emailNotice.disabled")}{" "}
-                        <Link
-                          href="/profile/emails"
-                          className="text-primary font-medium underline underline-offset-4"
-                        >
-                          {t("jobDiscovery.emailNotice.enable")}
-                        </Link>
-                      </>
-                    ) : (
-                      t("jobDiscovery.emailNotice.enabled")
-                    )}
-                  </p>
+                {view === "suggestions" && emailPreference ? (
+                  <JobEmailNotice
+                    frequency={emailPreference.frequency}
+                    pending={discoveryPending}
+                  />
                 ) : null}
               </m.div>
             ) : (
@@ -557,6 +578,41 @@ export function JobDiscoveryPanel({
                       })}
                     </AnimatePresence>
                   </m.ul>
+                ) : null}
+                {view === "suggestions" && discoveryPending ? (
+                  <m.aside
+                    role="status"
+                    aria-labelledby="job-discovery-more-title"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-card border-border relative mt-4 flex items-center gap-4 overflow-hidden rounded-3xl border px-5 py-6 shadow-[var(--brand-shadow-card)] sm:px-6"
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="bg-brand-electric/8 absolute inset-y-0 start-0 w-40 rounded-full blur-3xl"
+                    />
+                    <span className="bg-brand-midnight relative grid size-14 shrink-0 place-items-center rounded-full text-white shadow-sm">
+                      <span className="border-t-brand-electric absolute inset-1 rounded-full border border-transparent motion-safe:animate-spin motion-reduce:animate-none" />
+                      <Search aria-hidden="true" className="relative size-5" />
+                    </span>
+                    <div className="relative min-w-0">
+                      <h2
+                        id="job-discovery-more-title"
+                        className="font-semibold text-balance"
+                      >
+                        {t("jobDiscovery.morePendingTitle")}
+                      </h2>
+                      <p className="text-muted-foreground mt-1 text-sm leading-6 text-pretty">
+                        {t("jobDiscovery.morePendingDescription")}
+                      </p>
+                      {emailPreference ? (
+                        <JobEmailNotice
+                          frequency={emailPreference.frequency}
+                          pending
+                        />
+                      ) : null}
+                    </div>
+                  </m.aside>
                 ) : null}
               </m.div>
             )}
