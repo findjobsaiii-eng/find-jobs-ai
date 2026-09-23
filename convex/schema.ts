@@ -492,6 +492,7 @@ const schema = defineSchema({
         meaningfulCharacterCount: v.optional(v.number()),
         extractionStatus: v.string(),
         structuredParserStatus: v.string(),
+        technicalMessage: v.optional(v.string()),
         updatedAt: v.number(),
       }),
     ),
