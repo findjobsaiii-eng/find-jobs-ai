@@ -272,6 +272,12 @@
     radial-gradient(circle at 12% 10%, rgb(59 130 246 / 22%), transparent 38%);
 }
 
+.landing-beta-badge {
+  background-image: linear-gradient(110deg, #0f766e, #0d9488 45%, #2563eb);
+  background-size: 180% 100%;
+  animation: landing-beta-shimmer 4s ease-in-out infinite;
+}
+
 .landing-pulse {
   animation: landing-pulse 2.8s ease-in-out infinite;
 }
@@ -300,12 +306,23 @@
   }
 }
 
+@keyframes landing-beta-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
   .landing-pulse,
-  .landing-marquee {
+  .landing-marquee,
+  .landing-beta-badge {
     animation: none;
   }
 }

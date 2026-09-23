@@ -19,7 +19,6 @@ import { Brand } from "@/features/auth/brand";
 import { GoogleMark } from "@/features/auth/google-mark";
 import { LanguageButton } from "@/features/auth/language-button";
 import { useGoogleSignIn } from "@/features/auth/use-google-sign-in";
-import { PrivacyNotice } from "@/features/privacy/privacy-notice";
 import { AnimatedMatchingMap } from "./animated-matching-map";
 
 const STEPS = [
@@ -195,7 +194,7 @@ export function LandingPage() {
       <section className="relative isolate mx-auto grid w-full max-w-[88rem] items-center gap-10 px-5 pt-14 pb-12 sm:px-8 sm:pt-18 sm:pb-16 lg:min-h-[46rem] lg:grid-cols-[0.88fr_1.12fr] lg:gap-16 lg:px-10 lg:py-16">
         <div
           aria-hidden="true"
-          className="landing-rays absolute inset-0 -z-10"
+          className="landing-rays absolute inset-y-0 start-1/2 -z-10 w-screen -translate-x-1/2 rtl:translate-x-1/2"
         />
         <motion.div
           initial={{ opacity: 0, y: 18 }}
@@ -203,13 +202,13 @@ export function LandingPage() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="relative z-10 max-w-2xl"
         >
-          <div className="text-brand-electric mb-5 inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur">
+          <div className="landing-beta-badge mb-5 inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-teal-500/20">
             <Sparkles aria-hidden="true" className="size-3.5" />
             {t("landing.eyebrow")}
           </div>
-          <h1 className="text-[clamp(3.15rem,7.4vw,6.35rem)] leading-[0.92] font-semibold tracking-[-0.065em] text-balance">
-            {t("landing.titleStart")}{" "}
-            <span className="relative inline-block whitespace-nowrap">
+          <h1 className="text-[clamp(2.7rem,5.7vw,4.9rem)] leading-[0.96] font-semibold tracking-[-0.055em] text-balance">
+            <span className="block">{t("landing.titleStart")}</span>
+            <span className="relative mt-2 inline-block">
               <motion.span
                 aria-hidden="true"
                 initial={{ scaleX: 0 }}
@@ -255,9 +254,13 @@ export function LandingPage() {
               />
             </Button>
           </div>
-          <div className="mt-4 max-w-xl">
-            <PrivacyNotice />
-          </div>
+          <p className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Check
+              aria-hidden="true"
+              className="size-4 shrink-0 text-teal-600"
+            />
+            {t("landing.quickStart")}
+          </p>
           <div aria-live="polite" className="min-h-6 pt-2 text-sm">
             {error ? <p className="text-red-600">{error}</p> : null}
           </div>

@@ -50,7 +50,7 @@ export function AnimatedMatchingMap() {
   return (
     <div className="relative mx-auto w-full max-w-[42rem]">
       <div className="absolute inset-5 rounded-[2.5rem] bg-blue-400/15 blur-3xl" />
-      <div className="relative min-h-[29rem] overflow-hidden rounded-[2rem] border border-white/65 bg-white/72 p-4 shadow-[var(--brand-shadow-preview)] backdrop-blur-2xl sm:min-h-[32rem] sm:p-6">
+      <div className="relative min-h-[24rem] overflow-hidden rounded-[2rem] border border-white/65 bg-white/72 p-4 shadow-[var(--brand-shadow-preview)] backdrop-blur-2xl sm:min-h-[32rem] sm:p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-brand-midnight text-sm font-semibold">
@@ -117,29 +117,24 @@ export function AnimatedMatchingMap() {
           <Sparkles className="text-brand-teal absolute -end-1 -top-1 size-4" />
         </motion.div>
 
-        <div className="absolute end-[4%] top-[25%] z-10 w-[38%] space-y-2.5 sm:end-[5%] sm:w-[36%]">
+        <div className="absolute end-[5%] top-[25%] z-10 w-[31%] space-y-2.5 sm:w-[36%]">
           {JOBS.map(({ id, score }, index) => (
             <motion.div
               key={id}
               initial={reducedMotion ? false : { opacity: 0, x: 14 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.28 + index * 0.13, duration: 0.45 }}
-              className="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-md shadow-slate-900/6 sm:p-3.5"
+              className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-md shadow-slate-900/6 sm:p-3.5"
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between gap-2 sm:gap-2.5">
                 <span className="bg-brand-electric/8 text-brand-electric grid size-8 shrink-0 place-items-center rounded-lg">
                   <BriefcaseBusiness aria-hidden="true" className="size-3.5" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-brand-midnight truncate text-[0.7rem] font-semibold sm:text-xs">
-                    <span className="sm:hidden">
-                      {t(`landing.preview.jobs.${id}.initial`)}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {t(`landing.preview.jobs.${id}.role`)}
-                    </span>
+                <div className="hidden min-w-0 flex-1 sm:block">
+                  <p className="text-brand-midnight truncate text-xs font-semibold">
+                    {t(`landing.preview.jobs.${id}.role`)}
                   </p>
-                  <p className="mt-0.5 hidden truncate text-[0.62rem] text-slate-500 sm:block">
+                  <p className="mt-0.5 truncate text-[0.62rem] text-slate-500">
                     {t(`landing.preview.jobs.${id}.company`)}
                   </p>
                 </div>

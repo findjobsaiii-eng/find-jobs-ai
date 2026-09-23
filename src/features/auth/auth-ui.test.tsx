@@ -153,18 +153,19 @@ describe("authentication UI", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Every job. One place.",
+        name: /Every job.*One place/,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Find. Understand. Track.")).toBeInTheDocument();
+    expect(screen.getByText("Free during beta")).toBeInTheDocument();
+    expect(screen.getByText("Set up in 30 seconds")).toBeInTheDocument();
+    expect(screen.queryByText("Terms of use")).not.toBeInTheDocument();
+    expect(screen.queryByText("Privacy policy")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute(
       "href",
       "#product",
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Get started with Google" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Start for free" }));
     expect(authActions.signIn).toHaveBeenCalledWith("google", {
       redirectTo: "http://localhost:3000/",
     });
