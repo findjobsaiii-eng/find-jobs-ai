@@ -456,6 +456,7 @@
     "locationPlaceholder": "Search for a city",
     "findJobs": "Find jobs for me",
     "editProfile": "Edit full profile",
+    "keepCurrent": "Keep current CV",
     "notFound": "Not stated",
     "seniority": {
       "entry": "Entry level",
@@ -513,6 +514,12 @@
       "eyebrow": "CV imported",
       "title": "Let's review your profile",
       "description": "We filled in what we could from your CV. Check that everything is right and complete anything that's missing."
+    },
+    "replaceResume": {
+      "title": "Upload a different CV?",
+      "description": "Unsaved changes on this page will be lost. Your current CV stays in place until the new one is ready.",
+      "cancel": "Stay here",
+      "confirm": "Choose another CV"
     },
     "steps": {
       "1": {

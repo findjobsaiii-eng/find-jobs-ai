@@ -19,7 +19,7 @@ import { DashboardLoadingScreen, DashboardScreen } from "./dashboard-screen";
 
 const hooks = vi.hoisted(() => ({
   data: null as CurrentProfile | null | undefined,
-  resume: null as { status: string } | null | undefined,
+  resume: null as { id?: string; status: string } | null | undefined,
   push: vi.fn(),
   replace: vi.fn(),
   save: vi.fn<
@@ -236,6 +236,39 @@ describe("dashboard and completed profile editing", () => {
       }),
     ).toBeInTheDocument();
     expect(await screen.findByText("React")).toBeInTheDocument();
+  });
+
+  it("confirms before returning from CV review to replace the uploaded CV", async () => {
+    const user = userEvent.setup();
+    const data = completedProfile();
+    hooks.data = {
+      ...data,
+      profile: {
+        ...data.profile!,
+        onboardingCompleted: false,
+        onboardingStep: 1,
+        cvReviewPending: true,
+      },
+    } as CurrentProfile;
+    hooks.resume = { id: "resumeDocuments:one", status: "ready" };
+
+    render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+
+    await user.click(screen.getByRole("button", { name: "Back to CV upload" }));
+
+    expect(
+      screen.getByRole("alertdialog", { name: "Upload a different CV?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/current CV stays in place/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Choose another CV" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Upload your CV" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Keep current CV" }),
+    ).toBeInTheDocument();
   });
 
   it("moves from the upload gate into manual profile onboarding", async () => {

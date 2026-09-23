@@ -277,16 +277,43 @@ describe("resume-first onboarding", () => {
     ).toBeDisabled();
   });
 
-  it("lets an existing user replace a CV without opening the long profile form", () => {
+  it("replaces the existing CV only after the new upload is processed", async () => {
+    const user = userEvent.setup();
+    const onCancelReplacement = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ storageId: "_storage:replacement" }),
+      }),
+    );
     render(
       <ResumeOnboarding
         resume={readyResume as never}
         replaceMode
         onEdit={vi.fn()}
+        onCancelReplacement={onCancelReplacement}
       />,
     );
     expect(
       screen.getByRole("heading", { name: "Upload your CV" }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep current CV" }));
+    expect(onCancelReplacement).toHaveBeenCalledOnce();
+
+    const file = new File(["replacement cv"], "replacement.pdf", {
+      type: "application/pdf",
+    });
+    await user.upload(screen.getByLabelText("Upload CV"), file);
+
+    await waitFor(() =>
+      expect(hooks.create).toHaveBeenCalledWith({
+        storageId: "_storage:replacement",
+        fileName: "replacement.pdf",
+        mimeType: "application/pdf",
+        size: file.size,
+        replacementForId: "resumeDocuments:one",
+      }),
+    );
   });
 });

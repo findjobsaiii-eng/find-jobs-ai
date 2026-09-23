@@ -59,6 +59,7 @@ import {
 } from "./profile-server-error";
 import { CatalogMultiSelect } from "./reference-multi-select";
 import { DiscardProfileChangesDialog } from "./discard-profile-changes-dialog";
+import { ReplaceResumeDialog } from "./replace-resume-dialog";
 
 type StepProps = {
   draft: ProfileDraft;
@@ -624,6 +625,7 @@ export function OnboardingScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(Boolean(initialData.profile));
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [replaceResumeDialogOpen, setReplaceResumeDialogOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const submittingRef = useRef(false);
   const isRtl = i18n.dir() === "rtl";
@@ -818,7 +820,8 @@ export function OnboardingScreen({
               variant="ghost"
               onClick={() => {
                 if (step === 1 && onBackToResume) {
-                  onBackToResume();
+                  if (resumeReview) setReplaceResumeDialogOpen(true);
+                  else onBackToResume();
                   return;
                 }
                 setErrors({});
@@ -896,6 +899,13 @@ export function OnboardingScreen({
         onOpenChange={setDiscardDialogOpen}
         onDiscard={() => editing?.onCancel()}
       />
+      {onBackToResume ? (
+        <ReplaceResumeDialog
+          open={replaceResumeDialogOpen}
+          onOpenChange={setReplaceResumeDialogOpen}
+          onConfirm={onBackToResume}
+        />
+      ) : null}
     </AuthShell>
   );
 }

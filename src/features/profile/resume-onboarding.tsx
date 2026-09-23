@@ -114,6 +114,7 @@ export function ResumeOnboarding({
   onEdit,
   onManualEntry,
   onComplete,
+  onCancelReplacement,
   replaceMode = false,
 }: {
   resume: ResumeState;
@@ -121,6 +122,7 @@ export function ResumeOnboarding({
   onEdit: () => void;
   onManualEntry?: () => void;
   onComplete?: () => void;
+  onCancelReplacement?: () => void;
   replaceMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -129,8 +131,14 @@ export function ResumeOnboarding({
   const processResume = useAction(api.resumeActions.processResume);
   const finishReview = useMutation(api.resumes.finishReview);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [replacementForId] = useState(() =>
+    replaceMode ? resume?.id : undefined,
+  );
   const [replacementStarted, setReplacementStarted] = useState(false);
-  const visibleResume = replaceMode && !replacementStarted ? null : resume;
+  const visibleResume =
+    replaceMode && (!replacementStarted || resume?.id === replacementForId)
+      ? null
+      : resume;
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -203,6 +211,7 @@ export function ResumeOnboarding({
         fileName: file.name,
         mimeType: file.type,
         size: file.size,
+        ...(replacementForId ? { replacementForId } : {}),
       });
       await processResume({ resumeId });
     } catch (cause) {
@@ -464,6 +473,16 @@ export function ResumeOnboarding({
                 onClick={onManualEntry}
               >
                 {t("resume.fillManually")}
+              </Button>
+            ) : null}
+            {replaceMode && onCancelReplacement ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-2 min-h-11 w-full"
+                onClick={onCancelReplacement}
+              >
+                {t("resume.keepCurrent")}
               </Button>
             ) : null}
           </section>

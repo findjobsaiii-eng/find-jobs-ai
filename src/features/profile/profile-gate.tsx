@@ -44,6 +44,7 @@ function ProfileRoute({
   loading: ReactNode;
 }) {
   const [manualEntry, setManualEntry] = useState(false);
+  const [replacingResume, setReplacingResume] = useState(false);
   const profileState = useQuery(api.candidateProfiles.getCurrent);
   const resume = useQuery(api.resumes.getCurrent);
   if (profileState === undefined || resume === undefined) {
@@ -59,12 +60,31 @@ function ProfileRoute({
   const resumeReady =
     resume?.status === "ready" || resume?.status === "needs_confirmation";
 
+  if (replacingResume) {
+    return (
+      <ResumeOnboarding
+        resume={resume}
+        identity={profileState.identity}
+        replaceMode
+        onEdit={() => {
+          setReplacingResume(false);
+          setManualEntry(true);
+        }}
+        onCancelReplacement={() => setReplacingResume(false)}
+      />
+    );
+  }
+
   return manualEntry || resumeReady ? (
     <OnboardingScreen
       initialData={profileState}
       resumeReview={resumeReady}
       onBackToResume={
-        manualEntry && !resumeReady ? () => setManualEntry(false) : undefined
+        resumeReady
+          ? () => setReplacingResume(true)
+          : manualEntry
+            ? () => setManualEntry(false)
+            : undefined
       }
     />
   ) : (
