@@ -252,7 +252,9 @@ describe("dashboard and completed profile editing", () => {
     } as CurrentProfile;
     hooks.resume = { id: "resumeDocuments:one", status: "ready" };
 
-    render(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+    const view = render(
+      <ProfileGate>{() => <p>Protected content</p>}</ProfileGate>,
+    );
 
     await user.click(screen.getByRole("button", { name: "Back to CV upload" }));
 
@@ -269,6 +271,18 @@ describe("dashboard and completed profile editing", () => {
     expect(
       screen.getByRole("button", { name: "Keep current CV" }),
     ).toBeInTheDocument();
+
+    hooks.resume = { id: "resumeDocuments:two", status: "ready" };
+    view.rerender(<ProfileGate>{() => <p>Protected content</p>}</ProfileGate>);
+
+    expect(
+      screen.getByRole("heading", { name: "Let's review your profile" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Your career profile is ready",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("moves from the upload gate into manual profile onboarding", async () => {

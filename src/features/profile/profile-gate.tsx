@@ -5,6 +5,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { AuthLoadingScreen } from "@/features/auth/auth-loading-screen";
 import { AuthShell } from "@/features/auth/auth-shell";
@@ -44,7 +45,8 @@ function ProfileRoute({
   loading: ReactNode;
 }) {
   const [manualEntry, setManualEntry] = useState(false);
-  const [replacingResume, setReplacingResume] = useState(false);
+  const [replacementSourceId, setReplacementSourceId] =
+    useState<Id<"resumeDocuments"> | null>(null);
   const profileState = useQuery(api.candidateProfiles.getCurrent);
   const resume = useQuery(api.resumes.getCurrent);
   if (profileState === undefined || resume === undefined) {
@@ -59,18 +61,18 @@ function ProfileRoute({
 
   const resumeReady =
     resume?.status === "ready" || resume?.status === "needs_confirmation";
+  const replacementComplete =
+    replacementSourceId !== null &&
+    resumeReady &&
+    resume?.id !== replacementSourceId;
 
-  if (replacingResume) {
+  if (replacementSourceId !== null && !replacementComplete) {
     return (
       <ResumeOnboarding
         resume={resume}
         identity={profileState.identity}
         replaceMode
-        onEdit={() => {
-          setReplacingResume(false);
-          setManualEntry(true);
-        }}
-        onCancelReplacement={() => setReplacingResume(false)}
+        onCancelReplacement={() => setReplacementSourceId(null)}
       />
     );
   }
@@ -81,7 +83,9 @@ function ProfileRoute({
       resumeReview={resumeReady}
       onBackToResume={
         resumeReady
-          ? () => setReplacingResume(true)
+          ? () => {
+              if (resume) setReplacementSourceId(resume.id);
+            }
           : manualEntry
             ? () => setManualEntry(false)
             : undefined
@@ -91,7 +95,6 @@ function ProfileRoute({
     <ResumeOnboarding
       resume={resume}
       identity={profileState.identity}
-      onEdit={() => setManualEntry(true)}
       onManualEntry={() => setManualEntry(true)}
     />
   );

@@ -9,7 +9,6 @@ import { processingErrorKey } from "./resume-errors";
 const hooks = vi.hoisted(() => ({
   generate: vi.fn(),
   create: vi.fn(),
-  finish: vi.fn(),
   process: vi.fn(),
   catalogMutation: vi.fn(),
 }));
@@ -23,7 +22,6 @@ vi.mock("convex/react", async () => {
       const name = getFunctionName(reference as never);
       if (name === "resumes:generateUploadUrl") return hooks.generate;
       if (name === "resumes:createFromUpload") return hooks.create;
-      if (name === "resumes:finishReview") return hooks.finish;
       return hooks.catalogMutation;
     },
   };
@@ -84,7 +82,6 @@ describe("resume-first onboarding", () => {
   beforeEach(async () => {
     hooks.generate.mockReset().mockResolvedValue("https://upload.example");
     hooks.create.mockReset().mockResolvedValue("resumeDocuments:new");
-    hooks.finish.mockReset().mockResolvedValue(null);
     hooks.process.mockReset().mockResolvedValue(null);
     hooks.catalogMutation.mockReset();
     vi.restoreAllMocks();
@@ -92,7 +89,7 @@ describe("resume-first onboarding", () => {
   });
 
   it("starts with one clear CV upload action and accepts only PDF or DOCX", () => {
-    render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    render(<ResumeOnboarding resume={null} />);
     expect(
       screen.getByRole("heading", { name: "Upload your CV" }),
     ).toBeInTheDocument();
@@ -105,7 +102,6 @@ describe("resume-first onboarding", () => {
     render(
       <ResumeOnboarding
         resume={{ ...readyResume, status: "processing" } as never}
-        onEdit={vi.fn()}
       />,
     );
 
@@ -118,13 +114,7 @@ describe("resume-first onboarding", () => {
   it("lets the user skip CV upload and fill the profile manually", async () => {
     const user = userEvent.setup();
     const onManualEntry = vi.fn();
-    render(
-      <ResumeOnboarding
-        resume={null}
-        onEdit={vi.fn()}
-        onManualEntry={onManualEntry}
-      />,
-    );
+    render(<ResumeOnboarding resume={null} onManualEntry={onManualEntry} />);
 
     await user.click(
       screen.getByRole("button", { name: "Fill in my profile manually" }),
@@ -142,7 +132,7 @@ describe("resume-first onboarding", () => {
         json: async () => ({ storageId: "_storage:file" }),
       }),
     );
-    render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    render(<ResumeOnboarding resume={null} />);
     const file = new File(["real cv content"], "career.pdf", {
       type: "application/pdf",
     });
@@ -168,7 +158,7 @@ describe("resume-first onboarding", () => {
         json: async () => ({ storageId: "_storage:file" }),
       }),
     );
-    const view = render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    const view = render(<ResumeOnboarding resume={null} />);
     const dropzone = screen.getByRole("button", {
       name: "Drop a resume here or click to browse",
     });
@@ -176,7 +166,7 @@ describe("resume-first onboarding", () => {
     fireEvent.drop(dropzone, { dataTransfer: { files: [pdf] } });
     await waitFor(() => expect(hooks.process).toHaveBeenCalledOnce());
     view.unmount();
-    render(<ResumeOnboarding resume={null} onEdit={vi.fn()} />);
+    render(<ResumeOnboarding resume={null} />);
     fireEvent.drop(
       screen.getByRole("button", {
         name: "Drop a resume here or click to browse",
@@ -208,7 +198,6 @@ describe("resume-first onboarding", () => {
             failureCode: "SCANNED_PDF",
           } as never
         }
-        onEdit={vi.fn()}
         onManualEntry={vi.fn()}
       />,
     );
@@ -218,63 +207,6 @@ describe("resume-first onboarding", () => {
     expect(
       screen.getByRole("button", { name: "Fill in my profile manually" }),
     ).toBeInTheDocument();
-  });
-
-  it("shows a compact summary and sends the effective profile straight to jobs", async () => {
-    const user = userEvent.setup();
-    const onComplete = vi.fn();
-    render(
-      <ResumeOnboarding
-        resume={readyResume as never}
-        onEdit={vi.fn()}
-        onComplete={onComplete}
-      />,
-    );
-    expect(
-      await screen.findByRole("heading", {
-        name: "Your career profile is ready",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("E-commerce Manager")).toBeInTheDocument();
-    expect(screen.getByText("Shopify")).toBeInTheDocument();
-    expect(screen.getByText("Rishon LeZion")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Find jobs for me" }));
-    expect(hooks.finish).toHaveBeenCalledOnce();
-    const finishArgs: unknown = hooks.finish.mock.calls[0]?.[0];
-    expect(finishArgs).toMatchObject({
-      targetJobTitleIds: ["catalogItems:role"],
-    });
-    if (
-      !finishArgs ||
-      typeof finishArgs !== "object" ||
-      !("location" in finishArgs)
-    )
-      throw new Error("Expected a normalized location");
-    expect(finishArgs.location).toMatchObject({
-      city: "Rishon LeZion",
-      radiusKm: 25,
-    });
-    expect(onComplete).toHaveBeenCalledOnce();
-  });
-
-  it("asks only for the missing matching-critical location", async () => {
-    render(
-      <ResumeOnboarding
-        resume={
-          {
-            ...readyResume,
-            status: "needs_confirmation",
-            location: null,
-            needsLocation: true,
-          } as never
-        }
-        onEdit={vi.fn()}
-      />,
-    );
-    expect(await screen.findByText(/Choose one location/)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Find jobs for me" }),
-    ).toBeDisabled();
   });
 
   it("replaces the existing CV only after the new upload is processed", async () => {
@@ -291,7 +223,6 @@ describe("resume-first onboarding", () => {
       <ResumeOnboarding
         resume={readyResume as never}
         replaceMode
-        onEdit={vi.fn()}
         onCancelReplacement={onCancelReplacement}
       />,
     );
