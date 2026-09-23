@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useAction, useMutation } from "convex/react";
 import { FileText, LoaderCircle, Sparkles, Upload } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
@@ -18,6 +18,7 @@ import { processingErrorKey } from "./resume-errors";
 import { cn } from "@/lib/utils";
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
+const ANALYSIS_STEPS = ["reading", "skills", "profile"] as const;
 
 type ResumeState = FunctionReturnType<typeof api.resumes.getCurrent>;
 
@@ -29,6 +30,82 @@ function resumeLocation(state: ResumeState): SelectedPlace[] {
       label: state.location.city ?? state.location.formattedAddress,
     },
   ];
+}
+
+function ResumeAnalysisLoader() {
+  const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    const interval = window.setInterval(() => {
+      setStep((current) => (current + 1) % ANALYSIS_STEPS.length);
+    }, 2_200);
+    return () => window.clearInterval(interval);
+  }, [reducedMotion]);
+
+  return (
+    <section
+      className="text-center"
+      role="status"
+      aria-labelledby="resume-analysis-title"
+      aria-describedby="resume-analysis-description"
+    >
+      <div className="relative mx-auto size-20">
+        <motion.div
+          animate={reducedMotion ? undefined : { y: [0, -3, 0] }}
+          transition={{ duration: 2.4, ease: "easeInOut", repeat: Infinity }}
+          className="bg-primary/10 text-primary border-primary/15 relative grid size-20 place-items-center overflow-hidden rounded-3xl border shadow-[var(--brand-shadow-preview)]"
+        >
+          <FileText aria-hidden="true" className="size-9" />
+          <motion.span
+            aria-hidden="true"
+            className="from-primary/0 via-primary/70 to-primary/0 absolute inset-x-3 top-3 h-px bg-linear-to-r"
+            animate={
+              reducedMotion ? undefined : { y: [0, 48, 0], opacity: [0, 1, 0] }
+            }
+            transition={{ duration: 2.2, ease: "easeInOut", repeat: Infinity }}
+          />
+        </motion.div>
+        <motion.span
+          aria-hidden="true"
+          className="bg-card text-primary absolute -end-2 -top-2 grid size-8 place-items-center rounded-xl border shadow-sm"
+          animate={reducedMotion ? undefined : { rotate: [0, 8, -6, 0] }}
+          transition={{ duration: 2.8, ease: "easeInOut", repeat: Infinity }}
+        >
+          <Sparkles className="size-4" />
+        </motion.span>
+      </div>
+
+      <h1
+        id="resume-analysis-title"
+        className="mt-6 text-2xl font-semibold text-balance"
+      >
+        {t("resume.analyzingTitle")}
+      </h1>
+      <div className="mt-3 min-h-6" aria-hidden="true">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.p
+            key={ANALYSIS_STEPS[step]}
+            initial={reducedMotion ? false : { opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: -5 }}
+            transition={{ duration: 0.22 }}
+            className="text-primary text-sm font-medium"
+          >
+            {t(`resume.analyzingSteps.${ANALYSIS_STEPS[step]}`)}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+      <p
+        id="resume-analysis-description"
+        className="text-muted-foreground mt-1 text-pretty"
+      >
+        {t("resume.analyzingDescription")}
+      </p>
+    </section>
+  );
 }
 
 export function ResumeOnboarding({
@@ -205,20 +282,7 @@ export function ResumeOnboarding({
         dir={i18n.dir()}
       >
         {analyzing ? (
-          <section className="text-center" aria-live="polite">
-            <div className="bg-primary/10 text-primary mx-auto grid size-16 place-items-center rounded-2xl">
-              <Sparkles
-                aria-hidden="true"
-                className="size-7 animate-pulse motion-reduce:animate-none"
-              />
-            </div>
-            <h1 className="mt-6 text-2xl font-semibold text-balance">
-              {t("resume.analyzingTitle")}
-            </h1>
-            <p className="text-muted-foreground mt-2 text-pretty">
-              {t("resume.analyzingDescription")}
-            </p>
-          </section>
+          <ResumeAnalysisLoader />
         ) : ready ? (
           <section aria-labelledby="resume-summary-title">
             <div className="bg-primary/10 text-primary mb-5 grid size-12 place-items-center rounded-xl">

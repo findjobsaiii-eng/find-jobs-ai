@@ -435,8 +435,13 @@
     "uploadAction": "Upload CV",
     "fillManually": "Fill in my profile manually",
     "fileHint": "PDF or DOCX · up to 10 MB",
-    "analyzingTitle": "We’re analyzing your experience",
-    "analyzingDescription": "Finding your strongest roles, skills and career direction…",
+    "analyzingTitle": "Reading your CV…",
+    "analyzingDescription": "This usually takes just a few moments.",
+    "analyzingSteps": {
+      "reading": "Reading your experience",
+      "skills": "Finding your strongest skills",
+      "profile": "Building your career profile"
+    },
     "summaryTitle": "Your career profile is ready",
     "summaryDescription": "We found the strongest signals in your CV. A quick check, then your jobs are ready.",
     "roles": "You’re best matched for",

@@ -101,6 +101,20 @@ describe("resume-first onboarding", () => {
     expect(input).toHaveAttribute("accept", expect.stringContaining(".docx"));
   });
 
+  it("shows active, accessible progress while reading the CV", () => {
+    render(
+      <ResumeOnboarding
+        resume={{ ...readyResume, status: "processing" } as never}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Reading your CV…" }),
+    ).toHaveTextContent("This usually takes just a few moments.");
+    expect(screen.getByText("Reading your experience")).toBeInTheDocument();
+  });
+
   it("lets the user skip CV upload and fill the profile manually", async () => {
     const user = userEvent.setup();
     const onManualEntry = vi.fn();

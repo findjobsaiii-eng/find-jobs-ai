@@ -113,6 +113,10 @@ export function isSupportedLocationRadius(radius: number) {
 
 export function createProfileDraft(data: CurrentProfile): ProfileDraft {
   const profile = data.profile;
+  const savedLanguages = profile?.languages?.map((language) => ({
+    languageCode: language.languageCode as LanguageCode,
+    proficiency: language.proficiency,
+  }));
   return {
     preferredDisplayName:
       profile?.preferredDisplayName ?? data.identity.googleDisplayName ?? "",
@@ -150,13 +154,12 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
       profile?.minimumMonthlySalaryIls === undefined
         ? ""
         : String(profile.minimumMonthlySalaryIls),
-    languages: profile?.languages?.map((language) => ({
-      languageCode: language.languageCode as LanguageCode,
-      proficiency: language.proficiency,
-    })) ?? [
-      { languageCode: "he", proficiency: "" },
-      { languageCode: "en", proficiency: "" },
-    ],
+    languages: savedLanguages?.length
+      ? savedLanguages
+      : [
+          { languageCode: "he", proficiency: "native" },
+          { languageCode: "en", proficiency: "professional" },
+        ],
   };
 }
 

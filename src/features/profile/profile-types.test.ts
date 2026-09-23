@@ -31,6 +31,23 @@ function profileData(preferredPlaceIds: string[] = [], locationRadiusKm = 25) {
 }
 
 describe("profile location draft", () => {
+  it("prefills common languages without replacing saved choices", () => {
+    expect(createProfileDraft(profileData()).languages).toEqual([
+      { languageCode: "he", proficiency: "native" },
+      { languageCode: "en", proficiency: "professional" },
+    ]);
+
+    const withSavedLanguage = profileData() as CurrentProfile;
+    if (!withSavedLanguage.profile) throw new Error("Expected profile data");
+    withSavedLanguage.profile.languages = [
+      { languageCode: "ar", proficiency: "fluent" },
+    ];
+
+    expect(createProfileDraft(withSavedLanguage).languages).toEqual([
+      { languageCode: "ar", proficiency: "fluent" },
+    ]);
+  });
+
   it("resumes Place IDs without persisting Google labels", () => {
     const draft = createProfileDraft(
       profileData(["ChIJH3w7GaZMHRURkD-WwKJy-8E"], 50),
