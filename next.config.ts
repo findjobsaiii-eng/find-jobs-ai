@@ -22,6 +22,19 @@ function originOf(value: string | undefined) {
   }
 }
 
+function websocketOriginOf(value: string | undefined) {
+  try {
+    if (!value) return null;
+    const url = new URL(value);
+    if (url.protocol === "https:") url.protocol = "wss:";
+    else if (url.protocol === "http:") url.protocol = "ws:";
+    else return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 function posthogAssetsOrigin(value: string | undefined) {
   try {
     if (!value) return null;
@@ -37,6 +50,7 @@ const posthogAssets = posthogAssetsOrigin(process.env.NEXT_PUBLIC_POSTHOG_HOST);
 
 const remoteConnections = [
   originOf(process.env.NEXT_PUBLIC_CONVEX_URL),
+  websocketOriginOf(process.env.NEXT_PUBLIC_CONVEX_URL),
   originOf(convexSiteUrl),
   originOf(process.env.NEXT_PUBLIC_POSTHOG_HOST),
   posthogAssets,
