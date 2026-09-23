@@ -190,8 +190,12 @@ export function profileDraftToValues(
             radiusKm: draft.locationRadiusKm,
           }
         : null,
-    workArrangements: draft.workArrangements,
-    employmentTypes: draft.employmentTypes,
+    workArrangements: WORK_ARRANGEMENTS.filter((value) =>
+      draft.workArrangements.includes(value),
+    ),
+    employmentTypes: EMPLOYMENT_TYPES.filter((value) =>
+      draft.employmentTypes.includes(value),
+    ),
     minimumMonthlySalaryIls:
       draft.minimumMonthlySalaryIls === ""
         ? null

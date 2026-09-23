@@ -12,7 +12,7 @@ import {
   type GooglePlacesLibrary,
   type GoogleGeocoderResult,
 } from "@/lib/google-maps";
-import type { SelectedPlace } from "./profile-types";
+import { hasNormalizedLocation, type SelectedPlace } from "./profile-types";
 
 type LoadState = "loading" | "ready" | "error" | "missing-key";
 
@@ -267,8 +267,8 @@ export function GooglePlacesMultiSelect({
       currentValues.map(async (item) => {
         const cacheKey = `${language}:${item.placeId}`;
         const cached = labelCacheRef.current.get(cacheKey);
-        if (cached && item.formattedAddress && item.countryCode) {
-          return { ...item, label: cached };
+        if (hasNormalizedLocation(item)) {
+          return { ...item, label: cached ?? item.label };
         }
         try {
           const place = new placesLibrary.Place({

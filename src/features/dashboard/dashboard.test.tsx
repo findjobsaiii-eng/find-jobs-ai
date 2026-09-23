@@ -411,6 +411,57 @@ describe("dashboard and completed profile editing", () => {
     expect(hooks.push).toHaveBeenCalledWith("/profile/preferences");
   });
 
+  it("keeps profile actions hidden until a preference actually changes", async () => {
+    const user = userEvent.setup();
+    renderProfile("preferences");
+
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Remote" }));
+
+    expect(
+      screen.getByRole("button", { name: "Save profile" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("does not treat reordered preference selections as changes", async () => {
+    const user = userEvent.setup();
+    const data = completedProfile();
+    render(
+      <ProfileOverview
+        data={{
+          ...data,
+          profile: {
+            ...data.profile!,
+            workArrangements: ["onsite", "hybrid"],
+            employmentTypes: ["full-time", "contract"],
+          },
+        }}
+        activeSection="preferences"
+      />,
+    );
+
+    const onsite = screen.getByRole("checkbox", { name: "Onsite" });
+    await user.click(onsite);
+    expect(
+      screen.getByRole("button", { name: "Save profile" }),
+    ).toBeInTheDocument();
+
+    await user.click(onsite);
+    expect(
+      screen.queryByRole("button", { name: "Save profile" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("saves a profile edit once and keeps completion intact", async () => {
     const user = userEvent.setup();
     const view = renderProfile();

@@ -13,6 +13,7 @@ import type { SelectedPlace } from "./profile-types";
 const places = vi.hoisted(() => ({
   autocomplete: null as GooglePlaceAutocompleteElement | null,
   geocode: vi.fn(),
+  fetchPlace: vi.fn(),
 }));
 
 vi.mock("@/lib/google-maps", () => {
@@ -35,7 +36,26 @@ vi.mock("@/lib/google-maps", () => {
     hasGoogleMapsApiKey: () => true,
     loadGooglePlaces: async () => ({
       PlaceAutocompleteElement: FakeAutocomplete,
-      Place: class {},
+      Place: class {
+        id: string;
+        displayName = "Refreshed city";
+        formattedAddress = "Refreshed city, Israel";
+        addressComponents = [
+          {
+            longText: "Refreshed city",
+            shortText: "Refreshed city",
+            types: ["locality"],
+          },
+          { longText: "Israel", shortText: "IL", types: ["country"] },
+        ];
+        location = { lat: () => 32.1, lng: () => 34.8 };
+
+        constructor({ id }: { id: string }) {
+          this.id = id;
+        }
+
+        fetchFields = places.fetchPlace;
+      },
     }),
     loadGoogleGeocoding: async () => ({
       Geocoder: class {
@@ -92,6 +112,7 @@ describe("single Google Places location", () => {
 
   beforeEach(async () => {
     places.autocomplete = null;
+    places.fetchPlace.mockReset().mockResolvedValue(undefined);
     places.geocode.mockReset().mockResolvedValue({
       results: [
         {
@@ -247,5 +268,35 @@ describe("single Google Places location", () => {
     await user.click(screen.getByRole("button", { name: "Clear location" }));
     expect(screen.queryByLabelText("Haifa · 25 km")).not.toBeInTheDocument();
     await waitFor(() => expect(places.autocomplete).not.toBeNull());
+  });
+
+  it("does not rewrite a complete saved location when the editor opens", async () => {
+    const onChange = vi.fn();
+    render(
+      <GooglePlacesMultiSelect
+        label="Job-search location"
+        hint="Choose one location"
+        placeholder="Search"
+        values={[
+          {
+            placeId: "place-tel-aviv",
+            label: "Tel Aviv-Yafo",
+            formattedAddress: "Tel Aviv-Yafo, Israel",
+            city: "Tel Aviv-Yafo",
+            country: "Israel",
+            countryCode: "IL",
+            latitude: 32.0853,
+            longitude: 34.7818,
+          },
+        ]}
+        onChange={onChange}
+        radiusKm={25}
+      />,
+    );
+
+    expect(await screen.findByLabelText("Tel Aviv-Yafo · 25 km")).toBeVisible();
+    await act(async () => Promise.resolve());
+    expect(places.fetchPlace).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
