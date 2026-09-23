@@ -256,7 +256,7 @@ export function LandingPage() {
             </Button>
           </div>
           <div className="mt-4 max-w-xl">
-            <PrivacyNotice context="signIn" />
+            <PrivacyNotice />
           </div>
           <div aria-live="polite" className="min-h-6 pt-2 text-sm">
             {error ? <p className="text-red-600">{error}</p> : null}

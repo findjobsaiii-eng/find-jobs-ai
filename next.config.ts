@@ -47,6 +47,8 @@ function posthogAssetsOrigin(value: string | undefined) {
 }
 
 const posthogAssets = posthogAssetsOrigin(process.env.NEXT_PUBLIC_POSTHOG_HOST);
+const developmentScriptSource =
+  process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
 
 const remoteConnections = [
   originOf(process.env.NEXT_PUBLIC_CONVEX_URL),
@@ -65,7 +67,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  `script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com ${posthogAssets ?? ""}`,
+  `script-src 'self' 'unsafe-inline'${developmentScriptSource} https://maps.googleapis.com https://maps.gstatic.com ${posthogAssets ?? ""}`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.googleapis.com https://*.gstatic.com",
@@ -85,7 +87,7 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            value: "camera=(), microphone=(), geolocation=(self)",
           },
         ],
       },

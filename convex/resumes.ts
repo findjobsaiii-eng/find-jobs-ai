@@ -18,7 +18,6 @@ const SUPPORTED_TYPES = new Set([
 const MAX_BYTES = 10 * 1024 * 1024;
 const UPLOADS_PER_HOUR = 10;
 const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
-const CURRENT_TERMS_VERSION = "2026-09-23-draft-2";
 
 const processingDiagnosticsValidator = v.object({
   stage: v.string(),
@@ -41,22 +40,11 @@ async function requireUser(ctx: QueryCtx | MutationCtx) {
   return { userId, user };
 }
 
-async function requireUploadConsent(ctx: MutationCtx, userId: Id<"users">) {
-  const consent = await ctx.db
-    .query("legalConsents")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .unique();
-  if (consent?.termsVersion !== CURRENT_TERMS_VERSION) {
-    throw new ConvexError({ code: "CONSENT_REQUIRED" });
-  }
-}
-
 export const generateUploadUrl = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
     const { userId } = await requireUser(ctx);
-    await requireUploadConsent(ctx, userId);
     const now = Date.now();
     const rate = await ctx.db
       .query("resumeUploadRateLimits")
@@ -98,7 +86,6 @@ export const createFromUpload = mutation({
   returns: v.id("resumeDocuments"),
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
-    await requireUploadConsent(ctx, userId);
     const alreadyUsed = await ctx.db
       .query("resumeDocuments")
       .withIndex("by_storageId", (q) => q.eq("storageId", args.storageId))

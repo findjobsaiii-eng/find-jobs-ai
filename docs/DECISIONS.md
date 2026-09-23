@@ -595,6 +595,22 @@ uses that same path. Frequency defaults to daily and can be changed to weekly or
 never. Per-user delivery state and provider idempotency keys suppress duplicate
 sends; email preferences remain separate from matching profile revisions.
 
+### D-032: Legal UX stays nonblocking and concise
+
+Status: Accepted (2026-09-23)
+
+Evidence: `src/features/dashboard/app-routes.tsx`,
+`src/features/privacy/cookie-consent-manager.tsx`,
+`src/features/privacy/privacy-notice.tsx`, and `convex/resumes.ts`.
+
+Terms, privacy, cookies, accessibility, and contact information remain available
+from the global footer. Sign-in presents compact terms and privacy links, while
+the application and resume upload do not require a separate acceptance screen.
+Optional analytics remains off until the visitor accepts it. The cookie choice
+uses one compact banner for the initial decision and later changes from the
+footer. Marketing consent is not shown because the product does not send
+marketing messages.
+
 ## Job activity freshness (2026-09-09)
 
 Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.

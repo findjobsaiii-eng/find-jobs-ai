@@ -1,6 +1,4 @@
-// Draft copy grounded in the services currently used by JOBMITER.
-// Owner identity, contact channel and retention periods still require decisions.
-export const legalVersion = "2026-09-23-draft-2";
+export const legalVersion = "2026-09-23";
 
 type Section = { heading: string; body: string };
 type Page = { title: string; introduction: string; sections: Section[] };
@@ -14,7 +12,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
     terms: {
       title: "תנאי שימוש",
       introduction:
-        "טיוטה לשירות JOBMITER החינמי בשלב בדיקת שוק. המסמך טעון אישור עורך דין ישראלי לפני השקה. זהות המפעיל המשפטי טרם נמסרה. לפניות: info@jobmiter.com.",
+        "תנאים אלה מסדירים את השימוש ב־JOBMITER, שירות חינמי הנמצא בשלב בדיקת שוק. לפניות: info@jobmiter.com.",
       sections: [
         {
           heading: "השירות והזכאות",
@@ -46,14 +44,14 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "דין ושינויים",
-          body: "הדין החל על השירות והסמכות השיפוטית ייקבעו בטיוטה הסופית לאחר זיהוי המפעיל ובדיקה משפטית. שינויים מהותיים בתנאים יוצגו למשתמשים לפני תחולתם כאשר הדבר נדרש.",
+          body: "על התנאים והשימוש בשירות יחולו דיני מדינת ישראל, בכפוף לכל דין מחייב. שינויים מהותיים בתנאים יוצגו למשתמשים לפני תחולתם כאשר הדבר נדרש.",
         },
       ],
     },
     privacy: {
       title: "מדיניות פרטיות",
       introduction:
-        "טיוטה המתארת את פעולת המוצר כפי שנמצאה בקוד. זהות בעל השליטה במידע, תקופות שמירה ותהליך מחיקה מלא טעונים החלטת בעלים ובדיקה משפטית לפני השקה. לפניות פרטיות: info@jobmiter.com.",
+        "מדיניות זו מסבירה איזה מידע JOBMITER מעבדת, לאילו מטרות ומהן אפשרויות השליטה של המשתמש. לפניות פרטיות: info@jobmiter.com.",
       sections: [
         {
           heading: "מידע שנאסף",
@@ -65,19 +63,19 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "ספקים והעברות",
-          body: "Vercel מארחת את אתר האינטרנט; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה באמצעות OAuth והצעות מיקום ב־Maps; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות לכתובת האימייל של המשתמש; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח צפיות לאחר הסכמה. שימוש בספקים אלה עשוי לכלול עיבוד מחוץ לישראל. מדינות האחסון, תנאי ההעברה ורשימת ספקי המשנה המעודכנת טעונים אימות בעלים.",
+          body: "Vercel מארחת את האתר; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה והצעות מיקום; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח צפיות לאחר הסכמה. ספקים אלה עשויים לעבד מידע מחוץ לישראל בהתאם לתנאים ולאמצעי ההגנה שלהם.",
         },
         {
           heading: "שמירה ומחיקה",
-          body: "עדיין לא נקבעו תקופות שמירה לקורות חיים, פרופילים, חשבונות, יומנים או גיבויים. אפשר למחוק קורות חיים בודדים או ליזום מחיקת חשבון מתוך הפרופיל. מחיקת חשבון מסירה בשלבים נתונים וקבצים המשויכים למשתמש, לרבות רשומות אימות. נתוני משרות משותפים, לוגים, נתוני ספקים וגיבויים אינם נכללים כיום במחיקה אוטומטית מלאה. מדיניות מחיקה וזמני השלמה עדיין טעונים אימות.",
+          body: "מידע נשמר כל עוד החשבון פעיל וככל שנדרש להפעלת השירות, לאבטחה ולעמידה בחובות משפטיות. אפשר למחוק קורות חיים בודדים או למחוק את החשבון מתוך הפרופיל. עותקים מוגבלים עשויים להישמר זמנית בלוגים, בגיבויים או אצל ספקים עד למחזור המחיקה הרגיל שלהם.",
         },
         {
           heading: "זכויות ובקשות",
-          body: "ניתן לבקש עיון במידע, תיקון או מחיקה בכתובת info@jobmiter.com, בכפוף לדין. יש להגדיר תהליך אימות וטיפול בבקשות לפני השקה. המשתמש יכול לערוך חלק מפרטי הפרופיל ולמחוק קורות חיים בממשק.",
+          body: "ניתן לבקש עיון במידע, תיקון או מחיקה בכתובת info@jobmiter.com, בכפוף לאימות הבקשה ולדין. אפשר גם לערוך פרטי פרופיל ולמחוק קורות חיים או את החשבון מתוך השירות.",
         },
         {
           heading: "אבטחה",
-          body: "גישה למידע נשענת על אימות והרשאות יישום; עדיין נדרשת בדיקת אבטחה מלאה של סביבת הייצור, שחזור גיבוי, מדיניות לוגים ותהליך אירוע אבטחה. אין התחייבות לאבטחה מוחלטת.",
+          body: "JOBMITER משתמשת באמצעים טכניים וארגוניים שנועדו להגביל גישה לא מורשית, לרבות אימות והרשאות לפי משתמש. אין מערכת שמבטיחה אבטחה מוחלטת.",
         },
       ],
     },
@@ -88,7 +86,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "אחסון חיוני",
-          body: "אחסון הנדרש להתחברות מאובטחת, לשמירת בחירת השפה ולשמירת החלטת ההסכמה חיוני לתפקוד השירות. הוא פועל ללא הסכמה לניתוח שימוש. סוגי העוגיות, משך חייהן והדומיינים שלהם דורשים בדיקה בדפדפן הייצור.",
+          body: "אחסון הנדרש להתחברות מאובטחת, לשמירת בחירת השפה ולשמירת החלטת ההסכמה חיוני לתפקוד השירות. הוא פועל ללא הסכמה לניתוח שימוש.",
         },
         {
           heading: "ניתוח שימוש אופציונלי",
@@ -96,37 +94,36 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "ניהול הבחירה",
-          body: "אפשר לאשר הכול, לדחות אחסון לא חיוני או לבחור בהעדפות. ההחלטה נשמרת בדפדפן עם גרסת המדיניות וזמן הבחירה. ניקוי נתוני הדפדפן יחייב בחירה מחדש.",
+          body: "אפשר לאשר ניתוח שימוש או להישאר עם אחסון חיוני בלבד. ההחלטה נשמרת בדפדפן וניתן לשנות אותה בכל עת דרך הקישור בתחתית האתר.",
         },
       ],
     },
     accessibility: {
       title: "הצהרת נגישות",
       introduction:
-        "הצהרה זמנית. טרם הושלמה בדיקה מקיפה ולכן אין הצהרה על עמידה מלאה ב־WCAG 2.1 AA או בת״י 5568. תאריך עדכון הטיוטה: 22.09.2026.",
+        "JOBMITER פועלת לשפר את נגישות השירות בהתאם לעקרונות WCAG 2.1 AA ות״י 5568. בשלב זה אין הצהרה על התאמה מלאה. ההצהרה עודכנה ב־23.09.2026.",
       sections: [
         {
           heading: "התאמות שבוצעו",
-          body: "נוספו קישור דילוג לתוכן, מבנה סמנטי לעמודים מרכזיים, תוויות לפקדים והגדרות להפחתת תנועה. הממשק תומך בעברית מימין לשמאל ובאנגלית משמאל לימין. ההתאמות עדיין דורשות בדיקות ידניות ואוטומטיות בכל מסכי האפליקציה.",
+          body: "האתר כולל קישור דילוג לתוכן, מבנה סמנטי, תוויות לפקדים ותמיכה בהפחתת תנועה. הממשק תומך בעברית מימין לשמאל ובאנגלית משמאל לימין.",
         },
         {
           heading: "מגבלות ידועות",
-          body: "טרם אומתו כל זרימות המקלדת, ניגודיות, הגדלה ל־200%, הודעות שגיאה, רכיבי Google Maps ותהליכי העלאת קובץ. לא נקבעו עדיין פרטי רכז נגישות.",
+          body: "ייתכנו פערים ברכיבי מפות של צד שלישי ובחלק מזרימות העלאת הקבצים. נשמח לקבל דיווח כדי שנוכל לבדוק ולטפל בקושי.",
         },
         {
           heading: "דיווח על קושי",
-          body: "אפשר לדווח על בעיית נגישות או לבקש עזרה בכתובת info@jobmiter.com. יש לוודא טיפול בפניות לפני השקה.",
+          body: "אפשר לדווח על בעיית נגישות או לבקש עזרה בכתובת info@jobmiter.com.",
         },
       ],
     },
     contact: {
       title: "צור קשר",
-      introduction:
-        "לפניות משתמשים, פרטיות ונגישות: info@jobmiter.com. יש לוודא שהתיבה מנוטרת לפני השקה.",
+      introduction: "לפניות משתמשים, פרטיות ונגישות: info@jobmiter.com.",
       sections: [
         {
-          heading: "פרטי מפעיל",
-          body: "שם משפטי, כתובת ופרטי רישום טרם נמסרו. השירות מוצע כעת בחינם לצורך בדיקת שוק; יש לאשר את הניסוח המשפטי עם עורך דין ישראלי.",
+          heading: "על השירות",
+          body: "JOBMITER מוצע כעת ללא תשלום במסגרת בדיקת שוק.",
         },
       ],
     },
@@ -135,7 +132,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
     terms: {
       title: "Terms of use",
       introduction:
-        "Draft for JOBMITER's free market-testing service. An Israeli lawyer must review this document before launch. The operator's legal identity has not been supplied. Contact: info@jobmiter.com.",
+        "These terms govern use of JOBMITER, a free service currently offered while testing market demand. Contact: info@jobmiter.com.",
       sections: [
         {
           heading: "Service and eligibility",
@@ -167,14 +164,14 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Law and changes",
-          body: "Applicable law and venue must be finalized after identifying the operator and obtaining legal review. Material changes will be presented before they take effect where required.",
+          body: "Israeli law applies to these terms and use of the service, subject to mandatory law. Material changes will be presented before they take effect where required.",
         },
       ],
     },
     privacy: {
       title: "Privacy policy",
       introduction:
-        "Draft based on the product code. Controller identity, retention periods and complete deletion procedures require owner decisions and legal review before launch. Privacy contact: info@jobmiter.com.",
+        "This policy explains what information JOBMITER processes, why it is used, and the controls available to users. Privacy contact: info@jobmiter.com.",
       sections: [
         {
           heading: "Information collected",
@@ -186,19 +183,19 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Providers and transfers",
-          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides OAuth sign-in and Maps location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications to the user's email address; Sentry reports errors; PostHog provides consent-based page analytics. Processing may take place outside Israel. Hosting countries, transfer terms and current subprocessors require owner verification.",
+          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides sign-in and location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications; Sentry reports errors; PostHog provides consent-based page analytics. These providers may process information outside Israel under their terms and safeguards.",
         },
         {
           heading: "Retention and deletion",
-          body: "Retention periods for resumes, profiles, accounts, logs and backups have not been set. You can delete individual resumes or start account deletion from your profile. Account deletion removes user-linked records and files in stages, including authentication records. Shared job data, logs, vendor data and backups are not fully covered by automatic deletion. The deletion policy and completion time still require verification.",
+          body: "Information is kept while the account is active and as needed to operate the service, maintain security and meet legal obligations. You can delete individual resumes or your account from the profile. Limited copies may remain temporarily in logs, backups or provider systems until their normal deletion cycle completes.",
         },
         {
           heading: "Rights and requests",
-          body: "You may request access, correction or deletion at info@jobmiter.com, subject to law. A verified request process must be established before launch. Some profile details can be edited and resumes deleted in the product.",
+          body: "You may request access, correction or deletion at info@jobmiter.com, subject to request verification and applicable law. You can also edit profile details and delete resumes or your account within the service.",
         },
         {
           heading: "Security",
-          body: "Access relies on authentication and application permissions. A complete production security audit, backup restore, logging policy and incident process remain outstanding. No system can guarantee absolute security.",
+          body: "JOBMITER uses technical and organizational measures intended to limit unauthorized access, including authentication and per-user permissions. No system can guarantee absolute security.",
         },
       ],
     },
@@ -209,7 +206,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "Essential storage",
-          body: "Storage needed for secure sign-in, language preference and consent choice is essential to the service. It works without optional analytics consent. Actual cookie names, lifetimes and domains require verification in the production browser.",
+          body: "Storage needed for secure sign-in, language preference and consent choice is essential to the service. It works without optional analytics consent.",
         },
         {
           heading: "Optional analytics",
@@ -217,37 +214,37 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Managing your choice",
-          body: "You can accept all, reject optional storage or manage preferences. The choice is stored in your browser with policy version and decision time. Clearing browser data will prompt you again.",
+          body: "You can allow analytics or continue with essential storage only. The choice is stored in your browser and can be changed at any time using the footer link.",
         },
       ],
     },
     accessibility: {
       title: "Accessibility statement",
       introduction:
-        "Interim statement. A comprehensive audit has not finished, so we do not claim full WCAG 2.1 AA or Israeli Standard 5568 conformance. Draft updated September 22, 2026.",
+        "JOBMITER works to improve accessibility in line with WCAG 2.1 AA and Israeli Standard 5568. We do not currently claim full conformance. Updated September 23, 2026.",
       sections: [
         {
           heading: "Improvements made",
-          body: "The site includes a skip link, semantic structure on major pages, control labels and reduced-motion support. The interface supports Hebrew right-to-left and English left-to-right. These measures need manual and automated verification across the full app.",
+          body: "The site includes a skip link, semantic structure, control labels and reduced-motion support. The interface supports Hebrew right-to-left and English left-to-right.",
         },
         {
           heading: "Known limitations",
-          body: "Keyboard journeys, contrast, 200% zoom, error messages, Google Maps controls and file-upload flows have not all been verified. An accessibility coordinator has not been designated.",
+          body: "Some barriers may remain in third-party map controls and parts of the file-upload flow. Please report any difficulty so we can investigate and address it.",
         },
         {
           heading: "Report a barrier",
-          body: "You can request help or report a barrier at info@jobmiter.com. The response process must be verified before launch.",
+          body: "You can request help or report a barrier at info@jobmiter.com.",
         },
       ],
     },
     contact: {
       title: "Contact",
       introduction:
-        "For support, privacy and accessibility requests: info@jobmiter.com. The inbox must be monitored before launch.",
+        "For support, privacy and accessibility requests: info@jobmiter.com.",
       sections: [
         {
-          heading: "Operator details",
-          body: "Legal name, address and registration details have not been supplied. The service is currently offered free while testing market demand; Israeli legal counsel should approve the final wording.",
+          heading: "About the service",
+          body: "JOBMITER is currently offered free while testing market demand.",
         },
       ],
     },

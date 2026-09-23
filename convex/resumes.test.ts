@@ -407,14 +407,9 @@ describe("CV-derived effective profiles", () => {
     const userId = await t.run((ctx) =>
       ctx.db.insert("users", { email: "candidate@example.com" }),
     );
-    await expect(
-      asUser(t, userId).mutation(api.resumes.generateUploadUrl, {}),
-    ).rejects.toThrow();
-    await asUser(t, userId).mutation(api.legalConsents.acceptCurrent, {
-      termsVersion: "2026-09-23-draft-2",
-      privacyVersion: "2026-09-23-draft-2",
-      marketingOptIn: false,
-    });
+    expect(
+      await asUser(t, userId).mutation(api.resumes.generateUploadUrl, {}),
+    ).toMatch(/^https?:\/\//u);
     const storageId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["plain"], { type: "text/plain" })),
     );

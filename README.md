@@ -46,13 +46,13 @@ verifying deployment.
 
 ## Launch documents and consent
 
-Draft bilingual terms, privacy, cookie, accessibility and contact pages have
-stable `/he/...` and `/en/...` URLs. Their version is `2026-09-23-draft-2`.
-Authentication leads to a terms/privacy acceptance gate; Convex records its
-version, server timestamp and separate optional marketing preference. CV upload
-is blocked on the server until that acceptance is stored. The owner supplied
-`info@jobmiter.com` for requests. The drafts require review by an Israeli
-lawyer, and the remaining owner decisions are in
+Bilingual terms, privacy, cookie, accessibility and contact pages have stable
+`/he/...` and `/en/...` URLs. Their displayed version is `2026-09-23`. Sign-in
+shows compact links to the terms and privacy policy without blocking the user,
+and CV upload has no separate legal gate. Optional analytics remains disabled
+until the visitor chooses it in the compact cookie banner; the footer reopens
+the same choice. The owner supplied `info@jobmiter.com` for requests. The legal
+copy still requires review by an Israeli lawyer, and the remaining owner decisions are in
 [`docs/LAUNCH_OWNER_CHECKLIST.md`](docs/LAUNCH_OWNER_CHECKLIST.md).
 
 Users can delete individual resumes or start account deletion in their profile.

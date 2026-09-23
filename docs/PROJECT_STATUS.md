@@ -246,3 +246,9 @@ behavior. A live Safari login remains the final post-deployment smoke test.
 Implemented: server-side 14-day verification freshness limit, fresh-source selection, cautious canonical/login redirects, matching structured JobPosting expiry, HTTP attempt metadata, and background retry queue lease advancement. Existing saved/application history and English/Hebrew inactive UI are preserved. Browser verification remains for the owner; no live-source crawl was performed during implementation.
 
 Implemented: source provenance distinguishes successful HTTP/structured verification from provider sightings. Future discovery persists all usable cited source URLs, and an idempotent bounded repair can recover missing `jobSources` rows from canonical records, evidence, or stored provider JSON without paid searches.
+
+## Legal UX cleanup (2026-09-23)
+
+Implemented: legal and support pages remain linked from the global footer, sign-in shows only compact terms and privacy links, and optional analytics uses one small accept/reject banner that can be reopened from the footer. The blocking legal acceptance screen, resume-upload disclosure block, and unused marketing checkbox were removed. Resume upload no longer depends on a separate consent record. Existing consent data and schema remain intact to avoid a destructive production migration.
+
+Implemented: development CSP includes React's required `unsafe-eval` source only when `NODE_ENV=development`; production omits it. The permissions policy allows same-origin geolocation so the **Near me** action can request browser permission while camera and microphone remain disabled.

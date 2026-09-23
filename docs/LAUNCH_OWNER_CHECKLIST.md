@@ -8,7 +8,7 @@ Updated: 2026-09-23. This is a decision list, not a legal compliance certificate
 - [x] Contact mailbox supplied: `info@jobmiter.com`. Verify delivery, monitoring, and a response process for support, privacy, accessibility, and security reports.
 - [ ] Set specific retention periods and deletion triggers for accounts, resumes and extracted text, profiles, searches, job matches, application notes, consent records, logs, Sentry events, PostHog events, and backups. Decide how retention applies to derived and shared job data.
 - [ ] Verify the actual storage and processing countries, transfer mechanism, and current subprocessor terms for Vercel, Convex, Google OAuth/Maps, OpenAI, PostHog, Sentry, and Resend.
-- [ ] Decide whether marketing emails will be offered. Resend currently sends only user-controlled job-match service notifications; the separate marketing preference does not trigger messages.
+- [ ] Decide whether marketing emails will ever be offered. They are not offered in the current product; Resend sends only user-controlled job-match service notifications.
 - [ ] Establish a verified process for access, correction, export, and deletion requests sent to the contact mailbox, including identity checks and completion records.
 - [ ] Confirm whether database registration or notification is required under Israeli privacy law, whether a DPO must be appointed, and whether any accessibility exemption could apply. Obtain advice rather than assuming an exemption.
 - [ ] Name the responsible person for security incidents, set escalation contacts and response timelines, and test the incident process.

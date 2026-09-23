@@ -25,17 +25,11 @@
   },
   "cookieConsent": {
     "title": "Cookie choices",
-    "description": "Essential storage keeps sign-in and language choices working. With your permission, anonymous page views help us improve JOBMITER.",
+    "description": "Allow anonymous usage analytics or continue with essential cookies only.",
     "policy": "Cookie policy",
     "acceptAll": "Accept all",
     "rejectOptional": "Reject non-essential cookies",
     "manage": "Manage preferences",
-    "preferencesDescription": "Choose whether to allow anonymous analytics. You can change this choice at any time from the footer.",
-    "necessary": "Essential",
-    "necessaryDescription": "Required for sign-in, security and your language choice. Always active.",
-    "analytics": "Anonymous analytics",
-    "analyticsDescription": "Anonymous page views are collected after you opt in. No form input, resume, profile, session recording or interaction capture is sent.",
-    "save": "Save choices",
     "storageError": "We could not save your choice in this browser. Analytics remains off."
   },
   "siteFooter": {
@@ -48,31 +42,15 @@
     "emailPreferences": "Stop job emails",
     "preferences": "Cookie preferences"
   },
-  "legalAcceptance": {
-    "loading": "Loading your consent choices…",
-    "title": "Before you continue",
-    "description": "JOBMITER uses your Google account and, if you upload a resume, processes it with AI to suggest jobs. Please review how your information is used before creating a profile or uploading a file.",
-    "required": "I have read and accept the current terms of use and privacy notice.",
-    "marketing": "I would like optional marketing emails if this feature becomes available. This choice is separate and can be changed later.",
-    "continue": "Continue to JOBMITER",
-    "error": "We could not save your choice. Please try again."
-  },
-  "privacyNotice": {
-    "signIn": "Google sign-in creates an account. If you later upload a resume, AI will analyze it to suggest jobs. Review:",
-    "upload": "Your file and extracted information are stored in your account and processed with AI to build your profile and suggest jobs. You can delete the resume later. Review:"
-  },
   "dataControls": {
     "title": "Your data",
-    "description": "Choose which updates to receive, request a copy of your information or delete your account here.",
-    "marketing": "Allow optional marketing email if offered in future",
     "copy": "Request a copy",
     "delete": "Delete my account",
     "deleteTitle": "Delete your account?",
-    "deleteDescription": "This starts deletion of your account, resumes and personal app data and signs you out. Shared job records, service logs and backups may remain under policies still being finalized. This cannot be undone.",
+    "deleteDescription": "Your account, resumes and personal app data will be deleted and you will be signed out. This cannot be undone.",
     "deleteConfirm": "I understand that my account and uploaded resumes will be deleted.",
     "deleteFinal": "Delete account and data",
-    "deleteError": "Deletion could not be started. Please try again or contact info@jobmiter.com.",
-    "error": "We could not update this choice. Try again."
+    "deleteError": "Deletion could not be started. Please try again or contact info@jobmiter.com."
   },
   "language": {
     "switchLabel": "Switch language to Hebrew",

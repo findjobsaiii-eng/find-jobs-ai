@@ -16,7 +16,6 @@ import type {
 } from "./profile-types";
 import { processingErrorKey } from "./resume-errors";
 import { cn } from "@/lib/utils";
-import { PrivacyNotice } from "@/features/privacy/privacy-notice";
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 
@@ -344,9 +343,6 @@ export function ResumeOnboarding({
             <p className="text-muted-foreground mx-auto mt-3 max-w-md leading-7 text-pretty">
               {t("resume.uploadDescription")}
             </p>
-            <div className="mt-3">
-              <PrivacyNotice context="upload" />
-            </div>
             <input
               ref={inputRef}
               type="file"

@@ -48,7 +48,7 @@ export function SignInScreen() {
           {isSubmitting ? t("auth.connecting") : t("auth.continueWithGoogle")}
         </Button>
         <div className="mt-4">
-          <PrivacyNotice context="signIn" />
+          <PrivacyNotice />
         </div>
 
         <div aria-live="polite" className="min-h-6 pt-3 text-center text-sm">

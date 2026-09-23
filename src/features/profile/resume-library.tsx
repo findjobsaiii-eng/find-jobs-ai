@@ -30,7 +30,6 @@ import {
 import { SectionHeader, Surface } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
 import { processingErrorKey } from "./resume-errors";
-import { PrivacyNotice } from "@/features/privacy/privacy-notice";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const validResume = (file: File) => /\.(?:pdf|docx)$/iu.test(file.name);
@@ -164,9 +163,6 @@ export function ResumeLibrary() {
         title={t("resumeLibrary.title")}
         description={t("resumeLibrary.description")}
       />
-      <div className="mb-4">
-        <PrivacyNotice context="upload" />
-      </div>
       <div
         role="button"
         tabIndex={0}
