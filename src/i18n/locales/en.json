@@ -813,5 +813,113 @@
       "empty": "We could not find text in the file.",
       "parsing": "We read the file but could not analyze the resume."
     }
+  },
+  "admin": {
+    "eyebrow": "Operations console",
+    "navigation": "Admin navigation",
+    "loading": "Loading operational data…",
+    "timezone": "Dates and daily totals use Israel time.",
+    "nav": {
+      "overview": "Overview",
+      "users": "Users",
+      "searches": "Searches",
+      "jobs": "Jobs",
+      "inspector": "Visibility inspector",
+      "console": "Admin console"
+    },
+    "access": {
+      "title": "Admin access required",
+      "description": "This account is signed in but is not listed as an active administrator. Access is enforced by every admin data function, not only by this screen."
+    },
+    "actions": {
+      "back": "Back to JOBMITER",
+      "exit": "Exit admin",
+      "inspect": "Inspect",
+      "close": "Close",
+      "clear": "Clear search"
+    },
+    "metrics": {
+      "totalUsers": "Total users",
+      "newUsers": "New users today",
+      "searchesAttempted": "Searches attempted",
+      "searchesSkipped": "Searches skipped",
+      "jobsFound": "Unique jobs found",
+      "jobsInserted": "New jobs stored",
+      "matchesCreated": "Matches evaluated",
+      "failures": "Failures"
+    },
+    "overview": {
+      "truncated": "One or more totals reached the 1,000-record safety limit. Narrow the date or add aggregate counters before using this as a billing report.",
+      "attention": "Needs attention",
+      "attentionDescription": "Completed profiles that currently have no visible job suggestions.",
+      "noVisibleJobs": "No visible jobs",
+      "allHealthy": "Every completed profile currently has at least one visible job."
+    },
+    "columns": {
+      "user": "User",
+      "time": "Time",
+      "status": "Status",
+      "found": "Accepted",
+      "new": "Inserted",
+      "candidates": "Candidates",
+      "accepted": "Accepted",
+      "inserted": "Inserted",
+      "deduplicated": "Deduplicated",
+      "job": "Job",
+      "firstSeen": "First seen",
+      "source": "Source"
+    },
+    "searches": {
+      "runs": "Search runs",
+      "runsDescription": "Every provider attempt, including reused, failed, and manually requested runs.",
+      "noRuns": "No search runs were recorded for this date.",
+      "schedule": "Daily search decisions",
+      "scheduleDescription": "Users who were due for discovery, including attempts that were skipped and the exact reason.",
+      "attempts_one": "{{count}} attempt",
+      "attempts_other": "{{count}} attempts",
+      "noScheduleData": "No scheduler decisions were recorded for this date. Historical decision tracking begins with this feature.",
+      "detailTitle": "Search evidence",
+      "generatedQueries": "Generated web queries",
+      "jobs": "Jobs discovered by this run",
+      "noJobs": "This run did not create job discovery records."
+    },
+    "users": {
+      "search": "Search name or email",
+      "jobCount_one": "{{count}} visible job",
+      "jobCount_other": "{{count}} visible jobs",
+      "neverSearched": "Never searched",
+      "noResults": "No users match this search.",
+      "selectUser": "Select a user to see their visibility funnel and current job feed.",
+      "profileReady": "Search profile complete",
+      "profileIncomplete": "Search profile incomplete",
+      "visibilityFunnel": "Why this user sees so few jobs",
+      "topReasons": "Top exclusion reasons",
+      "visibleJobs": "What the user sees now",
+      "noVisibleJobs": "No jobs currently pass every feed gate.",
+      "funnel": {
+        "catalog": "Real catalog",
+        "active": "Active",
+        "fresh": "Fresh enough",
+        "location": "In location",
+        "professional": "Professional fit",
+        "threshold": "Above threshold",
+        "displayed": "Displayed"
+      }
+    },
+    "jobs": {
+      "search": "Search title or company",
+      "openSource": "Open source",
+      "noResults": "No jobs match this search."
+    },
+    "inspector": {
+      "user": "User",
+      "job": "Job",
+      "userPlaceholder": "Search a user",
+      "jobPlaceholder": "Search a job",
+      "selectBoth": "Choose a user and a job to reconstruct every visibility decision.",
+      "visible": "Visible to this user",
+      "hidden": "Hidden from this user",
+      "notFound": "The user or job no longer exists."
+    }
   }
 }

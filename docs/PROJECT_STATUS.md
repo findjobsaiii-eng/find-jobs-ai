@@ -1,6 +1,6 @@
 # Project status
 
-Last repository audit: 2026-09-23
+Last repository audit: 2026-09-24
 
 ## Production readiness work in progress
 
@@ -85,6 +85,7 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Search runs retain bounded provider diagnostics (response/parse status, incomplete or error details, output text, and a raw response excerpt). Missing structured output is recorded as a provider failure rather than silently becoming zero candidates. Catalog repair now refreshes lifecycle and best-source links for jobs that already have source records and requeues inconclusive sources for verification.
 - During the beta/pilot, accounts without an explicit entitlement receive Pro capabilities automatically. Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`; an explicit Free override still refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs. Development controls use the real discovery pipeline and do not seed synthetic jobs or CVs.
 - Pro/admin users can request a private saved deep review from a job card. The action reverifies the shared job source, compares the role with the effective profile and up to six ready resumes, recommends an existing resume and truthful edits, identifies evidence-based strengths and gaps, and saves Web Search-backed employer/application links. Stale reviews are detected after profile or job changes; free users cannot generate or refresh them.
+- An authorization-checked `/admin` operations console exposes daily overview metrics, actual search runs and provider diagnostics, durable daily scheduler decisions (including skipped reasons), bounded user and job lookup, per-user job-visibility funnels, run-to-job evidence, and a deterministic user/job visibility inspector. Admin membership is stored separately from plan entitlements. Opening a read-only user diagnostic records the admin actor and target user.
 
 ## Incomplete or unknown areas
 
@@ -96,6 +97,7 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Existing deployments need a one-time `jobMatching:dispatchAllUsers` backfill after the materialized match index is deployed. Thereafter, profile and job mutations maintain it incrementally in bounded pages; reconciliation is eventually consistent while those scheduled pages run.
 - Pro/admin entitlements have no billing source. The development-only switch creates test entitlements; all users otherwise resolve to `free`.
 - Production hosting, production Convex configuration, release strategy, and monitoring are not documented.
+- Admin user views are intentionally read-only. Mutation-capable impersonation is not implemented; each account-changing workflow would need to adopt actor/subject audit context before it can be enabled safely.
 
 ## Current risks
 
@@ -110,10 +112,10 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Next recommended milestone
 
-Add operational monitoring for CV extraction, scheduled discovery, and activity
-verification. After real-world extraction data exists, add an admin-only view for
-low-confidence fields and decide on CV retention/deletion periods. Billing and
-automated applications remain separate milestones.
+Add alerting and aggregate counters for high-volume operational reporting, then
+extend the admin console with CV extraction confidence and source-verification
+queues. Decide on CV retention/deletion periods. Mutation-capable impersonation,
+billing, and automated applications remain separate milestones.
 
 ## Job discovery verification
 

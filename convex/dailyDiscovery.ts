@@ -28,6 +28,60 @@ type DiscoveryAttempt = {
   lastOutcome: string;
 };
 
+type DailyDiscoveryStatus =
+  "planned" | "queued" | "skipped" | "completed" | "failed";
+
+async function recordDailyAudit(
+  ctx: MutationCtx,
+  args: {
+    userId: Id<"users">;
+    dayKey: string;
+    status: DailyDiscoveryStatus;
+    reason?: string;
+    attemptCount: number;
+    now: number;
+  },
+) {
+  const existing = await ctx.db
+    .query("dailyDiscoveryAudits")
+    .withIndex("by_userId_and_dayKey", (q) =>
+      q.eq("userId", args.userId).eq("dayKey", args.dayKey),
+    )
+    .unique();
+  const values = {
+    status: args.status,
+    reason: args.reason,
+    attemptCount: args.attemptCount,
+    updatedAt: args.now,
+  };
+  if (existing)
+    await ctx.db.patch("dailyDiscoveryAudits", existing._id, values);
+  else {
+    await ctx.db.insert("dailyDiscoveryAudits", {
+      userId: args.userId,
+      dayKey: args.dayKey,
+      plannedAt: args.now,
+      ...values,
+    });
+  }
+}
+
+function blockedReason(
+  attempt: DiscoveryAttempt | null,
+  dayKey: string,
+  now: number,
+  hasVisibleJobsForDay: boolean,
+) {
+  if (!attempt || attempt.dayKey !== dayKey) return null;
+  if (hasVisibleJobsForDay) return "visible_jobs_already_available";
+  if (attempt.lastOutcome === "queued") return "already_queued";
+  if ((attempt.attemptCount ?? 1) >= MAX_DAILY_DISCOVERY_ATTEMPTS)
+    return "daily_attempt_limit";
+  if (attempt.nextAttemptAt !== undefined && attempt.nextAttemptAt > now)
+    return "retry_scheduled";
+  return "not_due";
+}
+
 function canQueueAttempt(
   attempt: DiscoveryAttempt | null,
   dayKey: string,
@@ -121,21 +175,58 @@ export const dispatch = internalMutation({
         .unique();
       const visible =
         attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
-      if (!canQueueAttempt(attempt, dayKey, now, visible)) continue;
       const plan = await activePaidPlan(ctx, profile.userId, now);
-      if (plan === "free") continue;
+      if (plan === "free") {
+        await recordDailyAudit(ctx, {
+          userId: profile.userId,
+          dayKey,
+          status: "skipped",
+          reason: "free_plan",
+          attemptCount:
+            attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 0) : 0,
+          now,
+        });
+        continue;
+      }
+      if (!canQueueAttempt(attempt, dayKey, now, visible)) {
+        const reason =
+          blockedReason(attempt, dayKey, now, visible) ?? "not_due";
+        await recordDailyAudit(ctx, {
+          userId: profile.userId,
+          dayKey,
+          status:
+            reason === "already_queued"
+              ? "queued"
+              : reason === "retry_scheduled"
+                ? "planned"
+                : "skipped",
+          reason,
+          attemptCount: attempt?.attemptCount ?? 0,
+          now,
+        });
+        continue;
+      }
+      const attemptCount =
+        attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1;
       const values = {
         userId: profile.userId,
         dayKey,
         lastAttemptAt: now,
         lastOutcome: "queued",
-        attemptCount:
-          attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1,
+        attemptCount,
         nextAttemptAt: undefined,
       };
       if (attempt)
         await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
       else await ctx.db.insert("dailyDiscoveryAttempts", values);
+      await recordDailyAudit(ctx, {
+        userId: profile.userId,
+        dayKey,
+        status: "queued",
+        reason: "scheduled",
+        attemptCount,
+        now,
+      });
       userIds.push(profile.userId);
     }
     const cursor = profiles.isDone ? null : profiles.continueCursor;
@@ -172,22 +263,59 @@ export const enqueueUser = internalMutation({
       activePaidPlan(ctx, args.userId, now),
     ]);
     const dayKey = globalDayKey(now);
-    if (!profile?.onboardingCompleted || !plan || plan === "free") return null;
+    if (!profile?.onboardingCompleted) return null;
+    if (!plan || plan === "free") {
+      await recordDailyAudit(ctx, {
+        userId: args.userId,
+        dayKey,
+        status: "skipped",
+        reason: "free_plan",
+        attemptCount:
+          attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 0) : 0,
+        now,
+      });
+      return null;
+    }
     const visible =
       attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
-    if (!canQueueAttempt(attempt, dayKey, now, visible)) return null;
+    if (!canQueueAttempt(attempt, dayKey, now, visible)) {
+      const reason = blockedReason(attempt, dayKey, now, visible) ?? "not_due";
+      await recordDailyAudit(ctx, {
+        userId: args.userId,
+        dayKey,
+        status:
+          reason === "already_queued"
+            ? "queued"
+            : reason === "retry_scheduled"
+              ? "planned"
+              : "skipped",
+        reason,
+        attemptCount: attempt?.attemptCount ?? 0,
+        now,
+      });
+      return null;
+    }
+    const attemptCount =
+      attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1;
     const values = {
       userId: args.userId,
       dayKey,
       lastAttemptAt: now,
       lastOutcome: "queued",
-      attemptCount:
-        attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1,
+      attemptCount,
       nextAttemptAt: undefined,
     };
     if (attempt)
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
     else await ctx.db.insert("dailyDiscoveryAttempts", values);
+    await recordDailyAudit(ctx, {
+      userId: args.userId,
+      dayKey,
+      status: "queued",
+      reason: "scheduled",
+      attemptCount,
+      now,
+    });
     await ctx.scheduler.runAfter(
       0,
       internal.jobDiscoveryActions.runDailyBatch,
@@ -219,6 +347,20 @@ export const finishAttempt = internalMutation({
         nextAttemptAt: shouldRetry
           ? now + EMPTY_DISCOVERY_RETRY_DELAY_MS
           : undefined,
+      });
+      const status: DailyDiscoveryStatus =
+        args.outcome === "reused" || args.outcome === "no_search"
+          ? "skipped"
+          : args.outcome === "completed" || args.outcome === "completed_empty"
+            ? "completed"
+            : "failed";
+      await recordDailyAudit(ctx, {
+        userId: args.userId,
+        dayKey: attempt.dayKey ?? globalDayKey(now),
+        status,
+        reason: args.outcome,
+        attemptCount,
+        now,
       });
       if (shouldRetry) {
         await ctx.scheduler.runAfter(

@@ -5,11 +5,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { Popover } from "@base-ui/react/popover";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import {
   ChevronDown,
   Languages,
   LoaderCircle,
   LogOut,
+  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +32,7 @@ export function UserMenu({
 }) {
   const { t, i18n } = useTranslation();
   const { signOut } = useAuthActions();
+  const adminAccess = useQuery(api.admin.getAccess);
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
@@ -115,6 +119,16 @@ export function UserMenu({
                 >
                   <UserRound aria-hidden="true" className="size-4" />
                   {t("dashboard.nav.profile")}
+                </Link>
+              ) : null}
+              {adminAccess?.isAdmin ? (
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="hover:bg-muted focus-visible:ring-ring/40 flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm outline-none focus-visible:ring-3"
+                >
+                  <ShieldCheck aria-hidden="true" className="size-4" />
+                  {t("admin.nav.console")}
                 </Link>
               ) : null}
               <button

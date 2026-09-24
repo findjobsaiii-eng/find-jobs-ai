@@ -540,7 +540,7 @@ async function currentPlan(
   return resolveJobSearchPlan(entitlements, now);
 }
 
-async function loadSearchProfile(
+export async function loadSearchProfile(
   ctx: QueryCtx | MutationCtx,
   userId: Id<"users">,
 ): Promise<SearchProfile> {
@@ -2010,7 +2010,7 @@ function currentDiscoveryState(
   return "pending" as const;
 }
 
-async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
+export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
   const profile = await loadSearchProfile(ctx, userId);
   const profileRecord = await getProfile(ctx, userId);
   if (!profileRecord) profileIncomplete();

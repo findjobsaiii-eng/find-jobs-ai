@@ -103,6 +103,12 @@ it("queues a new pilot user immediately without a purchased entitlement", async 
     expect(await ctx.db.query("dailyDiscoveryAttempts").collect()).toHaveLength(
       1,
     );
+    expect(await ctx.db.query("dailyDiscoveryAudits").unique()).toMatchObject({
+      userId,
+      status: "queued",
+      reason: "already_queued",
+      attemptCount: 1,
+    });
     expect(
       await ctx.db.system.query("_scheduled_functions").collect(),
     ).toHaveLength(1);
@@ -153,6 +159,12 @@ it("retries an empty discovery at most three times in the same day", async () =>
     expect(
       await ctx.db.system.query("_scheduled_functions").collect(),
     ).toHaveLength(1);
+    expect(await ctx.db.query("dailyDiscoveryAudits").unique()).toMatchObject({
+      userId,
+      status: "completed",
+      reason: "completed_empty",
+      attemptCount: 3,
+    });
   });
 });
 

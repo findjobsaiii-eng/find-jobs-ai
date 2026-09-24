@@ -41,6 +41,14 @@ const searchRunStatus = v.union(
   v.literal("reused"),
 );
 
+const dailyDiscoveryStatus = v.union(
+  v.literal("planned"),
+  v.literal("queued"),
+  v.literal("skipped"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
+
 const searchPlan = v.union(
   v.literal("free"),
   v.literal("pro"),
@@ -552,6 +560,37 @@ const schema = defineSchema({
     lastAttemptAt: v.number(),
     lastOutcome: v.string(),
   }).index("by_userId", ["userId"]),
+  dailyDiscoveryAudits: defineTable({
+    userId: v.id("users"),
+    dayKey: v.string(),
+    status: dailyDiscoveryStatus,
+    reason: v.optional(v.string()),
+    attemptCount: v.number(),
+    plannedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId_and_dayKey", ["userId", "dayKey"])
+    .index("by_dayKey_and_status", ["dayKey", "status"]),
+  adminMemberships: defineTable({
+    userId: v.id("users"),
+    role: v.literal("admin"),
+    active: v.boolean(),
+    grantedBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+  adminAuditEvents: defineTable({
+    actorAdminUserId: v.id("users"),
+    subjectUserId: v.optional(v.id("users")),
+    action: v.string(),
+    detail: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_actorAdminUserId_and_createdAt", [
+      "actorAdminUserId",
+      "createdAt",
+    ])
+    .index("by_subjectUserId_and_createdAt", ["subjectUserId", "createdAt"]),
   jobSearchQueries: defineTable({
     lastAttemptDay: v.optional(v.string()),
     lastAttemptRunId: v.optional(v.id("jobSearchRuns")),
@@ -677,6 +716,7 @@ const schema = defineSchema({
     bestSourceId: v.optional(v.id("jobSources")),
     workAuthorizationRequirements: v.optional(nullableString),
   })
+    .index("by_firstDiscoveredAt", ["firstDiscoveredAt"])
     .index("by_normalizedSourceUrl", ["normalizedSourceUrl"])
     .index("by_jobFingerprint", ["jobFingerprint"])
     .index("by_contentHash", ["contentHash"])
@@ -756,6 +796,7 @@ const schema = defineSchema({
     discoveredAt: v.number(),
     reused: v.boolean(),
   })
+    .index("by_discoveredAt", ["discoveredAt"])
     .index("by_userId_and_discoveredAt", ["userId", "discoveredAt"])
     .index("by_searchRunId", ["searchRunId"])
     .index("by_jobId_and_userId", ["jobId", "userId"]),

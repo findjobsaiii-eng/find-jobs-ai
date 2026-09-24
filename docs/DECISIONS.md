@@ -401,6 +401,32 @@ keep Hebrew and English profiles on the same city-scoped search criteria.
 
 ## Pending decisions
 
+### D-033: Admin diagnosis is server-authorized, evidence-based, and read-only
+
+Status: Accepted (2026-09-24)
+
+Evidence: `convex/admin.ts`, `convex/dailyDiscovery.ts`, `convex/schema.ts`,
+`src/app/admin/page.tsx`, and `src/features/admin/admin-dashboard.tsx`.
+
+Store admin membership in a dedicated table keyed by the authenticated Convex
+user rather than conflating operational authority with the job-search plan.
+Every admin query and mutation rechecks membership at the data boundary. Daily
+discovery records one durable per-user decision for the Israel calendar day so
+queued, skipped, reused, completed, and failed work remains explainable after
+the scheduler has moved on.
+
+The console reads existing run, discovery, source, freshness, match, and profile
+evidence instead of maintaining a parallel analytics truth. Bounded views may
+report truncation and are operational diagnostics, not billing-grade totals.
+The user/job inspector reconstructs the same activity, source, freshness,
+profile-fit, history, and materialization gates used by the feed.
+
+“View as user” is read-only and writes an audit event containing both the admin
+actor and target user. Do not enable mutation-capable impersonation until every
+account-changing function accepts server-derived actor/subject context and
+writes an immutable audit record. Hidden client state or a client-supplied user
+ID is not sufficient authorization.
+
 ### P-004: Deployment and release model
 
 Status: Pending
