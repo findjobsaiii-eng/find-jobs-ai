@@ -258,6 +258,7 @@ JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
 JOB_SEARCH_MAX_CONCURRENT_RUNS
 JOB_SEARCH_OUTPUT_TOKEN_LIMIT
 RESEND_API_KEY
+PUBLIC_APP_URL # public HTTPS origin used in outbound email, e.g. https://jobmiter.com
 ```
 
 Use at least `4000` for `JOB_SEARCH_OUTPUT_TOKEN_LIMIT`; the structured job
@@ -270,6 +271,10 @@ search after onboarding uses the same path. Users can choose daily, weekly, or
 never at `/profile/emails`; the default is daily. Delivery claims are stored per
 user and Resend idempotency keys prevent duplicate sends during retries. The
 sending domain `jobmiter.com` must be verified in Resend.
+`PUBLIC_APP_URL` is deliberately separate from the authentication `SITE_URL`:
+local authentication may use `http://localhost:3000`, while outbound email
+links must use a public HTTPS origin. Email delivery fails closed if
+`PUBLIC_APP_URL` is local, private, HTTP, or contains a path/query/fragment.
 
 The model must support the Responses API, Web Search, and Structured Outputs.
 The initial recommended development value is `gpt-5.6-luna`; keep the model in

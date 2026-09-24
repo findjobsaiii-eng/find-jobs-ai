@@ -524,12 +524,14 @@ platforms (25), professional domain (15), experience requirements (10),
 seniority (7), location (5), and work preferences (3). The accessible
 hover/focus explanation shows earned points and profile evidence without
 inventing negative deductions. Hard eligibility rules run before ranking, so
-closed jobs and jobs that conflict with required location, professional field,
-salary, language, or work authorization never receive a visible score. A score
+closed jobs and jobs that conflict with minimum required experience, required
+location, professional field, salary, language, or work authorization never
+receive a visible score. Explicit English/Hebrew ranges use their lower bound;
+`X+` and stated minimums use `X`; unknown requirements remain eligible. A score
 of 58 or higher is a strong match,
 45–57 is a partial match, and a lower score is a possible match. These bands
 describe ordering quality and do not hide a job that passed all hard activity,
-freshness, location, professional, and history rules. Experience, seniority,
+freshness, experience, location, professional, and history rules. Seniority,
 employment type, and work-arrangement gaps lower the score but remain visible
 as stretch opportunities instead of acting as hard exclusions. Historical
 application snapshots keep the band optional so existing saved records remain
@@ -620,6 +622,12 @@ only when the current profile has visible matches. A newly completed profile
 uses that same path. Frequency defaults to daily and can be changed to weekly or
 never. Per-user delivery state and provider idempotency keys suppress duplicate
 sends; email preferences remain separate from matching profile revisions.
+
+Email links use the dedicated `PUBLIC_APP_URL`, not the authentication
+`SITE_URL`. Local development intentionally permits `SITE_URL` to be
+`http://localhost:3000`, but external messages must never inherit that origin.
+The mail action validates `PUBLIC_APP_URL` as a pathless public HTTPS origin and
+fails before calling Resend when it is local, private, or otherwise unsafe.
 
 ### D-032: Legal UX stays nonblocking and concise
 

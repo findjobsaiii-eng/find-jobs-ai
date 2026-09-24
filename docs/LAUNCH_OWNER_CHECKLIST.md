@@ -17,7 +17,7 @@ Updated: 2026-09-23. This is a decision list, not a legal compliance certificate
 ## Technical release gates still to verify
 
 - [ ] Confirm the production Vercel project uses `jobmiter.com`, the correct production Convex URL and site URL, and stable Google OAuth callback. Do not use a preview deployment URL for production OAuth.
-- [ ] Confirm Vercel environment variables and Convex secrets are present in the production scope without printing their values. Browser variables include Convex, Google Maps, PostHog host/token, and Sentry DSN. Convex server secrets include Google OAuth, JWT/JWKS, OpenAI, Resend, and SITE_URL. Sentry source-map upload requires its org, project and auth token in Vercel.
+- [ ] Confirm Vercel environment variables and Convex secrets are present in the production scope without printing their values. Browser variables include Convex, Google Maps, PostHog host/token, and Sentry DSN. Convex server secrets include Google OAuth, JWT/JWKS, OpenAI, Resend, `SITE_URL`, and `PUBLIC_APP_URL=https://jobmiter.com`. Sentry source-map upload requires its org, project and auth token in Vercel.
 - [ ] Verify `jobmiter.com` in Resend, confirm `info@jobmiter.com` can send, and perform a delivery and unsubscribe-settings smoke test with a disposable account.
 - [ ] Run a production browser check of cookie storage, PostHog network traffic before and after consent, and Sentry scrubbing. Check PDF/DOCX upload, signed storage access and failure handling.
 - [ ] Enable and verify PostHog's project-level "Discard IP data" setting. The browser SDK's old `ip: false` setting no longer guarantees IP removal; the code requests GeoIP enrichment to be disabled but the connection itself can still expose the IP to the provider.

@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { resolveExperienceRequirement } from "./jobDiscoveryModel";
 
 export const emailFrequencyValidator = v.union(
   v.literal("daily"),
@@ -123,6 +124,12 @@ export const prepareDelivery = internalMutation({
     for (const match of matches) {
       const job = await ctx.db.get("jobs", match.jobId);
       if (!job) continue;
+      const experience = resolveExperienceRequirement(job);
+      if (
+        experience.min !== null &&
+        experience.min > (profile.yearsOfExperience ?? 0)
+      )
+        continue;
       jobs.push({
         title: job.title,
         companyName: job.companyName,

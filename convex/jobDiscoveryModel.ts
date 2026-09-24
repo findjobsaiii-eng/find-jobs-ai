@@ -154,6 +154,140 @@ export function normalizedKey(value: string) {
   return normalizeWhitespace(value).toLocaleLowerCase("en-US");
 }
 
+type ExperienceRequirementSource = {
+  title: string;
+  descriptionText: string | null;
+  requirementsText: string | null;
+  requiredExperienceYearsMin: number | null;
+  requiredExperienceYearsMax: number | null;
+};
+
+type ParsedExperienceRequirement = {
+  min: number;
+  max: number | null;
+};
+
+function validExperienceYears(value: number) {
+  return Number.isInteger(value) && value >= 0 && value <= 80;
+}
+
+function parseExperienceRequirements(text: string) {
+  const value = normalizeWhitespace(text).toLocaleLowerCase("en-US");
+  const found: ParsedExperienceRequirement[] = [];
+  const rangeSpans: Array<{ start: number; end: number }> = [];
+  const add = (minText: string, maxText?: string) => {
+    const min = Number(minText);
+    const max = maxText === undefined ? null : Number(maxText);
+    if (
+      !validExperienceYears(min) ||
+      (max !== null && (!validExperienceYears(max) || max < min))
+    )
+      return;
+    found.push({ min, max });
+  };
+
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s*(?:experience)?/giu,
+  )) {
+    add(match[1], match[2]);
+    rangeSpans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*[-–—]\s*(\d{1,2})\s*(?:שנות|שנים)\s*(?:ניסיון|נסיון)/gu,
+  )) {
+    add(match[1], match[2]);
+    rangeSpans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  for (const match of value.matchAll(
+    /(?:at\s+least|minimum(?:\s+of)?|min\.?)\s*(\d{1,2})\s*(?:\+\s*)?(?:years?|yrs?)/giu,
+  ))
+    add(match[1]);
+  for (const match of value.matchAll(
+    /(?:לפחות|מינימום)\s*(\d{1,2})\s*(?:\+\s*)?(?:שנות|שנים)\s*(?:ניסיון|נסיון)?/gu,
+  ))
+    add(match[1]);
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*\+\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s*(?:experience)?/giu,
+  ))
+    add(match[1]);
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*\+\s*(?:שנות|שנים)\s*(?:ניסיון|נסיון)/gu,
+  ))
+    add(match[1]);
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s+experience/giu,
+  )) {
+    if (
+      rangeSpans.some(
+        ({ start, end }) => match.index >= start && match.index < end,
+      )
+    )
+      continue;
+    add(match[1], match[1]);
+  }
+  for (const match of value.matchAll(
+    /(\d{1,2})\s*(?:שנות|שנים)\s*(?:ניסיון|נסיון)/gu,
+  )) {
+    if (
+      rangeSpans.some(
+        ({ start, end }) => match.index >= start && match.index < end,
+      )
+    )
+      continue;
+    add(match[1], match[1]);
+  }
+  for (const match of value.matchAll(
+    /(?:ניסיון|נסיון)(?:\s+[\p{L}-]+){0,3}\s+(?:של\s+)?(\d{1,2})\s*(?:שנים|שנות)/gu,
+  ))
+    add(match[1], match[1]);
+
+  return found;
+}
+
+/** Reconciles structured provider output with explicit bilingual source text.
+ * The stricter explicit minimum wins; unknown requirements remain unknown. */
+export function resolveExperienceRequirement(
+  source: ExperienceRequirementSource,
+) {
+  const parsed = parseExperienceRequirements(
+    [source.requirementsText ?? "", source.descriptionText ?? ""].join("\n"),
+  );
+  const parsedMin = parsed.length
+    ? Math.max(...parsed.map((requirement) => requirement.min))
+    : null;
+  const parsedMaxes = parsed
+    .filter((requirement) => requirement.min === parsedMin)
+    .map((requirement) => requirement.max)
+    .filter((value): value is number => value !== null);
+  const min =
+    parsedMin === null
+      ? source.requiredExperienceYearsMin
+      : source.requiredExperienceYearsMin === null
+        ? parsedMin
+        : Math.max(parsedMin, source.requiredExperienceYearsMin);
+  let max = parsedMaxes.length
+    ? Math.max(...parsedMaxes)
+    : source.requiredExperienceYearsMax;
+  if (min !== null && max !== null && max < min) max = null;
+  if (min !== null) return { min, max };
+
+  const title = normalizedKey(source.title);
+  if (
+    /(?:\bjunior\b|\bjr\.?\b|\bentry[\s-]?level\b|\bgraduate\b|\bintern(?:ship)?\b|ג['׳]?וניור|מתחיל|מתחילה)/u.test(
+      title,
+    )
+  ) {
+    return { min: 0, max };
+  }
+  return { min: null, max };
+}
+
 function uniqueNormalized(values: string[], max: number) {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -335,7 +469,7 @@ export function normalizeJob(
   if (!sourceEvidence.some((evidence) => evidence.url === sourceUrl)) {
     sourceEvidence.unshift({ url: sourceUrl, title: null, excerpt: null });
   }
-  const normalized: OpenAIJob = {
+  const normalizedBase: OpenAIJob = {
     ...parsed.data,
     title,
     companyName,
@@ -363,6 +497,12 @@ export function normalizeJob(
       300,
     ),
     sourceEvidence: sourceEvidence.slice(0, 10),
+  };
+  const experience = resolveExperienceRequirement(normalizedBase);
+  const normalized: OpenAIJob = {
+    ...normalizedBase,
+    requiredExperienceYearsMin: experience.min,
+    requiredExperienceYearsMax: experience.max,
   };
   if (
     normalized.requiredExperienceYearsMin !== null &&

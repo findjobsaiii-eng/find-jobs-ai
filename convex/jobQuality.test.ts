@@ -226,15 +226,58 @@ describe("deterministic CV-backed relevance", () => {
     expect(head.exclusionReasons).not.toContain("seniority_conflict");
   });
 
-  it("ranks an experience stretch lower without hiding it", () => {
-    const matching = evaluateJobQuality(job(), profile);
-    const stretch = evaluateJobQuality(
-      job({ requiredExperienceYearsMin: profile.yearsOfExperience + 3 }),
+  it("hard-excludes 0 years from a role requiring 4-5 years", () => {
+    const result = evaluateJobQuality(
+      job({
+        requirementsText: "4-5 years of relevant experience",
+        requiredExperienceYearsMin: 4,
+        requiredExperienceYearsMax: 5,
+      }),
+      { ...profile, yearsOfExperience: 0, seniority: "entry" },
+    );
+    expect(result.outcome).toBe("excluded");
+    expect(result.hardEligibilityPassed).toBe(false);
+    expect(result.exclusionReasons).toContain("experience_conflict");
+  });
+
+  it("accepts exact experience and the lower bound of a range", () => {
+    const exact = evaluateJobQuality(
+      job({ requiredExperienceYearsMin: 5, requiredExperienceYearsMax: 5 }),
       profile,
     );
-    expect(stretch.relevanceScore).toBeLessThan(matching.relevanceScore);
-    expect(stretch.outcome).toBe("eligible");
-    expect(stretch.exclusionReasons).not.toContain("experience_conflict");
+    const range = evaluateJobQuality(
+      job({ requiredExperienceYearsMin: 5, requiredExperienceYearsMax: 8 }),
+      profile,
+    );
+    expect(exact.outcome).toBe("eligible");
+    expect(range.outcome).toBe("eligible");
+    expect(exact.exclusionReasons).not.toContain("experience_conflict");
+  });
+
+  it("accepts junior candidates for junior roles with no numeric minimum", () => {
+    const result = evaluateJobQuality(
+      job({
+        title: "Junior E-commerce Manager",
+        requiredExperienceYearsMin: null,
+        requiredExperienceYearsMax: null,
+      }),
+      { ...profile, yearsOfExperience: 0, seniority: "entry" },
+    );
+    expect(result.outcome).toBe("eligible");
+    expect(result.exclusionReasons).not.toContain("experience_conflict");
+  });
+
+  it("keeps unknown experience requirements eligible", () => {
+    const result = evaluateJobQuality(
+      job({
+        requirementsText: null,
+        requiredExperienceYearsMin: null,
+        requiredExperienceYearsMax: null,
+      }),
+      { ...profile, yearsOfExperience: 0 },
+    );
+    expect(result.outcome).toBe("eligible");
+    expect(result.exclusionReasons).not.toContain("experience_conflict");
   });
 
   it("ranks work preferences without treating them as hard exclusions", () => {

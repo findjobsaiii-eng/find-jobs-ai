@@ -17,6 +17,7 @@ export default defineApp({
     JOB_SEARCH_OUTPUT_TOKEN_LIMIT: v.string(),
     DEV_TOOLS_ENABLED: v.optional(v.string()),
     RESEND_API_KEY: v.string(),
+    PUBLIC_APP_URL: v.string(),
     SITE_URL: v.string(),
   },
 });

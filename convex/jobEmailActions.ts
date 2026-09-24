@@ -5,11 +5,13 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { env, internalAction } from "./_generated/server";
 import { buildJobMatchesEmail } from "./jobEmailTemplate";
+import { requirePublicAppUrl } from "./jobEmailUrl";
 
 export const sendJobMatches = internalAction({
   args: { userId: v.id("users"), dayKey: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const siteUrl = requirePublicAppUrl(env.PUBLIC_APP_URL);
     const now = Date.now();
     const delivery = await ctx.runMutation(
       internal.emailPreferences.prepareDelivery,
@@ -17,7 +19,6 @@ export const sendJobMatches = internalAction({
     );
     if (!delivery) return null;
 
-    const siteUrl = env.SITE_URL.replace(/\/$/, "");
     const content = buildJobMatchesEmail({
       displayName: delivery.displayName,
       jobs: delivery.jobs,

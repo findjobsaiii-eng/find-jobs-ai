@@ -1,5 +1,9 @@
 import type { Doc } from "./_generated/dataModel";
-import type { NormalizedJob, SearchProfile } from "./jobDiscoveryModel";
+import {
+  resolveExperienceRequirement,
+  type NormalizedJob,
+  type SearchProfile,
+} from "./jobDiscoveryModel";
 import { distanceKm } from "./jobGeography";
 import {
   hasFreshJobActivity,
@@ -585,10 +589,12 @@ export function evaluateJobQuality(
     job.employmentType === "unknown" ||
     profile.employmentTypes.includes(job.employmentType);
 
+  const experienceRequirement = resolveExperienceRequirement(job);
   let experience = 0.7;
-  if (job.requiredExperienceYearsMin !== null) {
-    const gap = job.requiredExperienceYearsMin - profile.yearsOfExperience;
+  if (experienceRequirement.min !== null) {
+    const gap = experienceRequirement.min - profile.yearsOfExperience;
     experience = gap <= 0 ? 1 : gap <= 1 ? 0.35 : 0;
+    if (gap > 0) hardExclusions.push("experience_conflict");
   }
 
   const jobSeniority = inferredJobSeniority(job.title);

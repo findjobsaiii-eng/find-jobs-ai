@@ -27,6 +27,7 @@ import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
 import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
 import type * as jobEmailActions from "../jobEmailActions.js";
 import type * as jobEmailTemplate from "../jobEmailTemplate.js";
+import type * as jobEmailUrl from "../jobEmailUrl.js";
 import type * as jobFreshness from "../jobFreshness.js";
 import type * as jobGeography from "../jobGeography.js";
 import type * as jobGeographyData from "../jobGeographyData.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   jobDiscoveryModel: typeof jobDiscoveryModel;
   jobEmailActions: typeof jobEmailActions;
   jobEmailTemplate: typeof jobEmailTemplate;
+  jobEmailUrl: typeof jobEmailUrl;
   jobFreshness: typeof jobFreshness;
   jobGeography: typeof jobGeography;
   jobGeographyData: typeof jobGeographyData;

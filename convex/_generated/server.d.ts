@@ -43,6 +43,7 @@ type Env = {
   readonly OPENAI_API_KEY: string;
   readonly OPENAI_JOB_REVIEW_MODEL: string | undefined;
   readonly OPENAI_JOB_SEARCH_MODEL: string;
+  readonly PUBLIC_APP_URL: string;
   readonly RESEND_API_KEY: string;
   readonly SITE_URL: string;
 };

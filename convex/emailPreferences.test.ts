@@ -136,4 +136,93 @@ describe("email preferences", () => {
     });
     expect(delivery?.deliveryKey).toContain(`${userId}/daily:2026-09-23`);
   });
+
+  it("does not email a stale materialized match that fails experience eligibility", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", {
+        email: "junior@example.com",
+      });
+      const profileRevision = 42;
+      await ctx.db.insert("candidateProfiles", {
+        userId,
+        email: "junior@example.com",
+        yearsOfExperience: 0,
+        onboardingCompleted: true,
+        onboardingStep: 4,
+        createdAt: 1,
+        updatedAt: profileRevision,
+      });
+      const jobId = await ctx.db.insert("jobs", {
+        normalizedSourceUrl: "https://careers.example.com/senior-product",
+        jobFingerprint: "senior-product-tel-aviv",
+        contentHash: "content-senior",
+        title: "Product Manager",
+        companyName: "Example",
+        sourceUrl: "https://careers.example.com/senior-product",
+        sourceName: "Example Careers",
+        sourceType: "employer",
+        descriptionText: "Lead product strategy.",
+        requirementsText: "4-5 years of product management experience.",
+        responsibilities: [],
+        requiredSkills: ["Product strategy"],
+        preferredSkills: [],
+        requiredExperienceYearsMin: 4,
+        requiredExperienceYearsMax: 5,
+        educationRequirements: [],
+        languages: [],
+        country: "Israel",
+        city: "Tel Aviv",
+        locationText: "Tel Aviv, Israel",
+        workArrangement: "hybrid",
+        employmentType: "full-time",
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        salaryPeriod: null,
+        postedAt: null,
+        applicationDeadline: null,
+        sourceEvidence: [],
+        firstDiscoveredAt: now,
+        lastDiscoveredAt: now,
+        lastVerifiedAt: now,
+        activityStatus: "active",
+        lifecycleStatus: "verified_active",
+      });
+      await ctx.db.insert("jobMatches", {
+        userId,
+        jobId,
+        profileRevision,
+        displayEligible: true,
+        outcome: "eligible",
+        exclusionReasons: [],
+        relevanceScore: 88,
+        scoreComponents: {
+          role: 35,
+          requiredSkills: 18,
+          preferredSkills: 0,
+          experience: 0,
+          location: 5,
+          workArrangement: 0,
+          employmentType: 0,
+          language: 0,
+          education: 0,
+          semantic: 0,
+        },
+        matchReasons: ["target_role"],
+        resultSource: "central",
+        evaluatedAt: now,
+      });
+      return userId;
+    });
+
+    await expect(
+      t.mutation(internal.emailPreferences.prepareDelivery, {
+        userId,
+        dayKey: "2026-09-24",
+        now,
+      }),
+    ).resolves.toBeNull();
+  });
 });

@@ -101,6 +101,7 @@ async function setPlan(
 async function addCompletedProfile(
   t: TestConvex<typeof schema>,
   userId: Id<"users">,
+  yearsOfExperience = searchProfile.yearsOfExperience,
 ) {
   await t.run(async (ctx) => {
     const titleId = await ctx.db.insert("catalogItems", {
@@ -136,7 +137,7 @@ async function addCompletedProfile(
       email: "candidate@example.com",
       targetJobTitleIds: [titleId],
       skillIds: [skillId],
-      yearsOfExperience: searchProfile.yearsOfExperience,
+      yearsOfExperience,
       preferredPlaceIds: [searchProfile.location.placeId],
       locationRadiusKm: searchProfile.location.radiusKm,
       primaryLocation: searchProfile.location,
@@ -574,6 +575,80 @@ describe("shared job discovery", () => {
     expect(feed.jobs[0].scoreComponents?.location).toBe(5);
   });
 
+  it("filters experience-ineligible jobs before displayed match generation", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId, 0);
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const experienced = normalizeCandidate({
+        ...rawJob,
+        requirementsText: "4-5 years of frontend experience.",
+        requiredExperienceYearsMin: null,
+        requiredExperienceYearsMax: null,
+      });
+      const junior = normalizeCandidate({
+        ...rawJob,
+        title: "Junior Frontend Engineer",
+        sourceUrl: "https://careers.example.com/jobs/role-junior",
+        sourceEvidence: [
+          {
+            url: "https://careers.example.com/jobs/role-junior",
+            title: "Junior Frontend Engineer",
+            excerpt: "Entry-level frontend opening",
+          },
+        ],
+        descriptionText: "Build accessible React interfaces in Tel Aviv.",
+        requirementsText: null,
+        requiredExperienceYearsMin: null,
+        requiredExperienceYearsMax: null,
+      });
+      for (const [index, candidate] of [experienced, junior].entries()) {
+        const jobId = await ctx.db.insert("jobs", {
+          ...candidate,
+          firstDiscoveredAt: now + index,
+          lastDiscoveredAt: now + index,
+          lastVerifiedAt: now + index,
+          activityStatus: "active",
+          lifecycleStatus: "verified_active",
+        });
+        const sourceId = await ctx.db.insert("jobSources", {
+          jobId,
+          sourceUrl: candidate.sourceUrl,
+          normalizedUrl: candidate.normalizedSourceUrl,
+          finalUrl: candidate.sourceUrl,
+          domain: "careers.example.com",
+          sourceTier: "employer",
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
+        });
+        await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
+      }
+    });
+
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+    });
+
+    const feed = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(feed.jobs.map((item) => item.title)).toEqual([
+      "Junior Frontend Engineer",
+    ]);
+    await t.run(async (ctx) => {
+      const matches = await ctx.db.query("jobMatches").collect();
+      expect(matches).toHaveLength(1);
+      expect(matches[0].outcome).toBe("eligible");
+    });
+  });
+
   it("creates one deterministic query per target role, up to five", () => {
     const plan = buildSearchPlan({
       ...searchProfile,
@@ -732,6 +807,64 @@ describe("shared job discovery", () => {
 });
 
 describe("canonical job identity", () => {
+  it("normalizes English ranges and X+ minimums from source text", () => {
+    const range = normalizeCandidate({
+      ...rawJob,
+      requirementsText: "Requires 4-5 years of frontend experience.",
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    const minimum = normalizeCandidate({
+      ...rawJob,
+      requirementsText: "React and 3+ years of professional experience.",
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    const exact = normalizeCandidate({
+      ...rawJob,
+      requirementsText: "Requires 2 years of frontend experience.",
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    expect(range.requiredExperienceYearsMin).toBe(4);
+    expect(range.requiredExperienceYearsMax).toBe(5);
+    expect(minimum.requiredExperienceYearsMin).toBe(3);
+    expect(minimum.requiredExperienceYearsMax).toBeNull();
+    expect(exact.requiredExperienceYearsMin).toBe(2);
+    expect(exact.requiredExperienceYearsMax).toBe(2);
+  });
+
+  it("normalizes Hebrew ranges and junior roles while preserving unknowns", () => {
+    const hebrew = normalizeCandidate({
+      ...rawJob,
+      requirementsText: "נדרשות 2–4 שנות ניסיון בפיתוח ממשקים.",
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    const junior = normalizeCandidate({
+      ...rawJob,
+      title: "Junior Frontend Engineer",
+      descriptionText: "Build accessible React interfaces.",
+      requirementsText: null,
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    const unknown = normalizeCandidate({
+      ...rawJob,
+      title: "Frontend Engineer",
+      descriptionText: "Build accessible React interfaces.",
+      requirementsText: null,
+      requiredExperienceYearsMin: null,
+      requiredExperienceYearsMax: null,
+    });
+    expect(hebrew.requiredExperienceYearsMin).toBe(2);
+    expect(hebrew.requiredExperienceYearsMax).toBe(4);
+    expect(junior.requiredExperienceYearsMin).toBe(0);
+    expect(junior.requiredExperienceYearsMax).toBeNull();
+    expect(unknown.requiredExperienceYearsMin).toBeNull();
+    expect(unknown.requiredExperienceYearsMax).toBeNull();
+  });
+
   it("merges identical URLs", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);
