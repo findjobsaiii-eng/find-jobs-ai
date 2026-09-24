@@ -885,6 +885,19 @@ describe("canonical job identity", () => {
     ).toBe("https://example.com/jobs/42?a=1&b=2");
   });
 
+  it("unwraps and canonicalizes LinkedIn signup redirect job URLs", () => {
+    expect(
+      normalizePublicUrl(
+        "https://linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fil.linkedin.com%2Fjobs%2Fview%2Fgraduate-frontend-full-stack-software-engineer-%25E2%2580%2593-upnext-program-at-ergo-next-insurance-4458647686",
+      ),
+    ).toBe("https://www.linkedin.com/jobs/view/4458647686");
+    expect(
+      normalizePublicUrl(
+        "https://il.linkedin.com/jobs/view/senior-product-manager-4458647000/?trackingId=abc",
+      ),
+    ).toBe("https://www.linkedin.com/jobs/view/4458647000");
+  });
+
   it("merges tracked URL variants during ingestion", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);

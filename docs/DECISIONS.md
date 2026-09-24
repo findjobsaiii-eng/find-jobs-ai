@@ -191,8 +191,10 @@ the official OpenAI JavaScript SDK. The model is required server configuration
 under `OPENAI_JOB_SEARCH_MODEL`; `gpt-5.6-luna` is the initial cost-conscious
 recommendation because current official documentation lists Web Search support.
 The Responses API call uses medium-context Web Search, strict Zod-backed
-Structured Outputs, an output-token limit, a tool-call limit, no provider-side
-response storage, and no automatic SDK retries. Each run stores bounded local
+Structured Outputs, an output-token limit, a tool-call limit, and no provider-side
+response storage. The SDK retries retryable connection, timeout, rate-limit, and
+server failures up to twice with bounded backoff; permanent errors still fail
+immediately, and the existing scheduler remains the outer retry boundary. Each run stores bounded local
 diagnostics: response status, incomplete/error details, parse status, output
 text, and a raw response excerpt. A missing structured parse fails the run
 instead of being coerced to an empty job array.

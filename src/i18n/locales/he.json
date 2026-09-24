@@ -916,6 +916,22 @@
       "openSource": "פתיחת המקור",
       "noResults": "לא נמצאו משרות מתאימות."
     },
+    "diagnostics": {
+      "show": "הצגת הנתונים שחולצו",
+      "hide": "הסתרת הנתונים שחולצו",
+      "experience": "ניסיון נדרש",
+      "resolvedExperience": "הניסיון שמשמש להתאמה",
+      "storedExperience": "ערך הספק השמור",
+      "normalized": "חילוץ מנורמל",
+      "provider": "JSON מקורי מהספק",
+      "profileEvidence": "פרופיל המועמד האפקטיבי",
+      "candidateExperience": "ניסיון המועמד",
+      "experienceComparison": "מועמד: {{candidate}} שנות ניסיון · דרישת המשרה: {{required}} שנים",
+      "seniority": "בכירות",
+      "targetRoles": "תפקידי יעד",
+      "profileSkills": "כישורי הפרופיל",
+      "unknown": "לא ידוע"
+    },
     "inspector": {
       "user": "משתמש",
       "job": "משרה",

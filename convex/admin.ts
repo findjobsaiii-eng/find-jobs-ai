@@ -7,18 +7,75 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { buildMatchAudit, loadSearchProfile } from "./jobDiscovery";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import { evaluateSuggestionFreshness } from "./jobFreshness";
 import { isFreshActiveSource } from "./jobActivityPolicy";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
+import {
+  normalizePublicUrl,
+  resolveExperienceRequirement,
+} from "./jobDiscoveryModel";
 
 const userSummary = v.object({
   userId: v.id("users"),
   email: v.union(v.string(), v.null()),
   name: v.union(v.string(), v.null()),
 });
+
+const jobDiagnostic = v.object({
+  jobId: v.id("jobs"),
+  title: v.string(),
+  companyName: v.string(),
+  sourceUrl: v.string(),
+  experience: v.object({
+    storedMin: v.union(v.number(), v.null()),
+    storedMax: v.union(v.number(), v.null()),
+    resolvedMin: v.union(v.number(), v.null()),
+    resolvedMax: v.union(v.number(), v.null()),
+  }),
+  normalizedJson: v.string(),
+  providerJson: v.union(v.string(), v.null()),
+});
+
+function jobDiagnosticView(job: Doc<"jobs">) {
+  const experience = resolveExperienceRequirement(job);
+  const normalized = {
+    title: job.title,
+    companyName: job.companyName,
+    requiredExperienceYearsMin: experience.min,
+    requiredExperienceYearsMax: experience.max,
+    storedRequiredExperienceYearsMin: job.requiredExperienceYearsMin,
+    storedRequiredExperienceYearsMax: job.requiredExperienceYearsMax,
+    requiredSkills: job.requiredSkills,
+    preferredSkills: job.preferredSkills,
+    responsibilities: job.responsibilities,
+    educationRequirements: job.educationRequirements,
+    languages: job.languages,
+    country: job.country,
+    city: job.city,
+    locationText: job.locationText,
+    workArrangement: job.workArrangement,
+    employmentType: job.employmentType,
+    requirementsText: job.requirementsText,
+    descriptionText: job.descriptionText,
+  };
+  return {
+    jobId: job._id,
+    title: job.title,
+    companyName: job.companyName,
+    sourceUrl: normalizePublicUrl(job.sourceUrl) ?? job.sourceUrl,
+    experience: {
+      storedMin: job.requiredExperienceYearsMin,
+      storedMax: job.requiredExperienceYearsMax,
+      resolvedMin: experience.min,
+      resolvedMax: experience.max,
+    },
+    normalizedJson: JSON.stringify(normalized, null, 2),
+    providerJson: job.rawProviderJson ?? null,
+  };
+}
 
 async function adminMembership(ctx: QueryCtx | MutationCtx) {
   const userId = await getAuthUserId(ctx);
@@ -417,6 +474,10 @@ export const getUserInsight = query({
         companyName: v.string(),
         relevanceScore: v.number(),
         matchQuality: v.union(v.string(), v.null()),
+        requiredExperienceYearsMin: v.union(v.number(), v.null()),
+        requiredExperienceYearsMax: v.union(v.number(), v.null()),
+        requiredSkills: v.array(v.string()),
+        locationText: v.union(v.string(), v.null()),
       }),
     ),
   }),
@@ -465,12 +526,17 @@ export const getUserInsight = query({
     for (const match of matches) {
       const job = await ctx.db.get("jobs", match.jobId);
       if (!job) continue;
+      const experience = resolveExperienceRequirement(job);
       visibleJobs.push({
         jobId: job._id,
         title: job.title,
         companyName: job.companyName,
         relevanceScore: match.relevanceScore,
         matchQuality: match.matchQuality ?? null,
+        requiredExperienceYearsMin: experience.min,
+        requiredExperienceYearsMax: experience.max,
+        requiredSkills: job.requiredSkills.slice(0, 8),
+        locationText: job.locationText,
       });
     }
     return {
@@ -509,6 +575,10 @@ export const listJobs = query({
       lastDiscoveredAt: v.number(),
       postedAt: v.union(v.string(), v.null()),
       sourceUrl: v.string(),
+      requiredExperienceYearsMin: v.union(v.number(), v.null()),
+      requiredExperienceYearsMax: v.union(v.number(), v.null()),
+      requiredSkills: v.array(v.string()),
+      locationText: v.union(v.string(), v.null()),
     }),
   ),
   handler: async (ctx) => {
@@ -518,17 +588,34 @@ export const listJobs = query({
       .withIndex("by_firstDiscoveredAt")
       .order("desc")
       .take(200);
-    return jobs.map((job) => ({
-      jobId: job._id,
-      title: job.title,
-      companyName: job.companyName,
-      lifecycleStatus: job.lifecycleStatus ?? "unknown",
-      activityStatus: job.activityStatus,
-      firstDiscoveredAt: job.firstDiscoveredAt,
-      lastDiscoveredAt: job.lastDiscoveredAt,
-      postedAt: job.postedAt,
-      sourceUrl: job.sourceUrl,
-    }));
+    return jobs.map((job) => {
+      const experience = resolveExperienceRequirement(job);
+      return {
+        jobId: job._id,
+        title: job.title,
+        companyName: job.companyName,
+        lifecycleStatus: job.lifecycleStatus ?? "unknown",
+        activityStatus: job.activityStatus,
+        firstDiscoveredAt: job.firstDiscoveredAt,
+        lastDiscoveredAt: job.lastDiscoveredAt,
+        postedAt: job.postedAt,
+        sourceUrl: normalizePublicUrl(job.sourceUrl) ?? job.sourceUrl,
+        requiredExperienceYearsMin: experience.min,
+        requiredExperienceYearsMax: experience.max,
+        requiredSkills: job.requiredSkills.slice(0, 8),
+        locationText: job.locationText,
+      };
+    });
+  },
+});
+
+export const getJobDetail = query({
+  args: { jobId: v.id("jobs") },
+  returns: v.union(v.null(), jobDiagnostic),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const job = await ctx.db.get("jobs", args.jobId);
+    return job ? jobDiagnosticView(job) : null;
   },
 });
 
@@ -559,6 +646,10 @@ export const getSearchDetail = query({
           relevanceScore: v.union(v.number(), v.null()),
           outcome: v.union(v.string(), v.null()),
           exclusionReasons: v.array(v.string()),
+          requiredExperienceYearsMin: v.union(v.number(), v.null()),
+          requiredExperienceYearsMax: v.union(v.number(), v.null()),
+          requiredSkills: v.array(v.string()),
+          locationText: v.union(v.string(), v.null()),
         }),
       ),
     }),
@@ -584,6 +675,7 @@ export const getSearchDetail = query({
       const job = await ctx.db.get("jobs", discovery.jobId);
       if (!job) continue;
       const match = matchByJob.get(job._id);
+      const experience = resolveExperienceRequirement(job);
       jobs.push({
         jobId: job._id,
         title: job.title,
@@ -593,6 +685,10 @@ export const getSearchDetail = query({
         relevanceScore: match?.relevanceScore ?? null,
         outcome: match?.outcome ?? null,
         exclusionReasons: match?.exclusionReasons ?? [],
+        requiredExperienceYearsMin: experience.min,
+        requiredExperienceYearsMax: experience.max,
+        requiredSkills: job.requiredSkills.slice(0, 8),
+        locationText: job.locationText,
       });
     }
     return {
@@ -643,6 +739,24 @@ export const explainUserJob = query({
       matchQuality: v.union(v.string(), v.null()),
       exclusionReasons: v.array(v.string()),
       matchReasons: v.array(v.string()),
+      profileEvidence: v.union(
+        v.null(),
+        v.object({
+          yearsOfExperience: v.number(),
+          seniority: v.union(v.string(), v.null()),
+          targetJobTitles: v.array(v.string()),
+          skills: v.array(v.string()),
+          location: v.string(),
+        }),
+      ),
+      experience: v.object({
+        candidateYears: v.union(v.number(), v.null()),
+        storedMin: v.union(v.number(), v.null()),
+        storedMax: v.union(v.number(), v.null()),
+        resolvedMin: v.union(v.number(), v.null()),
+        resolvedMax: v.union(v.number(), v.null()),
+        eligible: v.union(v.boolean(), v.null()),
+      }),
       checks: v.array(
         v.object({ key: v.string(), passed: v.boolean(), detail: v.string() }),
       ),
@@ -673,6 +787,7 @@ export const explainUserJob = query({
     const source = job.bestSourceId
       ? await ctx.db.get("jobSources", job.bestSourceId)
       : null;
+    const experience = resolveExperienceRequirement(job);
     if (!profileRecord?.onboardingCompleted) {
       return {
         user: await summarizeUser(ctx, args.userId),
@@ -683,6 +798,15 @@ export const explainUserJob = query({
         matchQuality: null,
         exclusionReasons: ["profile_incomplete"],
         matchReasons: [],
+        profileEvidence: null,
+        experience: {
+          candidateYears: null,
+          storedMin: job.requiredExperienceYearsMin,
+          storedMax: job.requiredExperienceYearsMax,
+          resolvedMin: experience.min,
+          resolvedMax: experience.max,
+          eligible: null,
+        },
         checks: [
           {
             key: "profile",
@@ -693,6 +817,8 @@ export const explainUserJob = query({
       };
     }
     const profile = await loadSearchProfile(ctx, args.userId);
+    const experienceEligible =
+      experience.min === null || profile.yearsOfExperience >= experience.min;
     const quality = evaluateJobQuality(job, profile);
     const freshness = evaluateSuggestionFreshness({
       postedAt: job.postedAt,
@@ -750,6 +876,14 @@ export const explainUserJob = query({
           : (freshness.reason ?? "Posting is not fresh enough."),
       },
       {
+        key: "experience",
+        passed: experienceEligible,
+        detail:
+          experience.min === null
+            ? `Candidate has ${profile.yearsOfExperience} years; the job requirement is unknown.`
+            : `Candidate has ${profile.yearsOfExperience} years; job requires at least ${experience.min}${experience.max !== null && experience.max !== experience.min ? `-${experience.max}` : ""} years.`,
+      },
+      {
         key: "profile_fit",
         passed: quality.outcome === "eligible",
         detail:
@@ -788,6 +922,21 @@ export const explainUserJob = query({
         ...(!historyEligible ? ["application_history"] : []),
       ],
       matchReasons: quality.matchReasons,
+      profileEvidence: {
+        yearsOfExperience: profile.yearsOfExperience,
+        seniority: profile.seniority ?? null,
+        targetJobTitles: profile.targetJobTitles,
+        skills: profile.skills,
+        location: profile.location.formattedAddress,
+      },
+      experience: {
+        candidateYears: profile.yearsOfExperience,
+        storedMin: job.requiredExperienceYearsMin,
+        storedMax: job.requiredExperienceYearsMax,
+        resolvedMin: experience.min,
+        resolvedMax: experience.max,
+        eligible: experienceEligible,
+      },
       checks,
     };
   },

@@ -911,6 +911,22 @@
       "openSource": "Open source",
       "noResults": "No jobs match this search."
     },
+    "diagnostics": {
+      "show": "Show extracted data",
+      "hide": "Hide extracted data",
+      "experience": "Required experience",
+      "resolvedExperience": "Experience used for matching",
+      "storedExperience": "Stored provider value",
+      "normalized": "Normalized extraction",
+      "provider": "Original provider JSON",
+      "profileEvidence": "Effective candidate profile",
+      "candidateExperience": "Candidate experience",
+      "experienceComparison": "Candidate: {{candidate}} years · Job requirement: {{required}} years",
+      "seniority": "Seniority",
+      "targetRoles": "Target roles",
+      "profileSkills": "Profile skills",
+      "unknown": "Unknown"
+    },
     "inspector": {
       "user": "User",
       "job": "Job",

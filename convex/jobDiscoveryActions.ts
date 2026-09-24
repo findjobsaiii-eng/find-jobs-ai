@@ -13,6 +13,7 @@ import { verifyJobSources } from "./jobSourceVerification";
 import {
   JobSearchProviderResponseError,
   searchJobsWithOpenAI,
+  type JobSearchProviderDiagnostics,
 } from "./openAIJobProvider";
 import { classifyJobSource } from "./jobSourceQuality";
 import { globalDayKey } from "./jobSearchPolicy";
@@ -124,6 +125,25 @@ function classifyProviderError(error: unknown) {
     return "provider_authentication";
   if (error instanceof OpenAI.BadRequestError) return "provider_request";
   return "provider_failure";
+}
+
+function providerFailureDiagnostics(
+  error: unknown,
+): JobSearchProviderDiagnostics | undefined {
+  if (error instanceof JobSearchProviderResponseError) return error.diagnostics;
+  if (error instanceof OpenAI.OpenAIError) {
+    return {
+      responseStatus:
+        error instanceof OpenAI.APIConnectionError
+          ? "connection_error"
+          : "request_error",
+      parsed: false,
+      errorCode: error.name,
+      errorMessage: error.message.slice(0, 12_000),
+      rawResponseExcerpt: "",
+    };
+  }
+  return undefined;
 }
 
 function convexErrorCode(error: unknown) {
@@ -250,7 +270,10 @@ async function discoverForUser(
     if (!begun) continue;
     try {
       const apiKey = requireConfiguration("OPENAI_API_KEY", env.OPENAI_API_KEY);
-      const client = new OpenAI({ apiKey, maxRetries: 0, timeout: 45_000 });
+      // The SDK retries transient connection, timeout, 408/409, 429, and 5xx
+      // failures with bounded exponential backoff. Permanent failures still
+      // fail immediately and the daily scheduler remains the outer backstop.
+      const client = new OpenAI({ apiKey, maxRetries: 2, timeout: 45_000 });
       await ctx.runMutation(internal.jobDiscovery.markProviderStarted, {
         userId,
         runId: begun.runId,
@@ -320,10 +343,7 @@ async function discoverForUser(
         runId: begun.runId,
         reservationId: begun.reservationId,
         errorCategory: category,
-        providerDiagnostics:
-          error instanceof JobSearchProviderResponseError
-            ? error.diagnostics
-            : undefined,
+        providerDiagnostics: providerFailureDiagnostics(error),
       });
       if (convexErrorCode(error) === "OPENAI_CONFIGURATION_ERROR") throw error;
       lastProviderError = category;

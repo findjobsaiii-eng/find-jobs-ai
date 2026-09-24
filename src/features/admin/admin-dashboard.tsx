@@ -12,6 +12,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   CircleX,
   Eye,
   Gauge,
@@ -41,6 +42,112 @@ function israelDateKey(timestamp = Date.now()) {
     month: "2-digit",
     day: "2-digit",
   }).format(timestamp);
+}
+
+function experienceRequirement(
+  min: number | null,
+  max: number | null,
+  unknown: string,
+) {
+  if (min === null) return unknown;
+  if (max !== null && max !== min) return `${min}-${max}`;
+  return max === null ? `${min}+` : String(min);
+}
+
+function prettyProviderJson(value: string) {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
+}
+
+function JobDiagnosticDisclosure({
+  jobId,
+  defaultOpen = false,
+}: {
+  jobId: Id<"jobs">;
+  defaultOpen?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(defaultOpen);
+  const detail = useQuery(api.admin.getJobDetail, open ? { jobId } : "skip");
+  return (
+    <div className="mt-3 border-t pt-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs font-semibold transition-colors"
+      >
+        <ChevronDown
+          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+        />
+        {open ? t("admin.diagnostics.hide") : t("admin.diagnostics.show")}
+      </button>
+      {open ? (
+        !detail ? (
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <LoaderCircle className="size-3.5 animate-spin" />
+            {t("common.loading")}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <div className="grid gap-2 text-xs sm:grid-cols-2">
+              <div className="bg-muted/60 rounded-lg p-2.5">
+                <p className="text-muted-foreground">
+                  {t("admin.diagnostics.resolvedExperience")}
+                </p>
+                <p className="mt-0.5 font-semibold tabular-nums">
+                  {experienceRequirement(
+                    detail.experience.resolvedMin,
+                    detail.experience.resolvedMax,
+                    t("admin.diagnostics.unknown"),
+                  )}
+                </p>
+              </div>
+              <div className="bg-muted/60 rounded-lg p-2.5">
+                <p className="text-muted-foreground">
+                  {t("admin.diagnostics.storedExperience")}
+                </p>
+                <p className="mt-0.5 font-semibold tabular-nums">
+                  {experienceRequirement(
+                    detail.experience.storedMin,
+                    detail.experience.storedMax,
+                    t("admin.diagnostics.unknown"),
+                  )}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-semibold">
+                {t("admin.diagnostics.normalized")}
+              </p>
+              <pre
+                dir="ltr"
+                className="bg-brand-midnight max-h-80 overflow-auto rounded-xl p-3 text-start text-[11px] leading-5 text-slate-100"
+              >
+                {detail.normalizedJson}
+              </pre>
+            </div>
+            {detail.providerJson ? (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold">
+                  {t("admin.diagnostics.provider")}
+                </p>
+                <pre
+                  dir="ltr"
+                  className="bg-muted max-h-64 overflow-auto rounded-xl p-3 text-start text-[11px] leading-5"
+                >
+                  {prettyProviderJson(detail.providerJson)}
+                </pre>
+              </div>
+            ) : null}
+          </div>
+        )
+      ) : null}
+    </div>
+  );
 }
 
 function zonedDateParts(timestamp: number) {
@@ -558,6 +665,20 @@ function Searches({ dateKey }: { dateKey: string }) {
                               {job.exclusionReasons.join(" · ")}
                             </p>
                           ) : null}
+                          <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            <span>
+                              {t("admin.diagnostics.experience")}:{" "}
+                              {experienceRequirement(
+                                job.requiredExperienceYearsMin,
+                                job.requiredExperienceYearsMax,
+                                t("admin.diagnostics.unknown"),
+                              )}
+                            </span>
+                            {job.locationText ? (
+                              <span>{job.locationText}</span>
+                            ) : null}
+                          </div>
+                          <JobDiagnosticDisclosure jobId={job.jobId} />
                         </div>
                       ))}
                       {!detail.jobs.length ? (
@@ -671,13 +792,23 @@ function UserInsight({
           {data.visibleJobs.map((job) => (
             <div
               key={job.jobId}
-              className="flex items-center justify-between gap-3 p-3"
+              className="flex items-start justify-between gap-3 p-3"
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{job.title}</p>
                 <p className="text-muted-foreground text-xs">
                   {job.companyName}
                 </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {t("admin.diagnostics.experience")}:{" "}
+                  {experienceRequirement(
+                    job.requiredExperienceYearsMin,
+                    job.requiredExperienceYearsMax,
+                    t("admin.diagnostics.unknown"),
+                  )}
+                  {job.locationText ? ` · ${job.locationText}` : ""}
+                </p>
+                <JobDiagnosticDisclosure jobId={job.jobId} />
               </div>
               <span className="font-semibold tabular-nums">
                 {job.relevanceScore}
@@ -821,6 +952,21 @@ function JobsSection() {
                   <p className="text-muted-foreground text-xs">
                     {job.companyName}
                   </p>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t("admin.diagnostics.experience")}:{" "}
+                    {experienceRequirement(
+                      job.requiredExperienceYearsMin,
+                      job.requiredExperienceYearsMax,
+                      t("admin.diagnostics.unknown"),
+                    )}
+                    {job.locationText ? ` · ${job.locationText}` : ""}
+                  </p>
+                  {job.requiredSkills.length ? (
+                    <p className="text-muted-foreground mt-1 max-w-xl truncate text-xs">
+                      {job.requiredSkills.join(" · ")}
+                    </p>
+                  ) : null}
+                  <JobDiagnosticDisclosure jobId={job.jobId} />
                 </td>
                 <td className="px-4 py-3">
                   <StatusPill status={job.lifecycleStatus} />
@@ -1011,15 +1157,64 @@ function Inspector() {
                     <CircleX className="size-4 text-rose-600" />
                   )}
                   <p className="text-sm font-semibold">
-                    {check.key.replaceAll("_", " ")}
+                    {check.key === "experience"
+                      ? t("admin.diagnostics.experience")
+                      : check.key.replaceAll("_", " ")}
                   </p>
                 </div>
                 <p className="text-muted-foreground mt-2 text-xs leading-5">
-                  {check.detail}
+                  {check.key === "experience"
+                    ? t("admin.diagnostics.experienceComparison", {
+                        candidate:
+                          explanation.experience.candidateYears ??
+                          t("admin.diagnostics.unknown"),
+                        required: experienceRequirement(
+                          explanation.experience.resolvedMin,
+                          explanation.experience.resolvedMax,
+                          t("admin.diagnostics.unknown"),
+                        ),
+                      })
+                    : check.detail}
                 </p>
               </div>
             ))}
           </div>
+          {explanation.profileEvidence ? (
+            <div className="bg-muted/50 mt-6 rounded-xl p-4">
+              <h3 className="text-sm font-semibold">
+                {t("admin.diagnostics.profileEvidence")}
+              </h3>
+              <div className="text-muted-foreground mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                <p>
+                  {t("admin.diagnostics.candidateExperience")}:{" "}
+                  <span className="text-foreground font-semibold tabular-nums">
+                    {explanation.profileEvidence.yearsOfExperience}
+                  </span>
+                </p>
+                <p>
+                  {t("admin.diagnostics.seniority")}:{" "}
+                  <span className="text-foreground font-semibold">
+                    {explanation.profileEvidence.seniority ??
+                      t("admin.diagnostics.unknown")}
+                  </span>
+                </p>
+                <p className="sm:col-span-2">
+                  {t("admin.diagnostics.targetRoles")}:{" "}
+                  <span className="text-foreground">
+                    {explanation.profileEvidence.targetJobTitles.join(" · ")}
+                  </span>
+                </p>
+                <p className="sm:col-span-2">
+                  {t("admin.diagnostics.profileSkills")}:{" "}
+                  <span className="text-foreground">
+                    {explanation.profileEvidence.skills.join(" · ") ||
+                      t("admin.diagnostics.unknown")}
+                  </span>
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <JobDiagnosticDisclosure jobId={jobId} defaultOpen />
         </section>
       ) : (
         <EmptyBlock>{t("admin.inspector.notFound")}</EmptyBlock>

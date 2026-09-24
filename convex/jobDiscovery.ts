@@ -1747,7 +1747,10 @@ async function feedItem(
     postedAgeDays: freshness.ageDays,
     freshnessBucket: freshness.bucket,
     unavailable: false,
-    sourceUrl: source.applicationUrl ?? source.finalUrl,
+    sourceUrl:
+      normalizePublicUrl(source.applicationUrl ?? source.finalUrl) ??
+      source.applicationUrl ??
+      source.finalUrl,
     sourceName: source.sourceName ?? source.domain ?? null,
     sourceTier: source.sourceTier,
     locationText: job.locationText,
@@ -1917,8 +1920,13 @@ export const listCurrentUserJobs = query({
                   profileRecord?.updatedAt ?? 0,
                 )
               : application.snapshot.deepReview;
+            const snapshotSourceUrl =
+              (currentSource?.applicationUrl ?? currentSource?.finalUrl) ||
+              application.snapshot.sourceUrl;
             return {
               ...application.snapshot,
+              sourceUrl:
+                normalizePublicUrl(snapshotSourceUrl) ?? snapshotSourceUrl,
               ...trackingFields(
                 application,
                 eventsByApplication.get(application._id),

@@ -398,7 +398,33 @@ export function normalizePublicUrl(value: string) {
     return null;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  const hostname = url.hostname.toLocaleLowerCase("en-US");
+  let hostname = url.hostname.toLocaleLowerCase("en-US");
+  const isLinkedIn =
+    hostname === "linkedin.com" || hostname.endsWith(".linkedin.com");
+  if (isLinkedIn && url.pathname === "/signup/cold-join") {
+    const redirect = url.searchParams.get("session_redirect");
+    if (redirect) {
+      try {
+        const redirectUrl = new URL(redirect);
+        const redirectHost = redirectUrl.hostname.toLocaleLowerCase("en-US");
+        if (
+          redirectHost === "linkedin.com" ||
+          redirectHost.endsWith(".linkedin.com")
+        ) {
+          url = redirectUrl;
+          hostname = redirectHost;
+        }
+      } catch {
+        // Keep the original public URL when the wrapper target is malformed.
+      }
+    }
+  }
+  if (hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) {
+    const jobId = url.pathname.match(
+      /\/jobs\/view\/(?:.*-)?(\d{6,})(?:\/|$)/u,
+    )?.[1];
+    if (jobId) return `https://www.linkedin.com/jobs/view/${jobId}`;
+  }
   if (
     hostname === "localhost" ||
     hostname === "0.0.0.0" ||
