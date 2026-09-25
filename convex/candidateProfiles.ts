@@ -501,62 +501,73 @@ const catalogSelectionValidator = v.object({
   labelHe: v.union(v.string(), v.null()),
   isCustom: v.boolean(),
 });
+
+export const currentProfileValidator = v.object({
+  identity: v.object({
+    userId: v.id("users"),
+    email: v.union(v.string(), v.null()),
+    googleDisplayName: v.union(v.string(), v.null()),
+    profileImage: v.union(v.string(), v.null()),
+  }),
+  profile: v.union(v.null(), schema.doc("candidateProfiles")),
+  selections: v.object({
+    targetJobTitles: v.array(catalogSelectionValidator),
+    skills: v.array(catalogSelectionValidator),
+  }),
+});
+
+export async function loadProfileView(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  user: Doc<"users">,
+) {
+  const profile = await getProfile(ctx, userId);
+  const catalogSelections = await Promise.all(
+    [...(profile?.targetJobTitleIds ?? []), ...(profile?.skillIds ?? [])].map(
+      (id) => ctx.db.get("catalogItems", id),
+    ),
+  );
+  const visibleCatalog = catalogSelections.filter(
+    (item): item is Doc<"catalogItems"> =>
+      Boolean(
+        item?.active &&
+        (item.visibility === "public" || item.ownerUserId === userId),
+      ),
+  );
+  const toCatalogSelection = (item: Doc<"catalogItems">) => ({
+    id: item._id,
+    labelEn: item.labelEn ?? null,
+    labelHe: item.labelHe ?? null,
+    isCustom: item.visibility === "private",
+  });
+  const targetJobTitles = [];
+  const skills = [];
+  for (const item of visibleCatalog) {
+    const selection = toCatalogSelection(item);
+    if (item.kind === "jobTitle") targetJobTitles.push(selection);
+    else skills.push(selection);
+  }
+  return {
+    identity: {
+      userId,
+      email: normalizeProviderValue(user.email, 320) ?? null,
+      googleDisplayName: normalizeProviderValue(user.name, 120) ?? null,
+      profileImage: normalizeProviderValue(user.image, 2_048) ?? null,
+    },
+    profile,
+    selections: {
+      targetJobTitles,
+      skills,
+    },
+  };
+}
+
 export const getCurrent = query({
   args: {},
-  returns: v.object({
-    identity: v.object({
-      userId: v.id("users"),
-      email: v.union(v.string(), v.null()),
-      googleDisplayName: v.union(v.string(), v.null()),
-      profileImage: v.union(v.string(), v.null()),
-    }),
-    profile: v.union(v.null(), schema.doc("candidateProfiles")),
-    selections: v.object({
-      targetJobTitles: v.array(catalogSelectionValidator),
-      skills: v.array(catalogSelectionValidator),
-    }),
-  }),
+  returns: currentProfileValidator,
   handler: async (ctx) => {
     const { userId, user } = await requireCurrentUser(ctx);
-    const profile = await getProfile(ctx, userId);
-    const catalogSelections = await Promise.all(
-      [...(profile?.targetJobTitleIds ?? []), ...(profile?.skillIds ?? [])].map(
-        (id) => ctx.db.get("catalogItems", id),
-      ),
-    );
-    const visibleCatalog = catalogSelections.filter(
-      (item): item is Doc<"catalogItems"> =>
-        Boolean(
-          item?.active &&
-          (item.visibility === "public" || item.ownerUserId === userId),
-        ),
-    );
-    const toCatalogSelection = (item: Doc<"catalogItems">) => ({
-      id: item._id,
-      labelEn: item.labelEn ?? null,
-      labelHe: item.labelHe ?? null,
-      isCustom: item.visibility === "private",
-    });
-    const targetJobTitles = [];
-    const skills = [];
-    for (const item of visibleCatalog) {
-      const selection = toCatalogSelection(item);
-      if (item.kind === "jobTitle") targetJobTitles.push(selection);
-      else skills.push(selection);
-    }
-    return {
-      identity: {
-        userId,
-        email: normalizeProviderValue(user.email, 320) ?? null,
-        googleDisplayName: normalizeProviderValue(user.name, 120) ?? null,
-        profileImage: normalizeProviderValue(user.image, 2_048) ?? null,
-      },
-      profile,
-      selections: {
-        targetJobTitles,
-        skills,
-      },
-    };
+    return await loadProfileView(ctx, userId, user);
   },
 });
 

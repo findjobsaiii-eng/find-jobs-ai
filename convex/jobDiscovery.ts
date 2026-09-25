@@ -371,7 +371,7 @@ const sourceCoverageValidator = v.object({
     }),
   ),
 });
-const feedEmptyStateValidator = v.union(
+export const feedEmptyStateValidator = v.union(
   v.null(),
   v.object({
     reason: v.union(
@@ -383,7 +383,7 @@ const feedEmptyStateValidator = v.union(
     outsideRadiusCount: v.number(),
   }),
 );
-const discoveryStateValidator = v.union(
+export const discoveryStateValidator = v.union(
   v.literal("pending"),
   v.literal("running"),
   v.literal("complete"),
@@ -1858,134 +1858,142 @@ async function suggestionFeedForUser(
   return jobs;
 }
 
+export const jobFeedViewValidator = v.optional(
+  v.union(v.literal("suggestions"), v.literal("inProgress")),
+);
+
+export const userJobsFeedValidator = v.object({
+  jobs: v.array(jobFeedItem),
+  plan: planValidator,
+  emptyState: feedEmptyStateValidator,
+  discoveryState: v.union(v.null(), discoveryStateValidator),
+});
+
 export const listCurrentUserJobs = query({
-  args: {
-    view: v.optional(
-      v.union(v.literal("suggestions"), v.literal("inProgress")),
-    ),
-  },
-  returns: v.object({
-    jobs: v.array(jobFeedItem),
-    plan: planValidator,
-    emptyState: feedEmptyStateValidator,
-    discoveryState: v.union(v.null(), discoveryStateValidator),
-  }),
+  args: { view: jobFeedViewValidator },
+  returns: userJobsFeedValidator,
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    const now = Date.now();
-    const [plan, reviews, profileRecord, applications, applicationEvents] =
-      await Promise.all([
-        currentPlan(ctx, userId, now),
-        ctx.db
-          .query("jobDeepReviews")
-          .withIndex("by_userId_and_updatedAt", (q) => q.eq("userId", userId))
-          .order("desc")
-          .take(100),
-        getProfile(ctx, userId),
-        ctx.db
-          .query("jobApplications")
-          .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
-          .order("desc")
-          .take(100),
-        ctx.db
-          .query("jobApplicationEvents")
-          .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
-          .order("desc")
-          .take(2_000),
-      ]);
-    const eventsByApplication = timelineEventsByApplication(applicationEvents);
-    const reviewsByJob = new Map(
-      reviews.map((review) => [review.jobId, review]),
-    );
-    if (args.view === "inProgress") {
-      const jobs = await Promise.all(
-        applications
-          .filter((application) => application.status)
-          .map(async (application) => {
-            const current = await ctx.db.get("jobs", application.jobId);
-            const currentSource = current?.bestSourceId
-              ? await ctx.db.get("jobSources", current.bestSourceId)
-              : null;
-            if (
-              current &&
-              (isDevelopmentFixtureJob(current) ||
-                (currentSource && !isUserFacingJobSource(currentSource)))
-            ) {
-              return null;
-            }
-            const review = current
-              ? deepReviewView(
-                  reviewsByJob.get(application.jobId),
-                  current,
-                  profileRecord?.updatedAt ?? 0,
-                )
-              : application.snapshot.deepReview;
-            const snapshotSourceUrl =
-              (currentSource?.applicationUrl ?? currentSource?.finalUrl) ||
-              application.snapshot.sourceUrl;
-            return {
-              ...application.snapshot,
-              sourceUrl:
-                normalizePublicUrl(snapshotSourceUrl) ?? snapshotSourceUrl,
-              ...trackingFields(
-                application,
-                eventsByApplication.get(application._id),
-              ),
-              unavailable: !current || !isDisplayEligibleJob(current),
-              deepReview: review,
-            };
-          }),
-      );
-      const visibleJobs = jobs.filter((job) => job !== null);
-      visibleJobs.sort(
-        (left, right) =>
-          (right.trackingUpdatedAt ?? right.appliedAt ?? 0) -
-          (left.trackingUpdatedAt ?? left.appliedAt ?? 0),
-      );
-      return {
-        jobs: visibleJobs,
-        plan,
-        emptyState: null,
-        discoveryState: null,
-      };
-    }
-    let profile: SearchProfile;
-    try {
-      profile = await loadSearchProfile(ctx, userId);
-    } catch {
-      return { jobs: [], plan, emptyState: null, discoveryState: null };
-    }
-    if (!profileRecord)
-      return { jobs: [], plan, emptyState: null, discoveryState: null };
-    const [attempt, recentRuns] = await Promise.all([
-      ctx.db
-        .query("dailyDiscoveryAttempts")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .unique(),
-      ctx.db
-        .query("jobSearchRuns")
-        .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", userId))
-        .order("desc")
-        .take(20),
-    ]);
-    const discoveryState = currentDiscoveryState(attempt, recentRuns, now);
-    const jobs = await suggestionFeedForUser(
-      ctx,
-      userId,
-      profile,
-      profileRecord.updatedAt,
-      reviewsByJob,
-      new Map(
-        applications.map((application) => [application.jobId, application]),
-      ),
-      eventsByApplication,
-    );
-    const emptyState = jobs.length
-      ? null
-      : emptyStateFromAudit(await buildMatchAudit(ctx, userId));
-    return { jobs, plan, emptyState, discoveryState };
+    return await loadUserJobsFeed(ctx, userId, args.view);
   },
 });
+
+export async function loadUserJobsFeed(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  view: "suggestions" | "inProgress" | undefined,
+) {
+  const now = Date.now();
+  const [plan, reviews, profileRecord, applications, applicationEvents] =
+    await Promise.all([
+      currentPlan(ctx, userId, now),
+      ctx.db
+        .query("jobDeepReviews")
+        .withIndex("by_userId_and_updatedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
+      getProfile(ctx, userId),
+      ctx.db
+        .query("jobApplications")
+        .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("jobApplicationEvents")
+        .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+        .order("desc")
+        .take(2_000),
+    ]);
+  const eventsByApplication = timelineEventsByApplication(applicationEvents);
+  const reviewsByJob = new Map(reviews.map((review) => [review.jobId, review]));
+  if (view === "inProgress") {
+    const jobs = await Promise.all(
+      applications
+        .filter((application) => application.status)
+        .map(async (application) => {
+          const current = await ctx.db.get("jobs", application.jobId);
+          const currentSource = current?.bestSourceId
+            ? await ctx.db.get("jobSources", current.bestSourceId)
+            : null;
+          if (
+            current &&
+            (isDevelopmentFixtureJob(current) ||
+              (currentSource && !isUserFacingJobSource(currentSource)))
+          ) {
+            return null;
+          }
+          const review = current
+            ? deepReviewView(
+                reviewsByJob.get(application.jobId),
+                current,
+                profileRecord?.updatedAt ?? 0,
+              )
+            : application.snapshot.deepReview;
+          const snapshotSourceUrl =
+            (currentSource?.applicationUrl ?? currentSource?.finalUrl) ||
+            application.snapshot.sourceUrl;
+          return {
+            ...application.snapshot,
+            sourceUrl:
+              normalizePublicUrl(snapshotSourceUrl) ?? snapshotSourceUrl,
+            ...trackingFields(
+              application,
+              eventsByApplication.get(application._id),
+            ),
+            unavailable: !current || !isDisplayEligibleJob(current),
+            deepReview: review,
+          };
+        }),
+    );
+    const visibleJobs = jobs.filter((job) => job !== null);
+    visibleJobs.sort(
+      (left, right) =>
+        (right.trackingUpdatedAt ?? right.appliedAt ?? 0) -
+        (left.trackingUpdatedAt ?? left.appliedAt ?? 0),
+    );
+    return {
+      jobs: visibleJobs,
+      plan,
+      emptyState: null,
+      discoveryState: null,
+    };
+  }
+  let profile: SearchProfile;
+  try {
+    profile = await loadSearchProfile(ctx, userId);
+  } catch {
+    return { jobs: [], plan, emptyState: null, discoveryState: null };
+  }
+  if (!profileRecord)
+    return { jobs: [], plan, emptyState: null, discoveryState: null };
+  const [attempt, recentRuns] = await Promise.all([
+    ctx.db
+      .query("dailyDiscoveryAttempts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique(),
+    ctx.db
+      .query("jobSearchRuns")
+      .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(20),
+  ]);
+  const discoveryState = currentDiscoveryState(attempt, recentRuns, now);
+  const jobs = await suggestionFeedForUser(
+    ctx,
+    userId,
+    profile,
+    profileRecord.updatedAt,
+    reviewsByJob,
+    new Map(
+      applications.map((application) => [application.jobId, application]),
+    ),
+    eventsByApplication,
+  );
+  const emptyState = jobs.length
+    ? null
+    : emptyStateFromAudit(await buildMatchAudit(ctx, userId));
+  return { jobs, plan, emptyState, discoveryState };
+}
 
 function currentDiscoveryState(
   attempt: Doc<"dailyDiscoveryAttempts"> | null,

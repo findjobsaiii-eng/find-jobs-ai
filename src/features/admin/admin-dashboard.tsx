@@ -723,14 +723,30 @@ function UserInsight({
           <p className="text-lg font-semibold">{displayUser(data.user)}</p>
           <p className="text-muted-foreground text-sm">{data.user.email}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label={t("admin.actions.close")}
-        >
-          <X />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            render={
+              <Link
+                href={`/admin/users/${userId}/jobs`}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
+            <Eye aria-hidden="true" />
+            {t("admin.preview.action")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label={t("admin.actions.close")}
+          >
+            <X />
+          </Button>
+        </div>
       </div>
       <div className="bg-muted/50 rounded-xl p-4 text-sm">
         <p className="font-medium">

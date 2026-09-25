@@ -3,7 +3,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
-import { JobDiscoveryPanel } from "./job-discovery-panel";
+import {
+  JobDiscoveryPanel,
+  type JobDiscoveryData,
+} from "./job-discovery-panel";
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
@@ -29,13 +32,20 @@ vi.mock("convex/react", async () => {
   };
 });
 
-function renderPanel(path = "/") {
+function renderPanel(
+  path = "/",
+  options: { data?: JobDiscoveryData; readOnly?: boolean } = {},
+) {
   const view = path.includes("tab=in-progress")
     ? ("inProgress" as const)
     : ("suggestions" as const);
   return render(
     <DirectionProvider direction={i18n.dir()}>
-      <JobDiscoveryPanel view={view} />
+      <JobDiscoveryPanel
+        view={view}
+        data={options.data}
+        readOnly={options.readOnly}
+      />
     </DirectionProvider>,
   );
 }
@@ -238,6 +248,37 @@ describe("job result cards", () => {
       "https://jobs.acme.example/roles/123",
     );
     expect(screen.queryByText(/rawProviderJson/i)).not.toBeInTheDocument();
+  });
+
+  it("renders injected preview data without any user-data mutations", () => {
+    const previewData = {
+      result: {
+        jobs: [job()],
+        plan: "pro",
+        emptyState: null,
+        discoveryState: "running",
+      },
+      emailPreference: { frequency: "never" },
+    } as unknown as JobDiscoveryData;
+
+    renderPanel("/", { data: previewData, readOnly: true });
+
+    expect(
+      screen.getByRole("heading", { name: "Senior Product Manager" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "View job" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Choose how to save this job" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add a comment" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deep review" })).toBeDisabled();
+    expect(
+      screen.queryByRole("link", { name: "Enable them in settings" }),
+    ).not.toBeInTheDocument();
+    expect(hooks.setApplication).not.toHaveBeenCalled();
+    expect(hooks.runReview).not.toHaveBeenCalled();
   });
 
   it("shows the deterministic score and its exact point breakdown", async () => {

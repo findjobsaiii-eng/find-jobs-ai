@@ -831,6 +831,21 @@
       "title": "Admin access required",
       "description": "This account is signed in but is not listed as an active administrator. Access is enforced by every admin data function, not only by this screen."
     },
+    "preview": {
+      "action": "Preview Jobs",
+      "banner": "Viewing Jobs as {{name}}",
+      "readOnly": "Read-only preview",
+      "exit": "Exit preview",
+      "loadingUser": "selected user",
+      "unknownUser": "Unknown user",
+      "notFoundTitle": "User not found",
+      "notFoundDescription": "This user no longer exists, so their Jobs screen cannot be previewed.",
+      "loadErrorTitle": "Preview unavailable",
+      "loadErrorDescription": "The selected user's Jobs screen could not be loaded. Your admin session and their data were not changed.",
+      "retry": "Try again",
+      "jobsUnavailableTitle": "Jobs screen not available yet",
+      "jobsUnavailableDescription": "{{name}} is still completing onboarding, so they do not see the Jobs screen when signed in."
+    },
     "actions": {
       "back": "Back to JOBMITER",
       "exit": "Exit admin",

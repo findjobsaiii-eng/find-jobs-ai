@@ -8,7 +8,18 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { buildMatchAudit, loadSearchProfile } from "./jobDiscovery";
+import {
+  buildMatchAudit,
+  jobFeedViewValidator,
+  loadSearchProfile,
+  loadUserJobsFeed,
+  userJobsFeedValidator,
+} from "./jobDiscovery";
+import { currentProfileValidator, loadProfileView } from "./candidateProfiles";
+import {
+  emailPreferenceValidator,
+  loadEmailPreference,
+} from "./emailPreferences";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import { evaluateSuggestionFreshness } from "./jobFreshness";
 import { isFreshActiveSource } from "./jobActivityPolicy";
@@ -442,6 +453,32 @@ export const recordUserView = mutation({
         "Admin opened the diagnostic user view; no user mutation authority was granted.",
       createdAt: Date.now(),
     });
+  },
+});
+
+export const getUserJobsPreview = query({
+  args: {
+    userId: v.id("users"),
+    view: jobFeedViewValidator,
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      profile: currentProfileValidator,
+      emailPreference: emailPreferenceValidator,
+      feed: userJobsFeedValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const user = await ctx.db.get("users", args.userId);
+    if (!user) return null;
+    const [profile, emailPreference, feed] = await Promise.all([
+      loadProfileView(ctx, args.userId, user),
+      loadEmailPreference(ctx, args.userId),
+      loadUserJobsFeed(ctx, args.userId, args.view),
+    ]);
+    return { profile, emailPreference, feed };
   },
 });
 

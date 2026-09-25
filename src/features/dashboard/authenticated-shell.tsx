@@ -19,12 +19,16 @@ export function AuthenticatedShell({
   currentPage,
   jobView,
   onJobViewChange,
+  jobsPath = "/",
+  readOnly = false,
 }: {
   data?: CurrentProfile;
   children: ReactNode;
   currentPage: "jobs" | "profile";
   jobView?: "suggestions" | "inProgress";
   onJobViewChange?: (view: "suggestions" | "inProgress") => void;
+  jobsPath?: string;
+  readOnly?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const reducedMotion = useReducedMotion();
@@ -94,7 +98,7 @@ export function AuthenticatedShell({
         <header className="bg-brand-midnight sticky top-0 z-30 border-b border-white/8 text-white shadow-lg shadow-slate-950/8">
           <PageContainer className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-2 sm:min-h-17 sm:grid-cols-[1fr_auto_1fr]">
             <Link
-              href="/"
+              href={jobsPath}
               className="justify-self-start"
               aria-label={t("brand.name")}
             >
@@ -107,14 +111,14 @@ export function AuthenticatedShell({
             >
               <LazyMotion features={domAnimation}>
                 {jobLink(
-                  "/",
+                  jobsPath,
                   t("applications.suggestions"),
                   "suggestions",
                   isJobsPage && !isSaved,
                   Sparkles,
                 )}
                 {jobLink(
-                  "/?tab=in-progress",
+                  `${jobsPath}?tab=in-progress`,
                   t("applications.inProgress"),
                   "inProgress",
                   isSaved,
@@ -128,6 +132,7 @@ export function AuthenticatedShell({
                 identity={data.identity}
                 displayName={displayName}
                 tone="dark"
+                readOnly={readOnly}
               />
             ) : (
               <div

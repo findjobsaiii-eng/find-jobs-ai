@@ -38,6 +38,298 @@ it("keeps every admin query closed to ordinary signed-in users", async () => {
   await expect(user.query(api.admin.listUsers)).rejects.toThrow(
     /ADMIN_REQUIRED/u,
   );
+  await expect(
+    user.query(api.admin.getUserJobsPreview, {
+      userId,
+      view: "suggestions",
+    }),
+  ).rejects.toThrow(/ADMIN_REQUIRED/u);
+});
+
+it("returns the selected user's exact Jobs read model without changing data", async () => {
+  const t = convexTest(schema, modules);
+  const now = Date.now();
+  const { adminId, subjectId } = await t.run(async (ctx) => {
+    const adminId = await ctx.db.insert("users", {
+      email: "admin@example.com",
+      name: "Admin",
+    });
+    const subjectId = await ctx.db.insert("users", {
+      email: "candidate@example.com",
+      name: "Candidate",
+      image: "https://images.example.com/candidate.png",
+    });
+    await ctx.db.insert("adminMemberships", {
+      userId: adminId,
+      role: "admin",
+      active: true,
+      grantedBy: "test",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const titleId = await ctx.db.insert("catalogItems", {
+      kind: "jobTitle",
+      labelEn: "Frontend Engineer",
+      labelHe: "מפתח Frontend",
+      normalizedKey: "frontend engineer",
+      normalizedLabels: ["frontend engineer"],
+      aliases: ["Frontend Developer"],
+      searchText: "frontend engineer",
+      visibility: "public",
+      source: "curated",
+      priority: 1,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const skillId = await ctx.db.insert("catalogItems", {
+      kind: "skill",
+      labelEn: "React",
+      normalizedKey: "react",
+      normalizedLabels: ["react"],
+      searchText: "react",
+      visibility: "public",
+      source: "curated",
+      priority: 1,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const location = {
+      placeId: "tel-aviv",
+      formattedAddress: "Tel Aviv, Israel",
+      city: "Tel Aviv",
+      country: "Israel",
+      countryCode: "IL",
+      latitude: 32.0853,
+      longitude: 34.7818,
+      radiusKm: 25,
+    };
+    await ctx.db.insert("candidateProfiles", {
+      userId: subjectId,
+      email: "candidate@example.com",
+      googleDisplayName: "Candidate",
+      profileImage: "https://images.example.com/candidate.png",
+      preferredDisplayName: "Candice",
+      targetJobTitleIds: [titleId],
+      skillIds: [skillId],
+      yearsOfExperience: 5,
+      preferredPlaceIds: [location.placeId],
+      locationRadiusKm: location.radiusKm,
+      primaryLocation: location,
+      workArrangements: ["hybrid"],
+      employmentTypes: ["full-time"],
+      languages: [{ languageCode: "en", proficiency: "fluent" }],
+      minimumMonthlySalaryIls: 20_000,
+      onboardingCompleted: true,
+      onboardingStep: 4,
+      createdAt: now,
+      updatedAt: now,
+      completedAt: now,
+    });
+    await ctx.db.insert("emailPreferences", {
+      userId: subjectId,
+      frequency: "weekly",
+      updatedAt: now,
+    });
+    const sourceUrl = "https://careers.example.com/jobs/frontend-engineer";
+    const jobId = await ctx.db.insert("jobs", {
+      normalizedSourceUrl: sourceUrl,
+      jobFingerprint: "frontend-example-tel-aviv",
+      contentHash: "content-v1",
+      title: "Frontend Engineer",
+      companyName: "Example",
+      sourceUrl,
+      sourceName: "Example Careers",
+      sourceType: "employer",
+      descriptionText: "Build accessible React interfaces in Tel Aviv.",
+      requirementsText: "Five years of frontend experience.",
+      responsibilities: ["Build interfaces"],
+      requiredSkills: ["React", "TypeScript"],
+      preferredSkills: [],
+      requiredExperienceYearsMin: 3,
+      requiredExperienceYearsMax: 7,
+      educationRequirements: [],
+      languages: ["English"],
+      country: "Israel",
+      city: "Tel Aviv",
+      locationText: "Tel Aviv, Israel",
+      geo: {
+        placeId: "tel-aviv",
+        countryCode: "IL",
+        latitude: 32.0853,
+        longitude: 34.7818,
+        precision: "locality_centroid",
+      },
+      workArrangement: "hybrid",
+      employmentType: "full-time",
+      salaryMin: 25_000,
+      salaryMax: 32_000,
+      salaryCurrency: "ILS",
+      salaryPeriod: "month",
+      postedAt: new Date(now).toISOString(),
+      applicationDeadline: null,
+      sourceEvidence: [],
+      firstDiscoveredAt: now,
+      lastDiscoveredAt: now,
+      lastVerifiedAt: now,
+      activityStatus: "active",
+      lifecycleStatus: "verified_active",
+    });
+    const sourceId = await ctx.db.insert("jobSources", {
+      jobId,
+      sourceName: "Example Careers",
+      sourceUrl,
+      normalizedUrl: sourceUrl,
+      finalUrl: sourceUrl,
+      domain: "careers.example.com",
+      sourceTier: "employer",
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastVerifiedAt: now,
+      activityStatus: "verified_active",
+      activeEvidenceType: "active_application_flow",
+      applicationAvailable: true,
+      applicationUrl: sourceUrl,
+    });
+    await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
+    await ctx.db.insert("jobMatches", {
+      userId: subjectId,
+      jobId,
+      profileRevision: now,
+      displayEligible: true,
+      outcome: "eligible",
+      exclusionReasons: [],
+      relevanceScore: 100,
+      scoreComponents: {
+        role: 100,
+        requiredSkills: 100,
+        preferredSkills: 0,
+        experience: 100,
+        location: 5,
+        workArrangement: 5,
+        employmentType: 5,
+        language: 0,
+        education: 0,
+        semantic: 0,
+      },
+      matchReasons: ["target_role", "core_skills", "location"],
+      resultSource: "central",
+      evaluatedAt: now,
+    });
+    await ctx.db.insert("jobApplications", {
+      userId: subjectId,
+      jobId,
+      appliedAt: now,
+      status: "applied",
+      updatedAt: now,
+      snapshot: {
+        id: jobId,
+        title: "Frontend Engineer",
+        companyName: "Example",
+        sourceUrl,
+        sourceName: "Example Careers",
+        sourceTier: "employer",
+        locationText: "Tel Aviv, Israel",
+        workArrangement: "hybrid",
+        salaryMin: 25_000,
+        salaryMax: 32_000,
+        salaryCurrency: "ILS",
+        salaryPeriod: "month",
+        discoveredAt: now,
+        lastVerifiedAt: now,
+        relevanceScore: 100,
+        matchReasons: ["target_role", "core_skills", "location"],
+        resultSource: "central",
+      },
+    });
+    return { adminId, subjectId };
+  });
+
+  const subject = asUser(t, subjectId);
+  const [
+    expectedProfile,
+    expectedEmailPreference,
+    expectedFeed,
+    expectedInProgressFeed,
+  ] = await Promise.all([
+    subject.query(api.candidateProfiles.getCurrent),
+    subject.query(api.emailPreferences.getMine),
+    subject.query(api.jobDiscovery.listCurrentUserJobs, {
+      view: "suggestions",
+    }),
+    subject.query(api.jobDiscovery.listCurrentUserJobs, {
+      view: "inProgress",
+    }),
+  ]);
+  const before = await t.run(async (ctx) => ({
+    profile: await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", subjectId))
+      .unique(),
+    preference: await ctx.db
+      .query("emailPreferences")
+      .withIndex("by_userId", (q) => q.eq("userId", subjectId))
+      .unique(),
+    matches: await ctx.db
+      .query("jobMatches")
+      .withIndex("by_userId_and_jobId", (q) => q.eq("userId", subjectId))
+      .take(10),
+    applications: await ctx.db
+      .query("jobApplications")
+      .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", subjectId))
+      .take(10),
+  }));
+
+  const preview = await asUser(t, adminId).query(api.admin.getUserJobsPreview, {
+    userId: subjectId,
+    view: "suggestions",
+  });
+
+  expect(preview).toEqual({
+    profile: expectedProfile,
+    emailPreference: expectedEmailPreference,
+    feed: expectedFeed,
+  });
+  expect(preview?.profile.profile).toMatchObject({
+    userId: subjectId,
+    preferredDisplayName: "Candice",
+    minimumMonthlySalaryIls: 20_000,
+  });
+  expect(preview?.feed.jobs).toHaveLength(1);
+  expect(preview?.feed.jobs[0]).toMatchObject({
+    title: "Frontend Engineer",
+    companyName: "Example",
+  });
+  const inProgressPreview = await asUser(t, adminId).query(
+    api.admin.getUserJobsPreview,
+    { userId: subjectId, view: "inProgress" },
+  );
+  expect(inProgressPreview?.feed).toEqual(expectedInProgressFeed);
+  expect(inProgressPreview?.feed.jobs[0]).toMatchObject({
+    title: "Frontend Engineer",
+    trackingStatus: "applied",
+  });
+  const after = await t.run(async (ctx) => ({
+    profile: await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", subjectId))
+      .unique(),
+    preference: await ctx.db
+      .query("emailPreferences")
+      .withIndex("by_userId", (q) => q.eq("userId", subjectId))
+      .unique(),
+    matches: await ctx.db
+      .query("jobMatches")
+      .withIndex("by_userId_and_jobId", (q) => q.eq("userId", subjectId))
+      .take(10),
+    applications: await ctx.db
+      .query("jobApplications")
+      .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", subjectId))
+      .take(10),
+    auditEvents: await ctx.db.query("adminAuditEvents").take(10),
+  }));
+  expect(after).toMatchObject({ ...before, auditEvents: [] });
 });
 
 it("shows normalized job extraction and exact experience evidence to admins", async () => {

@@ -24,15 +24,17 @@ export function UserMenu({
   displayName,
   showProfile = true,
   tone = "light",
+  readOnly = false,
 }: {
   identity: CurrentProfile["identity"];
   displayName?: string | null;
   showProfile?: boolean;
   tone?: "light" | "dark";
+  readOnly?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { signOut } = useAuthActions();
-  const adminAccess = useQuery(api.admin.getAccess);
+  const adminAccess = useQuery(api.admin.getAccess, readOnly ? "skip" : {});
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
@@ -43,6 +45,40 @@ export function UserMenu({
     identity.email ||
     t("dashboard.nav.profile");
   const initials = name.trim().slice(0, 1).toLocaleUpperCase();
+  const identityContent = (
+    <>
+      <span className="bg-brand-teal grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white">
+        {identity.profileImage ? (
+          <Image
+            src={identity.profileImage}
+            alt=""
+            width={32}
+            height={32}
+            className="size-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          initials
+        )}
+      </span>
+      <span className="mx-2 hidden max-w-32 truncate text-sm font-medium md:inline">
+        {name}
+      </span>
+      <ChevronDown
+        aria-hidden="true"
+        className={cn(
+          "hidden size-4 md:block",
+          tone === "dark" ? "text-white/55" : "text-muted-foreground",
+        )}
+      />
+    </>
+  );
+  const triggerClassName = cn(
+    "flex min-h-11 min-w-11 items-center justify-self-end rounded-xl p-1.5 transition-colors outline-none focus-visible:ring-3",
+    tone === "dark"
+      ? "hover:bg-white/10 focus-visible:ring-white/35"
+      : "hover:bg-muted focus-visible:ring-ring/40",
+  );
 
   const handleSignOut = async () => {
     if (signingOutRef.current) return;
@@ -59,42 +95,26 @@ export function UserMenu({
     }
   };
 
+  if (readOnly) {
+    return (
+      <div
+        aria-label={t("dashboard.userMenu")}
+        aria-disabled="true"
+        className={triggerClassName}
+      >
+        {identityContent}
+      </div>
+    );
+  }
+
   return (
     <>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
           aria-label={t("dashboard.userMenu")}
-          className={cn(
-            "flex min-h-11 min-w-11 items-center justify-self-end rounded-xl p-1.5 transition-colors outline-none focus-visible:ring-3",
-            tone === "dark"
-              ? "hover:bg-white/10 focus-visible:ring-white/35"
-              : "hover:bg-muted focus-visible:ring-ring/40",
-          )}
+          className={triggerClassName}
         >
-          <span className="bg-brand-teal grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white">
-            {identity.profileImage ? (
-              <Image
-                src={identity.profileImage}
-                alt=""
-                width={32}
-                height={32}
-                className="size-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              initials
-            )}
-          </span>
-          <span className="mx-2 hidden max-w-32 truncate text-sm font-medium md:inline">
-            {name}
-          </span>
-          <ChevronDown
-            aria-hidden="true"
-            className={cn(
-              "hidden size-4 md:block",
-              tone === "dark" ? "text-white/55" : "text-muted-foreground",
-            )}
-          />
+          {identityContent}
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Positioner

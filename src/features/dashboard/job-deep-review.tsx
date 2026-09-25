@@ -46,12 +46,14 @@ export function JobDeepReview({
   plan,
   review,
   actions,
+  readOnly = false,
 }: {
   jobId: Id<"jobs">;
   unavailable: boolean;
   plan: "free" | "pro" | "admin";
   review?: Review;
   actions: ReactNode;
+  readOnly?: boolean;
 }) {
   const { i18n, t } = useTranslation();
   const runReview = useAction(api.jobReviewActions.reviewJob);
@@ -86,7 +88,9 @@ export function JobDeepReview({
           type="button"
           variant="outline"
           className="relative min-h-11 min-w-11 overflow-hidden @2xl:min-w-0"
-          disabled={isLoading || (!hasReview && (!isPaid || unavailable))}
+          disabled={
+            isLoading || (!hasReview && (readOnly || !isPaid || unavailable))
+          }
           aria-label={
             isLoading
               ? t("jobReview.loading")
@@ -97,9 +101,15 @@ export function JobDeepReview({
           aria-expanded={hasReview ? expanded : undefined}
           onClick={() => {
             if (hasReview) setExpanded((value) => !value);
-            else void requestReview();
+            else if (!readOnly) void requestReview();
           }}
-          title={!isPaid && !hasReview ? t("jobReview.proOnly") : undefined}
+          title={
+            readOnly && !hasReview
+              ? t("admin.preview.readOnly")
+              : !isPaid && !hasReview
+                ? t("jobReview.proOnly")
+                : undefined
+          }
         >
           {isLoading ? (
             <ReviewPulse />
@@ -301,7 +311,7 @@ export function JobDeepReview({
               </ReviewSection>
             ) : null}
 
-            {isPaid && !unavailable ? (
+            {isPaid && !unavailable && !readOnly ? (
               <Button
                 type="button"
                 variant="ghost"

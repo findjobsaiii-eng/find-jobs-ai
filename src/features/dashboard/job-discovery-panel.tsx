@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { FunctionReturnType } from "convex/server";
 import { JobmiterMark } from "@/components/ui/jobmiter-logo";
 import { AnimatePresence, domAnimation, LazyMotion } from "motion/react";
 import * as m from "motion/react-m";
@@ -32,12 +33,19 @@ import { ApplicationStatusFilters } from "./application-status-filters";
 
 type EmailFrequency = "daily" | "weekly" | "never";
 
+export type JobDiscoveryData = {
+  result: FunctionReturnType<typeof api.jobDiscovery.listCurrentUserJobs>;
+  emailPreference: FunctionReturnType<typeof api.emailPreferences.getMine>;
+};
+
 function JobEmailNotice({
   frequency,
   pending,
+  readOnly = false,
 }: {
   frequency: EmailFrequency;
   pending: boolean;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -46,12 +54,18 @@ function JobEmailNotice({
       {frequency === "never" ? (
         <>
           {t("jobDiscovery.emailNotice.disabled")}{" "}
-          <Link
-            href="/profile/emails"
-            className="text-primary font-medium underline underline-offset-4"
-          >
-            {t("jobDiscovery.emailNotice.enable")}
-          </Link>
+          {readOnly ? (
+            <span className="text-primary font-medium underline underline-offset-4">
+              {t("jobDiscovery.emailNotice.enable")}
+            </span>
+          ) : (
+            <Link
+              href="/profile/emails"
+              className="text-primary font-medium underline underline-offset-4"
+            >
+              {t("jobDiscovery.emailNotice.enable")}
+            </Link>
+          )}
         </>
       ) : (
         t(
@@ -67,16 +81,28 @@ function JobEmailNotice({
 export function JobDiscoveryPanel({
   view,
   onEdit,
+  data,
+  readOnly = false,
 }: {
   view: "suggestions" | "inProgress";
   onEdit?: () => void;
+  data?: JobDiscoveryData;
+  readOnly?: boolean;
 }) {
   const { i18n, t } = useTranslation();
   const [error, setError] = useState(false);
   const [notice, setNotice] = useState<{ key: string } | null>(null);
   const [filter, setFilter] = useState<ApplicationFilter>("all");
-  const result = useQuery(api.jobDiscovery.listCurrentUserJobs, { view });
-  const emailPreference = useQuery(api.emailPreferences.getMine);
+  const currentResult = useQuery(
+    api.jobDiscovery.listCurrentUserJobs,
+    data ? "skip" : { view },
+  );
+  const currentEmailPreference = useQuery(
+    api.emailPreferences.getMine,
+    data ? "skip" : {},
+  );
+  const result = data?.result ?? currentResult;
+  const emailPreference = data?.emailPreference ?? currentEmailPreference;
 
   const jobs = result?.jobs ?? [];
   const availableStatuses = applicationStatusesInUse(
@@ -227,7 +253,7 @@ export function JobDiscoveryPanel({
                     })}
                   </p>
                 ) : null}
-                {emptyReason === "location" && onEdit ? (
+                {emptyReason === "location" && onEdit && !readOnly ? (
                   <Button className="mt-5" onClick={onEdit}>
                     {t("jobDiscovery.expandSearchRadius")}
                   </Button>
@@ -236,6 +262,7 @@ export function JobDiscoveryPanel({
                   <JobEmailNotice
                     frequency={emailPreference.frequency}
                     pending={discoveryPending}
+                    readOnly={readOnly}
                   />
                 ) : null}
               </m.div>
@@ -539,21 +566,24 @@ export function JobDiscoveryPanel({
                                 unavailable={Boolean(job.unavailable)}
                                 plan={plan}
                                 review={job.deepReview}
+                                readOnly={readOnly}
                                 actions={
                                   <div className="flex min-w-0 items-center justify-end gap-2">
-                                    <ApplicationTrackingActions
-                                      jobId={job.id}
-                                      inSuggestions={view === "suggestions"}
-                                      status={trackingStatus}
-                                      onChanged={(nextNotice) => {
-                                        setError(false);
-                                        setNotice({ key: nextNotice });
-                                      }}
-                                      onRemoveError={() => {
-                                        setNotice(null);
-                                        setError(true);
-                                      }}
-                                    />
+                                    {!readOnly ? (
+                                      <ApplicationTrackingActions
+                                        jobId={job.id}
+                                        inSuggestions={view === "suggestions"}
+                                        status={trackingStatus}
+                                        onChanged={(nextNotice) => {
+                                          setError(false);
+                                          setNotice({ key: nextNotice });
+                                        }}
+                                        onRemoveError={() => {
+                                          setNotice(null);
+                                          setError(true);
+                                        }}
+                                      />
+                                    ) : null}
                                     <a
                                       href={job.sourceUrl}
                                       target="_blank"
@@ -609,6 +639,7 @@ export function JobDiscoveryPanel({
                         <JobEmailNotice
                           frequency={emailPreference.frequency}
                           pending
+                          readOnly={readOnly}
                         />
                       ) : null}
                     </div>

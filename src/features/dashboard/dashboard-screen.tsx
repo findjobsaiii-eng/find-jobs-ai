@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { PageHeader } from "@/components/ui/product-layout";
 import { DevelopmentTools } from "./development-tools";
-import { JobDiscoveryPanel } from "./job-discovery-panel";
+import {
+  JobDiscoveryPanel,
+  type JobDiscoveryData,
+} from "./job-discovery-panel";
 
 function DashboardHeader({ view }: { view: "suggestions" | "inProgress" }) {
   const { t } = useTranslation();
@@ -58,19 +61,30 @@ export function DashboardLoadingScreen({
 export function DashboardScreen({
   view,
   onEdit,
+  data,
+  readOnly = false,
 }: {
   view: "suggestions" | "inProgress";
-  onEdit: () => void;
+  onEdit?: () => void;
+  data?: JobDiscoveryData;
+  readOnly?: boolean;
 }) {
   const developmentTools = useQuery(
     api.jobDiscovery.developmentToolsEnabled,
-    {},
+    readOnly ? "skip" : {},
   );
   return (
     <>
       <DashboardHeader view={view} />
-      <JobDiscoveryPanel view={view} onEdit={onEdit} />
-      {developmentTools === true ? <DevelopmentTools onEdit={onEdit} /> : null}
+      <JobDiscoveryPanel
+        view={view}
+        onEdit={onEdit}
+        data={data}
+        readOnly={readOnly}
+      />
+      {developmentTools === true && onEdit ? (
+        <DevelopmentTools onEdit={onEdit} />
+      ) : null}
     </>
   );
 }

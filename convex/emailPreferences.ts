@@ -1,6 +1,12 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type QueryCtx,
+} from "./_generated/server";
 import { resolveExperienceRequirement } from "./jobDiscoveryModel";
 
 export const emailFrequencyValidator = v.union(
@@ -20,17 +26,25 @@ const DEFAULT_FREQUENCY = "daily" as const;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
 const PENDING_TTL_MS = 30 * 60 * 1_000;
 
+export const emailPreferenceValidator = v.object({
+  frequency: emailFrequencyValidator,
+});
+
+export async function loadEmailPreference(ctx: QueryCtx, userId: Id<"users">) {
+  const preference = await ctx.db
+    .query("emailPreferences")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
+  return { frequency: preference?.frequency ?? DEFAULT_FREQUENCY };
+}
+
 export const getMine = query({
   args: {},
-  returns: v.object({ frequency: emailFrequencyValidator }),
+  returns: emailPreferenceValidator,
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
-    const preference = await ctx.db
-      .query("emailPreferences")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .unique();
-    return { frequency: preference?.frequency ?? DEFAULT_FREQUENCY };
+    return await loadEmailPreference(ctx, userId);
   },
 });
 

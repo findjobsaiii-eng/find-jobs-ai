@@ -647,6 +647,28 @@ uses one compact banner for the initial decision and later changes from the
 footer. Marketing consent is not shown because the product does not send
 marketing messages.
 
+### D-033: Admin Jobs preview is read-only projection, not impersonation
+
+Status: Accepted (2026-09-25)
+
+Evidence: `convex/admin.ts`, `convex/jobDiscovery.ts`,
+`src/features/admin/admin-jobs-preview.tsx`, and
+`src/features/dashboard/job-discovery-panel.tsx`.
+
+An active administrator may open a selected user's Jobs screen through an
+admin-only query. That query derives the administrator from the authenticated
+session, then reads the selected user's profile, catalog selections, email
+preference, plan, matches, applications, timeline, reviews, and discovery state
+through the same helpers used by the user's own queries. It never replaces the
+authenticated identity and performs no writes.
+
+The preview renders the production Jobs shell and feed components. Suggestions,
+In progress, client-side status filters, loading, empty, and error states remain
+available, while profile editing, application tracking, review generation,
+preference navigation, development tools, and account-menu actions are disabled
+or omitted. External job-source links remain usable. Mutation-capable
+impersonation remains out of scope.
+
 ## Job activity freshness (2026-09-09)
 
 Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.
