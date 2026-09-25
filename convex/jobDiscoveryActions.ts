@@ -7,7 +7,11 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { action, internalAction, env } from "./_generated/server";
-import { buildSearchPlan, normalizeTitleIdentity } from "./jobDiscoveryModel";
+import {
+  buildSearchPlan,
+  JOB_DISCOVERY_LIMITS,
+  normalizeTitleIdentity,
+} from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
 import {
@@ -119,6 +123,8 @@ function requireConfiguration(name: string, value: string | undefined) {
 function classifyProviderError(error: unknown) {
   if (error instanceof JobSearchProviderResponseError)
     return "provider_unparsed_response";
+  if (error instanceof OpenAI.APIConnectionTimeoutError)
+    return "provider_timeout";
   if (error instanceof OpenAI.APIConnectionError) return "provider_connection";
   if (error instanceof OpenAI.RateLimitError) return "provider_rate_limit";
   if (error instanceof OpenAI.AuthenticationError)
@@ -134,9 +140,11 @@ function providerFailureDiagnostics(
   if (error instanceof OpenAI.OpenAIError) {
     return {
       responseStatus:
-        error instanceof OpenAI.APIConnectionError
-          ? "connection_error"
-          : "request_error",
+        error instanceof OpenAI.APIConnectionTimeoutError
+          ? "timeout"
+          : error instanceof OpenAI.APIConnectionError
+            ? "connection_error"
+            : "request_error",
       parsed: false,
       errorCode: error.name,
       errorMessage: error.message.slice(0, 12_000),
@@ -273,7 +281,7 @@ async function discoverForUser(
       // The SDK retries transient connection, timeout, 408/409, 429, and 5xx
       // failures with bounded exponential backoff. Permanent failures still
       // fail immediately and the daily scheduler remains the outer backstop.
-      const client = new OpenAI({ apiKey, maxRetries: 2, timeout: 45_000 });
+      const client = new OpenAI({ apiKey, maxRetries: 1, timeout: 90_000 });
       await ctx.runMutation(internal.jobDiscovery.markProviderStarted, {
         userId,
         runId: begun.runId,
@@ -285,7 +293,7 @@ async function discoverForUser(
         [searchQuery],
         {
           maxQueries: 1,
-          maxAcceptedJobs: 10,
+          maxAcceptedJobs: JOB_DISCOVERY_LIMITS.maxJobsPerQuery,
           maxOutputTokens: runtime.outputTokenLimit,
         },
       );

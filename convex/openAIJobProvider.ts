@@ -12,6 +12,7 @@ import {
 
 const MAX_OUTPUT_TEXT_DIAGNOSTIC_LENGTH = 12_000;
 const MAX_RAW_RESPONSE_DIAGNOSTIC_LENGTH = 24_000;
+const TOKEN_EXHAUSTION_FALLBACK_JOBS = 3;
 
 export type JobSearchProviderDiagnostics = {
   responseId?: string;
@@ -118,6 +119,70 @@ function collectProviderSourceUrls(output: unknown) {
   return { urls, webSearchToolCallCount };
 }
 
+function addUsage(
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number },
+  response: {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+    } | null;
+  },
+) {
+  usage.inputTokens += response.usage?.input_tokens ?? 0;
+  usage.outputTokens += response.usage?.output_tokens ?? 0;
+  usage.totalTokens += response.usage?.total_tokens ?? 0;
+}
+
+async function requestJobBatch(
+  client: OpenAI,
+  model: string,
+  searchQuery: string,
+  maxOutputTokens: number,
+  maxCandidates: number,
+  compactFallback: boolean,
+) {
+  return await client.responses.parse({
+    model,
+    store: false,
+    max_output_tokens: Math.min(
+      maxOutputTokens,
+      JOB_DISCOVERY_LIMITS.absoluteMaxOutputTokens,
+    ),
+    max_tool_calls: compactFallback ? 3 : 4,
+    include: ["web_search_call.action.sources"],
+    tools: [
+      {
+        type: "web_search",
+        search_context_size: compactFallback ? "low" : "medium",
+      },
+    ],
+    input: [
+      {
+        role: "system",
+        content: [
+          "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles.",
+          "Search both English and Hebrew title variants. Prefer vacancies published in the last 60 days when the source shows a date.",
+          "Prioritize exact employer career and public ATS pages; exact vacancy pages on major reputable job boards and recruiting agencies are also valid.",
+          "Preserve every exact source URL found for the same vacancy, especially an employer or ATS URL. Source quality is a preference, never a requirement.",
+          "Discovery finds candidates only; deterministic verification and matching happen later. Never invent facts, dates, or URLs.",
+          "Extract experience requirements exactly in years: for a range use its lower and upper bounds, for X+ or a stated minimum use X as the minimum and null as the maximum, for an exact X years use X for both, and use null when the source is silent.",
+          "Treat entry-level or junior wording without a numeric requirement as a 0-year minimum. Apply the same rules to Hebrew descriptions.",
+          "Use null or empty arrays when the source does not state a field. Every job URL and evidence URL must come from web search sources.",
+          `Return at most ${maxCandidates} useful candidates. Keep descriptions, requirements, lists, and evidence concise.`,
+          compactFallback
+            ? "This is a compact retry: prioritize the strongest exact matches and omit nonessential detail."
+            : "Do not return an empty jobs array unless the searches found no exact current vacancy pages.",
+        ].join(" "),
+      },
+      { role: "user", content: searchQuery },
+    ],
+    text: {
+      format: zodTextFormat(openAIJobBatchSchema, "job_search_results"),
+    },
+  });
+}
+
 export async function searchJobsWithOpenAI(
   client: OpenAI,
   model: string,
@@ -139,32 +204,35 @@ export async function searchJobsWithOpenAI(
     0,
     Math.min(limits.maxQueries, JOB_DISCOVERY_LIMITS.maxQueries),
   )) {
-    const response = await client.responses.parse({
+    const primaryCandidateLimit = Math.min(
+      limits.maxAcceptedJobs,
+      JOB_DISCOVERY_LIMITS.maxJobsPerQuery,
+    );
+    let response = await requestJobBatch(
+      client,
       model,
-      store: false,
-      max_output_tokens: Math.min(
-        limits.maxOutputTokens,
-        JOB_DISCOVERY_LIMITS.absoluteMaxOutputTokens,
-      ),
-      max_tool_calls: 4,
-      include: ["web_search_call.action.sources"],
-      tools: [{ type: "web_search", search_context_size: "medium" }],
-      input: [
-        {
-          role: "system",
-          content:
-            "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles. Search both English and Hebrew title variants. Prefer vacancies published in the last 60 days when the source shows a date. Prioritize exact employer career and public ATS pages; exact vacancy pages on major reputable job boards and recruiting agencies are also valid. Preserve every exact source URL found for the same vacancy, especially an employer or ATS URL. Source quality is a preference, never a requirement. Discovery finds candidates only; deterministic verification and matching happen later. Never invent facts, dates, or URLs. Extract experience requirements exactly in years: for a range use its lower and upper bounds, for X+ or a stated minimum use X as the minimum and null as the maximum, for an exact X years use X for both, and use null when the source is silent. Treat entry-level or junior wording without a numeric requirement as a 0-year minimum. Apply the same rules to Hebrew descriptions. Use null or empty arrays when the source does not state a field. Every job URL and evidence URL must come from web search sources. Return up to 10 useful candidates. Do not return an empty jobs array unless the searches found no exact current vacancy pages.",
-        },
-        { role: "user", content: searchQuery },
-      ],
-      text: {
-        format: zodTextFormat(openAIJobBatchSchema, "job_search_results"),
-      },
-    });
-    usage.inputTokens += response.usage?.input_tokens ?? 0;
-    usage.outputTokens += response.usage?.output_tokens ?? 0;
-    usage.totalTokens += response.usage?.total_tokens ?? 0;
+      searchQuery,
+      limits.maxOutputTokens,
+      primaryCandidateLimit,
+      false,
+    );
+    addUsage(usage, response);
     diagnostics = providerDiagnostics(response);
+    if (
+      !response.output_parsed &&
+      diagnostics.incompleteReason === "max_output_tokens"
+    ) {
+      response = await requestJobBatch(
+        client,
+        model,
+        searchQuery,
+        limits.maxOutputTokens,
+        Math.min(primaryCandidateLimit, TOKEN_EXHAUSTION_FALLBACK_JOBS),
+        true,
+      );
+      addUsage(usage, response);
+      diagnostics = providerDiagnostics(response);
+    }
     if (!response.output_parsed) {
       throw new JobSearchProviderResponseError(diagnostics);
     }

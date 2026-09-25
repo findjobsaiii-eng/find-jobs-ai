@@ -116,5 +116,60 @@ describe("OpenAI job provider boundary", () => {
         outputTextExcerpt: "partial output",
       },
     });
+    expect(parse).toHaveBeenCalledTimes(2);
+    expect(parse.mock.calls[1]?.[0]).toMatchObject({
+      max_tool_calls: 3,
+      tools: [{ type: "web_search", search_context_size: "low" }],
+    });
+  });
+
+  it("recovers from token exhaustion with a compact retry", async () => {
+    const parse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "resp_incomplete",
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+        error: null,
+        output_text: "partial output",
+        output: [],
+        output_parsed: null,
+        usage: { input_tokens: 100, output_tokens: 2_000, total_tokens: 2_100 },
+      })
+      .mockResolvedValueOnce({
+        id: "resp_complete",
+        status: "completed",
+        incomplete_details: null,
+        error: null,
+        output: [],
+        output_parsed: { jobs: [] },
+        usage: { input_tokens: 80, output_tokens: 100, total_tokens: 180 },
+      });
+    const client = { responses: { parse } } as unknown as OpenAI;
+
+    const result = await searchJobsWithOpenAI(client, "test-model", ["query"], {
+      maxQueries: 1,
+      maxAcceptedJobs: 5,
+      maxOutputTokens: 2_000,
+    });
+
+    expect(parse).toHaveBeenCalledTimes(2);
+    expect(parse.mock.calls[1]?.[0]).toMatchObject({
+      max_tool_calls: 3,
+      tools: [{ type: "web_search", search_context_size: "low" }],
+    });
+    expect(parse.mock.calls[1]?.[0].input[0].content).toContain(
+      "Return at most 3 useful candidates",
+    );
+    expect(result.usage).toEqual({
+      inputTokens: 180,
+      outputTokens: 2_100,
+      totalTokens: 2_280,
+    });
+    expect(result.diagnostics).toMatchObject({
+      responseId: "resp_complete",
+      responseStatus: "completed",
+      parsed: true,
+    });
   });
 });

@@ -4,14 +4,14 @@ import { DISCOVERY_SOURCE_GUIDANCE } from "./jobSourceQuality";
 
 export const JOB_DISCOVERY_LIMITS = {
   maxQueries: 5,
-  maxJobsPerQuery: 10,
+  maxJobsPerQuery: 6,
   maxJobsPerRun: 50,
   absoluteMaxOutputTokens: 6_000,
 } as const;
 
 const nullableShortText = z.string().max(300).nullable();
-const nullableLongText = z.string().max(8_000).nullable();
-const shortList = z.array(z.string().max(200)).max(20);
+const nullableLongText = z.string().max(2_500).nullable();
+const shortList = z.array(z.string().max(200)).max(12);
 
 export const openAIJobSchema = z
   .object({
@@ -54,11 +54,11 @@ export const openAIJobSchema = z
           .object({
             url: z.string().max(2_048),
             title: nullableShortText,
-            excerpt: z.string().max(1_000).nullable(),
+            excerpt: z.string().max(500).nullable(),
           })
           .strict(),
       )
-      .max(10),
+      .max(4),
   })
   .strict();
 

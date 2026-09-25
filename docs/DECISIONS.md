@@ -193,8 +193,11 @@ recommendation because current official documentation lists Web Search support.
 The Responses API call uses medium-context Web Search, strict Zod-backed
 Structured Outputs, an output-token limit, a tool-call limit, and no provider-side
 response storage. The SDK retries retryable connection, timeout, rate-limit, and
-server failures up to twice with bounded backoff; permanent errors still fail
-immediately, and the existing scheduler remains the outer retry boundary. Each run stores bounded local
+server failures once with bounded backoff and allows 90 seconds per request;
+permanent errors still fail immediately, and the existing scheduler remains the
+outer retry boundary. Provider responses contain at most six concise candidates.
+A response truncated by the output-token limit is retried once with at most
+three candidates and lower-context Web Search. Each run stores bounded local
 diagnostics: response status, incomplete/error details, parse status, output
 text, and a raw response excerpt. A missing structured parse fails the run
 instead of being coerced to an empty job array.
