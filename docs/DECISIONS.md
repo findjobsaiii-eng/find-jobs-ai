@@ -7,7 +7,7 @@ This log contains decisions that can be verified from committed files. Unresolve
 - Legal operator identity and address have not been provided. The owner reports that the service is free and there is no registered business at present.
 - Retention periods, backup purge windows, data export method, and full account deletion workflow are not decided. Legal drafts describe these limits instead of inventing commitments.
 - The contact address is `info@jobmiter.com`; mailbox monitoring and response ownership remain unverified.
-- PostHog is opt-in page-view analytics, with autocapture and session recording disabled. Sentry event content is reduced to error category and event ID. Production network verification remains pending.
+- PostHog is opt-in product analytics with a reviewed event allowlist and privacy-masked session replay; Convex remains the authoritative beta metric store. Sentry event content is reduced to error category and event ID. Production network verification remains pending.
 - Legal drafts use version `2026-09-23-draft-2` and require Israeli counsel approval before launch.
 
 ## Verified decisions
@@ -671,6 +671,29 @@ available, while profile editing, application tracking, review generation,
 preference navigation, development tools, and account-menu actions are disabled
 or omitted. External job-source links remain usable. Mutation-capable
 impersonation remains out of scope.
+
+### D-034: Beta analytics use Convex for truth and PostHog for exploration
+
+Status: Accepted (2026-09-28)
+
+Evidence: `convex/productAnalytics.ts`, `convex/emailDeliveryEvents.ts`,
+`convex/admin.ts`, `src/features/privacy/analytics.ts`, and
+`src/features/admin/admin-dashboard.tsx`.
+
+Convex owns operational beta metrics: authenticated weekly active and engaged
+users, last-seen and last-meaningful-action timestamps, a bounded allowlist of
+semantic product events, saved-job/application aggregates, and verified Resend
+delivery events. The admin console reads those records for reliable user-level
+support and product decisions. Collection starts at deployment and does not
+invent historical activity.
+
+PostHog remains optional and consent-gated. It receives page views, the same
+reviewed semantic events, and an opaque Convex user ID for trend and funnel
+exploration. Autocapture is disabled. Session replay masks all text, inputs, and
+attributes; blocks media, canvases, and iframes; and excludes console logs,
+performance data, query strings, and arbitrary properties. Resend open and click
+events are displayed as directional signals because privacy scanners and mail
+clients make them unsuitable as exact human engagement counts.
 
 ## Job activity freshness (2026-09-09)
 

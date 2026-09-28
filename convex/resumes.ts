@@ -10,6 +10,7 @@ import {
   query,
 } from "./_generated/server";
 import schema from "./schema";
+import { recordProductEvent } from "./productAnalytics";
 
 const SUPPORTED_TYPES = new Set([
   "application/pdf",
@@ -148,6 +149,11 @@ export const createFromUpload = mutation({
       status: "processing",
       createdAt: now,
       updatedAt: now,
+    });
+    await recordProductEvent(ctx, {
+      userId,
+      event: "resume_uploaded",
+      occurredAt: now,
     });
     return id;
   },

@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
+import { recordProductEvent } from "./productAnalytics";
 
 const WORK_ARRANGEMENTS = ["onsite", "hybrid", "remote"] as const;
 const EMPLOYMENT_TYPES = ["full-time", "part-time", "contract"] as const;
@@ -668,6 +669,14 @@ export const saveCurrent = mutation({
           },
         );
       }
+      await recordProductEvent(ctx, {
+        userId,
+        event:
+          args.complete && !existing.onboardingCompleted
+            ? "onboarding_completed"
+            : "profile_saved",
+        occurredAt: now,
+      });
       return updated;
     }
 
@@ -693,6 +702,11 @@ export const saveCurrent = mutation({
         expectedProfileRevision: created.updatedAt,
       });
     }
+    await recordProductEvent(ctx, {
+      userId,
+      event: args.complete ? "onboarding_completed" : "profile_saved",
+      occurredAt: now,
+    });
     return created;
   },
 });

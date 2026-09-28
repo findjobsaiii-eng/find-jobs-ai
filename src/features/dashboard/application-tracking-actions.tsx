@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ApplicationCommentDialog } from "./application-comment-dialog";
 import { ApplicationStatusPicker } from "./application-status-picker";
 import type { ApplicationStatus } from "./application-status";
+import { captureProductEvent } from "@/features/privacy/analytics";
 
 type DialogMode =
   { kind: "status"; status: ApplicationStatus } | { kind: "note" };
@@ -51,6 +52,12 @@ export function ApplicationTrackingActions({
           status: dialogMode.status,
           ...(comment.trim() ? { note: comment } : {}),
         });
+        void captureProductEvent(
+          dialogMode.status === "saved"
+            ? "job_saved"
+            : "application_status_changed",
+          { status: dialogMode.status },
+        );
         onChanged(
           inSuggestions && dialogMode.status !== "saved"
             ? "movedToSaved"
@@ -75,6 +82,7 @@ export function ApplicationTrackingActions({
     setSaving(true);
     try {
       await removeTracking({ jobId });
+      void captureProductEvent("application_tracking_removed");
       onChanged("statusRemoved");
     } catch {
       onRemoveError();

@@ -9,6 +9,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  Bookmark,
   BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
@@ -17,6 +18,8 @@ import {
   Eye,
   Gauge,
   LoaderCircle,
+  Mail,
+  MousePointerClick,
   Search,
   ShieldCheck,
   Sparkles,
@@ -335,53 +338,110 @@ function Overview({ dateKey }: { dateKey: string }) {
         </div>
       ) : null}
       <LazyMotion features={domAnimation}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label={t("admin.metrics.totalUsers")}
-            value={data.totalUsers}
-            icon={Users}
-          />
-          <MetricCard
-            label={t("admin.metrics.newUsers")}
-            value={data.newUsers}
-            icon={Sparkles}
-            tone="teal"
-          />
-          <MetricCard
-            label={t("admin.metrics.searchesAttempted")}
-            value={data.searchesAttempted}
-            icon={Search}
-          />
-          <MetricCard
-            label={t("admin.metrics.searchesSkipped")}
-            value={data.searchesSkipped}
-            icon={CalendarDays}
-            tone="amber"
-          />
-          <MetricCard
-            label={t("admin.metrics.jobsFound")}
-            value={data.jobsFound}
-            icon={BriefcaseBusiness}
-            tone="teal"
-          />
-          <MetricCard
-            label={t("admin.metrics.jobsInserted")}
-            value={data.jobsInserted}
-            icon={Activity}
-          />
-          <MetricCard
-            label={t("admin.metrics.matchesCreated")}
-            value={data.matchesCreated}
-            icon={CheckCircle2}
-            tone="teal"
-          />
-          <MetricCard
-            label={t("admin.metrics.failures")}
-            value={data.failures}
-            icon={AlertTriangle}
-            tone="rose"
-          />
-        </div>
+        <section aria-labelledby="beta-metrics-title">
+          <h2 id="beta-metrics-title" className="mb-3 font-semibold">
+            {t("admin.overview.betaEngagement")}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label={t("admin.metrics.weeklyActiveUsers")}
+              value={data.weeklyActiveUsers}
+              icon={Users}
+              tone="teal"
+            />
+            <MetricCard
+              label={t("admin.metrics.weeklyEngagedUsers")}
+              value={data.weeklyEngagedUsers}
+              icon={Activity}
+              tone="teal"
+            />
+            <MetricCard
+              label={t("admin.metrics.jobsSaved")}
+              value={data.jobsSaved}
+              icon={Bookmark}
+            />
+            <MetricCard
+              label={t("admin.metrics.jobSourceClicks")}
+              value={data.jobSourceClicks}
+              icon={MousePointerClick}
+            />
+            <MetricCard
+              label={t("admin.metrics.applicationUpdates")}
+              value={data.applicationUpdates}
+              icon={CheckCircle2}
+            />
+            <MetricCard
+              label={t("admin.metrics.emailsDelivered")}
+              value={data.emailsDelivered}
+              icon={Mail}
+              tone="amber"
+            />
+            <MetricCard
+              label={t("admin.metrics.emailsOpened")}
+              value={data.emailsOpened}
+              icon={Mail}
+              tone="amber"
+            />
+            <MetricCard
+              label={t("admin.metrics.emailsClicked")}
+              value={data.emailsClicked}
+              icon={MousePointerClick}
+              tone="amber"
+            />
+          </div>
+        </section>
+        <section aria-labelledby="operations-metrics-title">
+          <h2 id="operations-metrics-title" className="mb-3 font-semibold">
+            {t("admin.overview.operations")}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label={t("admin.metrics.totalUsers")}
+              value={data.totalUsers}
+              icon={Users}
+            />
+            <MetricCard
+              label={t("admin.metrics.newUsers")}
+              value={data.newUsers}
+              icon={Sparkles}
+              tone="teal"
+            />
+            <MetricCard
+              label={t("admin.metrics.searchesAttempted")}
+              value={data.searchesAttempted}
+              icon={Search}
+            />
+            <MetricCard
+              label={t("admin.metrics.searchesSkipped")}
+              value={data.searchesSkipped}
+              icon={CalendarDays}
+              tone="amber"
+            />
+            <MetricCard
+              label={t("admin.metrics.jobsFound")}
+              value={data.jobsFound}
+              icon={BriefcaseBusiness}
+              tone="teal"
+            />
+            <MetricCard
+              label={t("admin.metrics.jobsInserted")}
+              value={data.jobsInserted}
+              icon={Activity}
+            />
+            <MetricCard
+              label={t("admin.metrics.matchesCreated")}
+              value={data.matchesCreated}
+              icon={CheckCircle2}
+              tone="teal"
+            />
+            <MetricCard
+              label={t("admin.metrics.failures")}
+              value={data.failures}
+              icon={AlertTriangle}
+              tone="rose"
+            />
+          </div>
+        </section>
       </LazyMotion>
       <section className="border-border bg-card rounded-2xl border p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
@@ -703,7 +763,7 @@ function UserInsight({
   userId: Id<"users">;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const data = useQuery(api.admin.getUserInsight, { userId });
   if (!data) return <LoadingBlock />;
   const funnel = [
@@ -759,6 +819,76 @@ function UserInsight({
             {data.profile.location} · {data.profile.radiusKm} km
           </p>
         ) : null}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border p-3 text-sm">
+          <p className="text-muted-foreground text-xs font-medium">
+            {t("admin.users.lastSeen")}
+          </p>
+          <p className="mt-1 font-semibold">
+            {formatDateTime(data.activity.lastSeenAt, i18n.language)}
+          </p>
+        </div>
+        <div className="rounded-xl border p-3 text-sm">
+          <p className="text-muted-foreground text-xs font-medium">
+            {t("admin.users.lastMeaningfulAction")}
+          </p>
+          <p className="mt-1 font-semibold">
+            {formatDateTime(
+              data.activity.lastMeaningfulActionAt,
+              i18n.language,
+            )}
+          </p>
+        </div>
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold">
+          {t("admin.users.emailEngagement")}
+        </h3>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs sm:grid-cols-6">
+          {(
+            [
+              ["sent", data.email.sent],
+              ["delivered", data.email.delivered],
+              ["opened", data.email.opened],
+              ["clicked", data.email.clicked],
+              ["bounced", data.email.bounced],
+              ["complained", data.email.complained],
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label} className="bg-muted rounded-lg px-2 py-3">
+              <p className="text-lg font-semibold tabular-nums">{value}</p>
+              <p className="text-muted-foreground">
+                {t(`admin.users.email.${label}`)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold">
+          {t("admin.users.recentActivity")}
+        </h3>
+        <div className="mt-2 divide-y rounded-xl border">
+          {data.activity.recentEvents.slice(0, 12).map((event) => (
+            <div
+              key={`${event.event}-${event.occurredAt}`}
+              className="flex items-center justify-between gap-3 p-3 text-xs"
+            >
+              <span className="font-medium">
+                {t(`admin.users.events.${event.event}`)}
+              </span>
+              <span className="text-muted-foreground">
+                {formatDateTime(event.occurredAt, i18n.language)}
+              </span>
+            </div>
+          ))}
+          {!data.activity.recentEvents.length ? (
+            <p className="text-muted-foreground p-5 text-center text-xs">
+              {t("admin.users.noActivity")}
+            </p>
+          ) : null}
+        </div>
       </div>
       <div>
         <h3 className="text-sm font-semibold">
@@ -894,14 +1024,17 @@ function UsersSection() {
               </div>
               <div className="text-xs sm:text-end">
                 <p className="font-semibold">
-                  {t("admin.users.jobCount", { count: item.visibleJobs })}
+                  {t("admin.users.savedCount", { count: item.savedJobs })}
                 </p>
                 <p className="text-muted-foreground">
-                  {item.lastSearchStatus ?? t("admin.users.neverSearched")}
+                  {t("admin.users.jobCount", { count: item.visibleJobs })}
                 </p>
               </div>
               <div className="text-muted-foreground text-xs sm:min-w-32 sm:text-end">
-                {formatDateTime(item.lastSearchAt, i18n.language)}
+                <p>{t("admin.users.lastSeen")}</p>
+                <p className="text-foreground font-medium">
+                  {formatDateTime(item.lastSeenAt, i18n.language)}
+                </p>
               </div>
             </button>
           ))}

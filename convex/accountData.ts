@@ -236,6 +236,43 @@ export const deleteBatch = internalMutation({
           await ctx.db.delete("resumeUploadRateLimits", row._id);
         break;
       }
+      case 17: {
+        const rows = await ctx.db
+          .query("productEvents")
+          .withIndex("by_userId_and_occurredAt", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows) await ctx.db.delete("productEvents", row._id);
+        break;
+      }
+      case 18: {
+        const rows = await ctx.db
+          .query("emailDeliveryEvents")
+          .withIndex("by_userId_and_occurredAt", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows)
+          await ctx.db.delete("emailDeliveryEvents", row._id);
+        break;
+      }
+      case 19: {
+        const rows = await ctx.db
+          .query("emailDeliveries")
+          .withIndex("by_userId_and_sentAt", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows) await ctx.db.delete("emailDeliveries", row._id);
+        break;
+      }
+      case 20: {
+        const rows = await ctx.db
+          .query("userActivity")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows) await ctx.db.delete("userActivity", row._id);
+        break;
+      }
       default: {
         await ctx.db.delete("users", userId);
         await ctx.db.delete("accountDeletionJobs", jobId);

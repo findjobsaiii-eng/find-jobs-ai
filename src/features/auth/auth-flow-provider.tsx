@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useConvexAuth } from "convex/react";
+import { setAnalyticsIdentity } from "@/features/privacy/analytics";
 import { AuthFlowContext, type AuthCallbackStatus } from "./auth-flow-context";
 import {
   clearOAuthAttemptPending,
@@ -39,6 +40,12 @@ export function AuthFlowProvider({ children }: { children: ReactNode }) {
       clearOAuthAttemptPending(window.sessionStorage);
     }
   }, [browserAvailable, isAuthenticated]);
+
+  useEffect(() => {
+    if (browserAvailable && !isLoading && !isAuthenticated) {
+      void setAnalyticsIdentity(null);
+    }
+  }, [browserAvailable, isAuthenticated, isLoading]);
 
   const dismissCallbackError = useCallback(() => {
     clearOAuthAttemptPending(window.sessionStorage);

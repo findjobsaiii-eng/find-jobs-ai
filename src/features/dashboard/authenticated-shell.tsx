@@ -12,6 +12,7 @@ import { UserMenu } from "@/features/auth/user-menu";
 import { PageContainer } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
 import type { CurrentProfile } from "@/features/profile/profile-types";
+import { ProductAnalyticsIdentity } from "@/features/privacy/product-analytics";
 
 export function AuthenticatedShell({
   data,
@@ -94,6 +95,9 @@ export function AuthenticatedShell({
 
   return (
     <DirectionProvider direction={i18n.dir()}>
+      {data && !readOnly ? (
+        <ProductAnalyticsIdentity userId={data.identity.userId} />
+      ) : null}
       <div className="app-shell-surface flex min-h-svh flex-col text-start">
         <header className="bg-brand-midnight sticky top-0 z-30 border-b border-white/8 text-white shadow-lg shadow-slate-950/8">
           <PageContainer className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-2 sm:min-h-17 sm:grid-cols-[1fr_auto_1fr]">

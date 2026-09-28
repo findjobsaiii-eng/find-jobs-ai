@@ -61,6 +61,32 @@ const resultSource = v.union(
   v.literal("central"),
 );
 
+export const productEventName = v.union(
+  v.literal("app_visited"),
+  v.literal("job_feed_viewed"),
+  v.literal("job_source_clicked"),
+  v.literal("job_saved"),
+  v.literal("application_status_changed"),
+  v.literal("application_tracking_removed"),
+  v.literal("profile_saved"),
+  v.literal("onboarding_completed"),
+  v.literal("resume_uploaded"),
+  v.literal("deep_review_requested"),
+  v.literal("email_preference_changed"),
+);
+
+const emailDeliveryEventType = v.union(
+  v.literal("sent"),
+  v.literal("delivered"),
+  v.literal("delivery_delayed"),
+  v.literal("bounced"),
+  v.literal("complained"),
+  v.literal("opened"),
+  v.literal("clicked"),
+  v.literal("failed"),
+  v.literal("suppressed"),
+);
+
 export const jobSearchProviderDiagnostics = v.object({
   responseId: v.optional(v.string()),
   responseStatus: v.string(),
@@ -591,6 +617,66 @@ const schema = defineSchema({
       "createdAt",
     ])
     .index("by_subjectUserId_and_createdAt", ["subjectUserId", "createdAt"]),
+  userActivity: defineTable({
+    userId: v.id("users"),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    lastMeaningfulActionAt: v.optional(v.number()),
+    lastMeaningfulEvent: v.optional(productEventName),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_lastSeenAt", ["lastSeenAt"])
+    .index("by_lastMeaningfulActionAt", ["lastMeaningfulActionAt"]),
+  productEvents: defineTable({
+    userId: v.id("users"),
+    event: productEventName,
+    occurredAt: v.number(),
+    jobId: v.optional(v.id("jobs")),
+    applicationStatus: v.optional(applicationStatus),
+    view: v.optional(
+      v.union(v.literal("suggestions"), v.literal("in_progress")),
+    ),
+    source: v.optional(v.union(v.literal("app"), v.literal("email"))),
+    emailFrequency: v.optional(
+      v.union(v.literal("daily"), v.literal("weekly"), v.literal("never")),
+    ),
+  })
+    .index("by_userId_and_occurredAt", ["userId", "occurredAt"])
+    .index("by_userId_and_event_and_occurredAt", [
+      "userId",
+      "event",
+      "occurredAt",
+    ])
+    .index("by_event_and_occurredAt", ["event", "occurredAt"])
+    .index("by_occurredAt", ["occurredAt"]),
+  emailDeliveries: defineTable({
+    userId: v.id("users"),
+    deliveryKey: v.string(),
+    resendEmailId: v.string(),
+    sentAt: v.number(),
+    lastEventAt: v.number(),
+    lastEventType: emailDeliveryEventType,
+    deliveredAt: v.optional(v.number()),
+    bouncedAt: v.optional(v.number()),
+    complainedAt: v.optional(v.number()),
+    firstOpenedAt: v.optional(v.number()),
+    firstClickedAt: v.optional(v.number()),
+    openCount: v.number(),
+    clickCount: v.number(),
+  })
+    .index("by_userId_and_sentAt", ["userId", "sentAt"])
+    .index("by_resendEmailId", ["resendEmailId"])
+    .index("by_sentAt", ["sentAt"]),
+  emailDeliveryEvents: defineTable({
+    providerEventId: v.string(),
+    deliveryId: v.id("emailDeliveries"),
+    userId: v.id("users"),
+    type: emailDeliveryEventType,
+    occurredAt: v.number(),
+  })
+    .index("by_providerEventId", ["providerEventId"])
+    .index("by_userId_and_occurredAt", ["userId", "occurredAt"])
+    .index("by_type_and_occurredAt", ["type", "occurredAt"]),
   jobSearchQueries: defineTable({
     lastAttemptDay: v.optional(v.string()),
     lastAttemptRunId: v.optional(v.id("jobSearchRuns")),

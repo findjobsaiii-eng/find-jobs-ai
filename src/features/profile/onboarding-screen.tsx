@@ -52,6 +52,7 @@ import {
   type WorkArrangement,
   SUPPORTED_LANGUAGES,
 } from "./profile-types";
+import { captureProductEvent } from "@/features/privacy/analytics";
 import { GooglePlacesMultiSelect } from "./google-places-multi-select";
 import {
   getProfileFieldStep,
@@ -657,6 +658,11 @@ export function OnboardingScreen({
         onboardingStep: nextStep,
         complete,
       });
+      if (complete) {
+        void captureProductEvent(
+          editing ? "profile_saved" : "onboarding_completed",
+        );
+      }
       setSaved(true);
       return true;
     } catch (error) {

@@ -4,6 +4,7 @@ import { FileText, Sparkles, Upload } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
+import { captureProductEvent } from "@/features/privacy/analytics";
 import type { FunctionReturnType } from "convex/server";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
@@ -153,6 +154,7 @@ export function ResumeOnboarding({
         size: file.size,
         ...(replacementForId ? { replacementForId } : {}),
       });
+      void captureProductEvent("resume_uploaded");
       await processResume({ resumeId });
     } catch (cause) {
       setError(processingErrorKey(cause));

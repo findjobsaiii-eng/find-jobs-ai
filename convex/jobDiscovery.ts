@@ -31,6 +31,7 @@ import {
   normalizedKey,
   normalizePublicUrl,
 } from "./jobDiscoveryModel";
+import { recordProductEvent } from "./productAnalytics";
 import { locationNamesForGeography } from "./jobGeography";
 import { classifyJobSource, preferredSourceSortKey } from "./jobSourceQuality";
 import {
@@ -2755,6 +2756,12 @@ export const removeJobTracking = mutation({
         previousStatus: existing.status,
         createdAt: now,
       });
+      await recordProductEvent(ctx, {
+        userId,
+        event: "application_tracking_removed",
+        jobId: trackedJob.jobId,
+        occurredAt: now,
+      });
     }
     await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserJob, {
       userId,
@@ -2835,6 +2842,14 @@ export const updateJobTracking = mutation({
     } else if (match) {
       await ctx.db.patch("jobMatches", match._id, { displayEligible: false });
     }
+    await recordProductEvent(ctx, {
+      userId,
+      event:
+        args.status === "saved" ? "job_saved" : "application_status_changed",
+      jobId: trackedJob.jobId,
+      applicationStatus: args.status,
+      occurredAt: now,
+    });
     return null;
   },
 });

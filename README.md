@@ -23,16 +23,27 @@ The Convex setup creates the local environment configuration used by `NEXT_PUBLI
 
 ## Analytics
 
-PostHog captures anonymous page views only after the visitor accepts optional
-analytics in the cookie banner. It captures client-side navigation when
+PostHog captures page views, a reviewed allowlist of product events, and
+privacy-masked session replays only after the visitor accepts optional analytics
+in the cookie banner. It captures client-side navigation when
 `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` are set in the
 ignored `.env.local` file. Set the same variables in the Next.js hosting
 environment for deployment. Restart or rebuild Next.js after changing them.
-Automatic interaction capture and session recording are disabled because the app
-handles candidate profiles and resumes. Custom events and user identification
-should be added only for specific product questions with a reviewed data policy.
-Visitors can reject optional analytics or change their choice from the footer.
-The PostHog client is loaded lazily after opt-in and uses memory-only persistence.
+Automatic interaction capture remains disabled. Replay masks all text, inputs,
+and element attributes and blocks images, video, canvas, and iframes; console
+logs, network bodies, performance capture, query strings, and arbitrary event
+properties are not sent. Authenticated users are identified with their opaque
+Convex user ID, never an email address or profile field. Visitors can reject
+optional analytics or change their choice from the footer. The PostHog client is
+loaded lazily after opt-in and uses memory-only persistence.
+
+Convex is the authoritative source for beta operating metrics. It records
+authenticated last-seen and last-meaningful-action timestamps plus a bounded
+semantic event stream, regardless of optional PostHog consent. The admin console
+reports weekly active/engaged users, saved jobs, application updates, source
+clicks, email delivery/engagement, and a per-user activity timeline. It does not
+store page contents, CV text, profile fields, URLs, or arbitrary client payloads
+in the analytics tables.
 
 ## Error monitoring
 
@@ -258,6 +269,7 @@ JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
 JOB_SEARCH_MAX_CONCURRENT_RUNS
 JOB_SEARCH_OUTPUT_TOKEN_LIMIT
 RESEND_API_KEY
+RESEND_WEBHOOK_SECRET
 PUBLIC_APP_URL # public HTTPS origin used in outbound email, e.g. https://jobmiter.com
 ```
 
@@ -271,6 +283,12 @@ search after onboarding uses the same path. Users can choose daily, weekly, or
 never at `/profile/emails`; the default is daily. Delivery claims are stored per
 user and Resend idempotency keys prevent duplicate sends during retries. The
 sending domain `jobmiter.com` must be verified in Resend.
+Configure a Resend webhook for delivery, delayed, bounce, complaint, open,
+click, failed, and suppressed events at
+`https://<production-convex-deployment>.convex.site/resend-webhook`, then save its
+signing secret as the Convex-only `RESEND_WEBHOOK_SECRET`. Open and click metrics
+are directional signals rather than exact human engagement counts because mail
+clients and privacy scanners can generate or suppress them.
 `PUBLIC_APP_URL` is deliberately separate from the authentication `SITE_URL`:
 local authentication may use `http://localhost:3000`, while outbound email
 links must use a public HTTPS origin. Email delivery fails closed if

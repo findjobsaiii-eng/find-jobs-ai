@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
+import { captureProductEvent } from "@/features/privacy/analytics";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -106,6 +107,7 @@ export function ResumeLibrary() {
         ...(label.trim() ? { displayName: label } : {}),
         ...(note.trim() ? { note } : {}),
       });
+      void captureProductEvent("resume_uploaded");
       await processResume({ resumeId });
       setPendingFile(null);
       setLabel("");

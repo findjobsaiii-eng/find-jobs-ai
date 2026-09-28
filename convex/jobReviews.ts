@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
+import { recordProductEvent } from "./productAnalytics";
 
 const reviewLanguage = v.union(v.literal("en"), v.literal("he"));
 const reviewVerdict = v.union(
@@ -165,6 +166,12 @@ export const prepare = internalMutation({
     } else {
       reviewId = await ctx.db.insert("jobDeepReviews", pending);
     }
+    await recordProductEvent(ctx, {
+      userId: args.userId,
+      event: "deep_review_requested",
+      jobId: args.jobId,
+      occurredAt: now,
+    });
 
     return {
       reviewId,

@@ -13,6 +13,7 @@ const hooks = vi.hoisted(() => ({
   discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
   emailFrequency: "daily" as "daily" | "weekly" | "never",
   setApplication: vi.fn(),
+  recordProductEvent: vi.fn(),
   runReview: vi.fn(),
 }));
 
@@ -27,7 +28,11 @@ vi.mock("convex/react", async () => {
             plan: "pro",
             discoveryState: hooks.discoveryState,
           },
-    useMutation: () => hooks.setApplication,
+    useMutation: (reference: unknown) =>
+      getFunctionName(reference as never) ===
+      "productAnalytics:recordClientEvent"
+        ? hooks.recordProductEvent
+        : hooks.setApplication,
     useAction: () => hooks.runReview,
   };
 });
@@ -111,6 +116,7 @@ describe("job result cards", () => {
     hooks.discoveryState = "complete";
     hooks.emailFrequency = "daily";
     hooks.setApplication.mockReset().mockResolvedValue(null);
+    hooks.recordProductEvent.mockReset().mockResolvedValue(null);
     hooks.runReview.mockReset().mockResolvedValue(null);
     await i18n.changeLanguage("en");
   });

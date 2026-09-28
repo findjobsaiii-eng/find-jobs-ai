@@ -28,6 +28,7 @@ import {
   normalizePublicUrl,
   resolveExperienceRequirement,
 } from "./jobDiscoveryModel";
+import { productEventValidator } from "./productAnalytics";
 
 const userSummary = v.object({
   userId: v.id("users"),
@@ -217,51 +218,150 @@ export const overview = query({
     jobsInserted: v.number(),
     matchesCreated: v.number(),
     failures: v.number(),
+    weeklyActiveUsers: v.number(),
+    weeklyEngagedUsers: v.number(),
+    jobsSaved: v.number(),
+    applicationUpdates: v.number(),
+    jobSourceClicks: v.number(),
+    emailsDelivered: v.number(),
+    emailsOpened: v.number(),
+    emailsClicked: v.number(),
     truncated: v.boolean(),
   }),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const limit = 1_001;
-    const [users, newUsers, runs, audits, discoveries, jobs, matches] =
-      await Promise.all([
-        ctx.db.query("users").order("desc").take(limit),
-        ctx.db
-          .query("users")
-          .withIndex("by_creation_time", (q) =>
-            q.gte("_creationTime", args.start).lt("_creationTime", args.end),
-          )
-          .take(limit),
-        ctx.db
-          .query("jobSearchRuns")
-          .withIndex("by_startedAt", (q) =>
-            q.gte("startedAt", args.start).lt("startedAt", args.end),
-          )
-          .take(limit),
-        ctx.db
-          .query("dailyDiscoveryAudits")
-          .withIndex("by_dayKey_and_status", (q) => q.eq("dayKey", args.dayKey))
-          .take(limit),
-        ctx.db
-          .query("jobDiscoveries")
-          .withIndex("by_discoveredAt", (q) =>
-            q.gte("discoveredAt", args.start).lt("discoveredAt", args.end),
-          )
-          .take(limit),
-        ctx.db
-          .query("jobs")
-          .withIndex("by_firstDiscoveredAt", (q) =>
-            q
-              .gte("firstDiscoveredAt", args.start)
-              .lt("firstDiscoveredAt", args.end),
-          )
-          .take(limit),
-        ctx.db
-          .query("jobMatches")
-          .withIndex("by_creation_time", (q) =>
-            q.gte("_creationTime", args.start).lt("_creationTime", args.end),
-          )
-          .take(limit),
-      ]);
+    const weekStart = args.end - 7 * 24 * 60 * 60 * 1_000;
+    const [
+      users,
+      newUsers,
+      runs,
+      audits,
+      discoveries,
+      jobs,
+      matches,
+      activeUsers,
+      engagedUsers,
+      jobsSaved,
+      applicationUpdates,
+      jobSourceClicks,
+      emailsDelivered,
+      emailsOpened,
+      emailsClicked,
+      adminMemberships,
+    ] = await Promise.all([
+      ctx.db.query("users").order("desc").take(limit),
+      ctx.db
+        .query("users")
+        .withIndex("by_creation_time", (q) =>
+          q.gte("_creationTime", args.start).lt("_creationTime", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("jobSearchRuns")
+        .withIndex("by_startedAt", (q) =>
+          q.gte("startedAt", args.start).lt("startedAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("dailyDiscoveryAudits")
+        .withIndex("by_dayKey_and_status", (q) => q.eq("dayKey", args.dayKey))
+        .take(limit),
+      ctx.db
+        .query("jobDiscoveries")
+        .withIndex("by_discoveredAt", (q) =>
+          q.gte("discoveredAt", args.start).lt("discoveredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("jobs")
+        .withIndex("by_firstDiscoveredAt", (q) =>
+          q
+            .gte("firstDiscoveredAt", args.start)
+            .lt("firstDiscoveredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("jobMatches")
+        .withIndex("by_creation_time", (q) =>
+          q.gte("_creationTime", args.start).lt("_creationTime", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("userActivity")
+        .withIndex("by_lastSeenAt", (q) =>
+          q.gte("lastSeenAt", weekStart).lt("lastSeenAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("userActivity")
+        .withIndex("by_lastMeaningfulActionAt", (q) =>
+          q
+            .gte("lastMeaningfulActionAt", weekStart)
+            .lt("lastMeaningfulActionAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("productEvents")
+        .withIndex("by_event_and_occurredAt", (q) =>
+          q
+            .eq("event", "job_saved")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("productEvents")
+        .withIndex("by_event_and_occurredAt", (q) =>
+          q
+            .eq("event", "application_status_changed")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("productEvents")
+        .withIndex("by_event_and_occurredAt", (q) =>
+          q
+            .eq("event", "job_source_clicked")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("emailDeliveryEvents")
+        .withIndex("by_type_and_occurredAt", (q) =>
+          q
+            .eq("type", "delivered")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("emailDeliveryEvents")
+        .withIndex("by_type_and_occurredAt", (q) =>
+          q
+            .eq("type", "opened")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db
+        .query("emailDeliveryEvents")
+        .withIndex("by_type_and_occurredAt", (q) =>
+          q
+            .eq("type", "clicked")
+            .gte("occurredAt", args.start)
+            .lt("occurredAt", args.end),
+        )
+        .take(limit),
+      ctx.db.query("adminMemberships").take(limit),
+    ]);
+    const adminIds = new Set(
+      adminMemberships
+        .filter((membership) => membership.active)
+        .map((membership) => membership.userId),
+    );
     return {
       totalUsers: Math.min(users.length, 1_000),
       newUsers: Math.min(newUsers.length, 1_000),
@@ -275,6 +375,28 @@ export const overview = query({
       failures:
         runs.filter((item) => item.status === "failed").length +
         audits.filter((item) => item.status === "failed").length,
+      weeklyActiveUsers: activeUsers.filter(
+        (activity) => !adminIds.has(activity.userId),
+      ).length,
+      weeklyEngagedUsers: engagedUsers.filter(
+        (activity) => !adminIds.has(activity.userId),
+      ).length,
+      jobsSaved: jobsSaved.filter((event) => !adminIds.has(event.userId))
+        .length,
+      applicationUpdates: applicationUpdates.filter(
+        (event) => !adminIds.has(event.userId),
+      ).length,
+      jobSourceClicks: jobSourceClicks.filter(
+        (event) => !adminIds.has(event.userId),
+      ).length,
+      emailsDelivered: emailsDelivered.filter(
+        (event) => !adminIds.has(event.userId),
+      ).length,
+      emailsOpened: emailsOpened.filter((event) => !adminIds.has(event.userId))
+        .length,
+      emailsClicked: emailsClicked.filter(
+        (event) => !adminIds.has(event.userId),
+      ).length,
       truncated: [
         users,
         newUsers,
@@ -283,6 +405,15 @@ export const overview = query({
         discoveries,
         jobs,
         matches,
+        activeUsers,
+        engagedUsers,
+        jobsSaved,
+        applicationUpdates,
+        jobSourceClicks,
+        emailsDelivered,
+        emailsOpened,
+        emailsClicked,
+        adminMemberships,
       ].some((items) => items.length === limit),
     };
   },
@@ -380,6 +511,9 @@ export const listUsers = query({
       visibleJobs: v.number(),
       lastSearchAt: v.union(v.number(), v.null()),
       lastSearchStatus: v.union(v.string(), v.null()),
+      lastSeenAt: v.union(v.number(), v.null()),
+      lastMeaningfulActionAt: v.union(v.number(), v.null()),
+      savedJobs: v.number(),
       isAdmin: v.boolean(),
     }),
   ),
@@ -388,23 +522,32 @@ export const listUsers = query({
     const users = await ctx.db.query("users").order("desc").take(200);
     return await Promise.all(
       users.map(async (user) => {
-        const [profile, lastRun, membership] = await Promise.all([
-          ctx.db
-            .query("candidateProfiles")
-            .withIndex("by_userId", (q) => q.eq("userId", user._id))
-            .unique(),
-          ctx.db
-            .query("jobSearchRuns")
-            .withIndex("by_userId_and_startedAt", (q) =>
-              q.eq("userId", user._id),
-            )
-            .order("desc")
-            .first(),
-          ctx.db
-            .query("adminMemberships")
-            .withIndex("by_userId", (q) => q.eq("userId", user._id))
-            .unique(),
-        ]);
+        const [profile, lastRun, membership, activity, applications] =
+          await Promise.all([
+            ctx.db
+              .query("candidateProfiles")
+              .withIndex("by_userId", (q) => q.eq("userId", user._id))
+              .unique(),
+            ctx.db
+              .query("jobSearchRuns")
+              .withIndex("by_userId_and_startedAt", (q) =>
+                q.eq("userId", user._id),
+              )
+              .order("desc")
+              .first(),
+            ctx.db
+              .query("adminMemberships")
+              .withIndex("by_userId", (q) => q.eq("userId", user._id))
+              .unique(),
+            ctx.db
+              .query("userActivity")
+              .withIndex("by_userId", (q) => q.eq("userId", user._id))
+              .unique(),
+            ctx.db
+              .query("jobApplications")
+              .withIndex("by_userId_and_jobId", (q) => q.eq("userId", user._id))
+              .take(101),
+          ]);
         const visibleJobs = profile
           ? await ctx.db
               .query("jobMatches")
@@ -430,6 +573,13 @@ export const listUsers = query({
           visibleJobs: Math.min(visibleJobs.length, 100),
           lastSearchAt: lastRun?.startedAt ?? null,
           lastSearchStatus: lastRun?.status ?? null,
+          lastSeenAt: activity?.lastSeenAt ?? null,
+          lastMeaningfulActionAt: activity?.lastMeaningfulActionAt ?? null,
+          savedJobs: Math.min(
+            applications.filter((application) => application.status === "saved")
+              .length,
+            100,
+          ),
           isAdmin: Boolean(membership?.active),
         };
       }),
@@ -492,6 +642,26 @@ export const getUserInsight = query({
       location: v.union(v.string(), v.null()),
       radiusKm: v.union(v.number(), v.null()),
     }),
+    activity: v.object({
+      lastSeenAt: v.union(v.number(), v.null()),
+      lastMeaningfulActionAt: v.union(v.number(), v.null()),
+      recentEvents: v.array(
+        v.object({
+          event: productEventValidator,
+          occurredAt: v.number(),
+          jobId: v.union(v.id("jobs"), v.null()),
+        }),
+      ),
+    }),
+    email: v.object({
+      sent: v.number(),
+      delivered: v.number(),
+      opened: v.number(),
+      clicked: v.number(),
+      bounced: v.number(),
+      complained: v.number(),
+      lastSentAt: v.union(v.number(), v.null()),
+    }),
     counts: v.object({
       canonicalRealJobs: v.number(),
       activityEligible: v.number(),
@@ -520,10 +690,47 @@ export const getUserInsight = query({
   }),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const profileRecord = await ctx.db
-      .query("candidateProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .unique();
+    const [profileRecord, activity, recentEvents, deliveries] =
+      await Promise.all([
+        ctx.db
+          .query("candidateProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+          .unique(),
+        ctx.db
+          .query("userActivity")
+          .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+          .unique(),
+        ctx.db
+          .query("productEvents")
+          .withIndex("by_userId_and_occurredAt", (q) =>
+            q.eq("userId", args.userId),
+          )
+          .order("desc")
+          .take(50),
+        ctx.db
+          .query("emailDeliveries")
+          .withIndex("by_userId_and_sentAt", (q) => q.eq("userId", args.userId))
+          .order("desc")
+          .take(100),
+      ]);
+    const activityView = {
+      lastSeenAt: activity?.lastSeenAt ?? null,
+      lastMeaningfulActionAt: activity?.lastMeaningfulActionAt ?? null,
+      recentEvents: recentEvents.map((event) => ({
+        event: event.event,
+        occurredAt: event.occurredAt,
+        jobId: event.jobId ?? null,
+      })),
+    };
+    const emailView = {
+      sent: deliveries.length,
+      delivered: deliveries.filter((delivery) => delivery.deliveredAt).length,
+      opened: deliveries.filter((delivery) => delivery.firstOpenedAt).length,
+      clicked: deliveries.filter((delivery) => delivery.firstClickedAt).length,
+      bounced: deliveries.filter((delivery) => delivery.bouncedAt).length,
+      complained: deliveries.filter((delivery) => delivery.complainedAt).length,
+      lastSentAt: deliveries[0]?.sentAt ?? null,
+    };
     if (!profileRecord?.onboardingCompleted) {
       return {
         user: await summarizeUser(ctx, args.userId),
@@ -533,6 +740,8 @@ export const getUserInsight = query({
           location: null,
           radiusKm: null,
         },
+        activity: activityView,
+        email: emailView,
         counts: {
           canonicalRealJobs: 0,
           activityEligible: 0,
@@ -584,6 +793,8 @@ export const getUserInsight = query({
         location: profileRecord.primaryLocation?.formattedAddress ?? null,
         radiusKm: profileRecord.primaryLocation?.radiusKm ?? null,
       },
+      activity: activityView,
+      email: emailView,
       counts: {
         canonicalRealJobs: audit.counts.canonicalRealJobs,
         activityEligible: audit.counts.activityEligible,

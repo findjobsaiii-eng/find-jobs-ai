@@ -8,6 +8,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { resolveExperienceRequirement } from "./jobDiscoveryModel";
+import { recordProductEvent } from "./productAnalytics";
 
 export const emailFrequencyValidator = v.union(
   v.literal("daily"),
@@ -71,6 +72,12 @@ export const updateFrequency = mutation({
         updatedAt: now,
       });
     }
+    await recordProductEvent(ctx, {
+      userId,
+      event: "email_preference_changed",
+      emailFrequency: args.frequency,
+      occurredAt: now,
+    });
     return { frequency: args.frequency };
   },
 });
@@ -207,6 +214,26 @@ export const finishDelivery = internalMutation({
       resendEmailId: args.resendEmailId,
       updatedAt: args.now,
     });
+    if (args.sent && args.resendEmailId) {
+      const existingDelivery = await ctx.db
+        .query("emailDeliveries")
+        .withIndex("by_resendEmailId", (q) =>
+          q.eq("resendEmailId", args.resendEmailId!),
+        )
+        .unique();
+      if (!existingDelivery) {
+        await ctx.db.insert("emailDeliveries", {
+          userId: args.userId,
+          deliveryKey: args.deliveryKey,
+          resendEmailId: args.resendEmailId,
+          sentAt: args.now,
+          lastEventAt: args.now,
+          lastEventType: "sent",
+          openCount: 0,
+          clickCount: 0,
+        });
+      }
+    }
     return null;
   },
 });

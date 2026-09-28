@@ -1,13 +1,13 @@
 # Project status
 
-Last repository audit: 2026-09-24
+Last repository audit: 2026-09-28
 
 ## Production readiness work in progress
 
-- Implemented on the current branch: consent-gated PostHog page views, Sentry event scrubbing, bilingual draft legal routes and shared footer, skip link, sitemap/robots, noindex on protected routes, a web-to-Convex health endpoint, and a Convex record of terms/privacy acceptance with a separate marketing choice. CV upload checks acceptance server-side.
+- Implemented on the current branch: consent-gated PostHog page views, reviewed product events and privacy-masked session replay; authoritative Convex beta engagement metrics and per-user activity; Resend delivery/engagement ingestion; Sentry event scrubbing; bilingual draft legal routes and shared footer; skip link; sitemap/robots; noindex on protected routes; and a web-to-Convex health endpoint.
 - Implemented: Resend service notifications after automatic searches that produce visible matches, with Hebrew RTL content, daily/weekly/never user controls, duplicate-send protection, removal of email state during account deletion, and a separate public HTTPS origin that prevents local authentication URLs from leaking into outbound links.
 - Incomplete: comprehensive accessibility remediation and axe/Lighthouse audit; verified data export; retention and backup deletion policy; complete security and production configuration verification; full browser journey tests. Self-service deletion now removes user-linked Convex data and files in scheduled batches, but shared job data, vendor logs and backups remain outside that automatic path. Data-copy requests use the owner-supplied email.
-- Unknown outside the repository: production vendor settings and callback URLs, hosting countries, backup/restore results, mailbox monitoring, and legal operator identity. See `docs/LAUNCH_OWNER_CHECKLIST.md`.
+- Unknown outside the repository: production deployment of the analytics changes, Resend webhook secret/configuration, tracking-subdomain DNS verification, other vendor settings and callback URLs, hosting countries, backup/restore results, mailbox monitoring, and legal operator identity. See `docs/LAUNCH_OWNER_CHECKLIST.md`.
 - The incident response outline is in `docs/INCIDENT_RESPONSE.md`; it has not been rehearsed.
 - These changes are not evidence of WCAG 2.1 AA / Israeli Standard 5568 conformance or legal compliance. Legal pages are drafts pending Israeli counsel review.
 
@@ -42,9 +42,13 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 - A Next.js App Router application with a neutral root layout, a separate public
   landing experience, a protected route-group layout, Convex providers, and Motion.
-- Optional PostHog browser initialization for anonymous page views and client-side
-  navigation. Automatic interaction capture and session recording are disabled;
-  deployment configuration and live ingestion remain unverified.
+- Optional PostHog page views, a reviewed semantic event allowlist, opaque
+  authenticated identity, and aggressively masked session replay. Automatic
+  interaction capture is disabled; production ingestion remains unverified.
+- Convex-owned beta analytics with weekly active and engaged users, last-seen
+  timestamps, semantic activity, saved-job/application counts, Resend delivery
+  events, admin summary cards, and per-user timelines. Data collection starts
+  when this schema is deployed; historical activity is not reconstructed.
 - Sentry browser and Next.js server error capture is wired, with a temporary
   `/sentry-test` button for a controlled verification event. Vercel configuration,
   source-map uploads, and live event delivery remain unverified.

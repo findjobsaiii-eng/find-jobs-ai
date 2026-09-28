@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { captureProductEvent } from "@/features/privacy/analytics";
 
 type Review = {
   status: "pending" | "completed" | "failed";
@@ -72,6 +73,10 @@ export function JobDeepReview({
       await runReview({
         jobId,
         language: i18n.resolvedLanguage?.startsWith("he") ? "he" : "en",
+      });
+      void captureProductEvent("deep_review_requested", {
+        language: i18n.resolvedLanguage?.startsWith("he") ? "he" : "en",
+        plan,
       });
     } catch {
       setFailed(true);

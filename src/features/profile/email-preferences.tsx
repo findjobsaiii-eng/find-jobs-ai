@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { SectionHeader, Surface } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
+import { captureProductEvent } from "@/features/privacy/analytics";
 
 const FREQUENCIES = ["daily", "weekly", "never"] as const;
 type Frequency = (typeof FREQUENCIES)[number];
@@ -26,6 +27,7 @@ export function EmailPreferences() {
     setSaved(false);
     try {
       await updateFrequency({ frequency });
+      void captureProductEvent("email_preference_changed", { frequency });
       setSaved(true);
     } catch {
       setError(true);

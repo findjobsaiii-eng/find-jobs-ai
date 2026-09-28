@@ -16,6 +16,7 @@ import {
   type ProfileErrors,
   validateProfileStep,
 } from "./profile-types";
+import { captureProductEvent } from "@/features/privacy/analytics";
 
 export type EditableProfileSection =
   "professional" | "preferences" | "languages";
@@ -107,6 +108,7 @@ export function ProfileEditor({
         onboardingStep: PROFILE_LIMITS.steps,
         complete: true,
       });
+      void captureProductEvent("profile_saved");
       setSavedDraft(draft);
       onSaved();
     } catch (error) {

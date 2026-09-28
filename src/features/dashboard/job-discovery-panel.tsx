@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LocalizedDate } from "@/components/ui/localized-date";
@@ -30,6 +30,7 @@ import {
   type ApplicationStatus,
 } from "./application-status";
 import { ApplicationStatusFilters } from "./application-status-filters";
+import { useProductEvent } from "@/features/privacy/product-analytics";
 
 type EmailFrequency = "daily" | "weekly" | "never";
 
@@ -90,6 +91,8 @@ export function JobDiscoveryPanel({
   readOnly?: boolean;
 }) {
   const { i18n, t } = useTranslation();
+  const captureProductEvent = useProductEvent();
+  const capturedFeedView = useRef<string | null>(null);
   const [error, setError] = useState(false);
   const [notice, setNotice] = useState<{ key: string } | null>(null);
   const [filter, setFilter] = useState<ApplicationFilter>("all");
@@ -103,6 +106,15 @@ export function JobDiscoveryPanel({
   );
   const result = data?.result ?? currentResult;
   const emailPreference = data?.emailPreference ?? currentEmailPreference;
+
+  useEffect(() => {
+    if (!result || readOnly) return;
+    if (capturedFeedView.current === view) return;
+    capturedFeedView.current = view;
+    captureProductEvent("job_feed_viewed", {
+      view: view === "inProgress" ? "in_progress" : "suggestions",
+    });
+  }, [captureProductEvent, readOnly, result, view]);
 
   const jobs = result?.jobs ?? [];
   const availableStatuses = applicationStatusesInUse(
@@ -589,6 +601,15 @@ export function JobDiscoveryPanel({
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       aria-label={t("jobDiscovery.openPosting")}
+                                      onClick={() =>
+                                        captureProductEvent(
+                                          "job_source_clicked",
+                                          {
+                                            jobId: job.id,
+                                            source: "app",
+                                          },
+                                        )
+                                      }
                                       className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring/40 inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none @2xl:px-3.5"
                                     >
                                       <span className="hidden @2xl:inline">

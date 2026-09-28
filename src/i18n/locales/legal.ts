@@ -55,15 +55,15 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "מידע שנאסף",
-          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, העדפת תדירות עדכוני משרות וסטטוס מסירה, הערות, סטטוס מועמדויות ואינטראקציות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. צפיות אנונימיות בעמודים נאספות רק לאחר הסכמה לעוגיות לא חיוניות.",
+          body: "בכניסה עם Google מתקבלים פרטי חשבון כגון שם וכתובת אימייל ומזהי אימות. השירות שומר קורות חיים וקבצים, טקסט מחולץ, פרופיל, ניסיון, כישורים, השכלה, שפות, מיקומים והעדפות עבודה. נשמרים גם חיפושים, משרות שנמצאו, התאמות, העדפת תדירות עדכוני משרות וסטטוס מסירה, הערות, סטטוס מועמדויות ואינטראקציות חיוניות עם השירות. מערכות האירוח והאבטחה עשויות לעבד כתובת IP, דפדפן, זמן בקשה ונתוני תקלה טכניים. ניתוח מוצר מזוהה באמצעות מזהה חשבון אטום נאסף רק לאחר הסכמה לעוגיות לא חיוניות.",
         },
         {
           heading: "מטרות העיבוד",
-          body: "המידע משמש לאימות, שמירת החשבון, ניתוח קורות חיים, איתור ודירוג משרות, שליחת עדכוני משרות לפי התדירות שבחר המשתמש, מעקב מועמדויות, אבטחה, טיפול בתקלות ושיפור שימושיות בכפוף להסכמה לניתוח שימוש. אין בקוד מנגנון דיוור שיווקי פעיל.",
+          body: "המידע משמש לאימות, שמירת החשבון, ניתוח קורות חיים, איתור ודירוג משרות, שליחת עדכוני משרות לפי התדירות שבחר המשתמש, מעקב מועמדויות, אבטחה, טיפול בתקלות ושיפור שימושיות בכפוף להסכמה לניתוח שימוש. פעילות מוצר חיונית, כגון כניסות, שמירת משרות ושינויי סטטוס מועמדות, נשמרת כדי להפעיל את הבטא ולהבין אם השירות מספק ערך. אין בקוד מנגנון דיוור שיווקי פעיל.",
         },
         {
           heading: "ספקים והעברות",
-          body: "Vercel מארחת את האתר; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה והצעות מיקום; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח צפיות לאחר הסכמה. ספקים אלה עשויים לעבד מידע מחוץ לישראל בהתאם לתנאים ולאמצעי ההגנה שלהם.",
+          body: "Vercel מארחת את האתר; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה והצעות מיקום; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות ומדווחת אירועי מסירה ומעורבות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח מוצר ולהקלטת שימוש מטושטשת בכפוף להסכמה. ספקים אלה עשויים לעבד מידע מחוץ לישראל בהתאם לתנאים ולאמצעי ההגנה שלהם.",
         },
         {
           heading: "שמירה ומחיקה",
@@ -90,7 +90,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "ניתוח שימוש אופציונלי",
-          body: "ניתוח שימוש נטען רק לאחר אישור מפורש. התצורה מתירה צפיות בעמודים בלבד, ללא איסוף אוטומטי של לחיצות, ללא הקלטת שימוש וללא שליחת תוכן פרופיל או קורות חיים. החיבור עשוי להעביר מידע טכני כגון כתובת IP; בחירת דחייה מונעת את טעינתו וביטול הסכמה מפסיק איסוף נוסף. פרטי הספק מופיעים במדיניות הפרטיות.",
+          body: "ניתוח שימוש נטען רק לאחר אישור מפורש. הוא מתעד צפיות בעמודים ומספר מצומצם של אירועי מוצר תחת מזהה חשבון אטום, ללא איסוף אוטומטי של לחיצות. הקלטת השימוש האופציונלית מטשטשת את כל הטקסט והשדות, מסווה מאפייני רכיבים וחוסמת תמונות, וידאו, canvas ומסגרות מוטמעות; לוגים ותוכן רשת אינם מוקלטים. החיבור עשוי להעביר מידע טכני כגון כתובת IP; בחירת דחייה מונעת את טעינתו וביטול הסכמה מפסיק איסוף נוסף. פרטי הספק מופיעים במדיניות הפרטיות.",
         },
         {
           heading: "ניהול הבחירה",
@@ -175,15 +175,15 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
       sections: [
         {
           heading: "Information collected",
-          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, job-email frequency and delivery status, notes and application status. Hosting and security services may process IP address, browser, request time and technical error data. Anonymous page views are collected only after optional analytics consent.",
+          body: "Google sign-in provides account details such as name, email and authentication identifiers. We store resume files and extracted text; profile, experience, skills, education, languages, location and job preferences; searches, discovered jobs, matches, job-email frequency and delivery status, notes, application status and essential product activity. Hosting and security services may process IP address, browser, request time and technical error data. Product analytics under an opaque account identifier is collected only after optional analytics consent.",
         },
         {
           heading: "Purposes",
-          body: "Data is used for authentication, account storage, resume analysis, job discovery and ranking, user-controlled job-match email notifications, application tracking, security, error handling and usability analytics with consent. The code does not send marketing email.",
+          body: "Data is used for authentication, account storage, resume analysis, job discovery and ranking, user-controlled job-match email notifications, application tracking, security, error handling and usability analytics with consent. Essential product activity, such as visits, job saves and application-status changes, is retained to operate the beta and understand whether the service provides value. The code does not send marketing email.",
         },
         {
           heading: "Providers and transfers",
-          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides sign-in and location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications; Sentry reports errors; PostHog provides consent-based page analytics. These providers may process information outside Israel under their terms and safeguards.",
+          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides sign-in and location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications and reports delivery and engagement events; Sentry reports errors; PostHog provides consent-based product analytics and privacy-masked session replay. These providers may process information outside Israel under their terms and safeguards.",
         },
         {
           heading: "Retention and deletion",
@@ -210,7 +210,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Optional analytics",
-          body: "Analytics loads only after an explicit opt-in. The configuration allows page views only, with no automatic click capture, session recording, profile or resume content. The connection may transmit technical data such as an IP address. Rejecting keeps it unloaded and revoking consent stops further capture. Provider details appear in the privacy policy.",
+          body: "Analytics loads only after an explicit opt-in. It records page views and a small set of product events under an opaque account identifier. Automatic click capture is disabled. Optional session replay masks all text and inputs, masks element attributes, and blocks images, video, canvas and embedded frames; console logs and network bodies are not recorded. The connection may transmit technical data such as an IP address. Rejecting keeps it unloaded and revoking consent stops further capture. Provider details appear in the privacy policy.",
         },
         {
           heading: "Managing your choice",
