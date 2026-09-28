@@ -310,6 +310,14 @@ it("returns the selected user's exact Jobs read model without changing data", as
     title: "Frontend Engineer",
     trackingStatus: "applied",
   });
+  const insight = await asUser(t, adminId).query(api.admin.getUserInsight, {
+    userId: subjectId,
+  });
+  expect(insight).toMatchObject({
+    user: { userId: subjectId, email: "candidate@example.com" },
+    profile: { completed: true },
+    visibleJobs: [{ title: "Frontend Engineer", companyName: "Example" }],
+  });
   const after = await t.run(async (ctx) => ({
     profile: await ctx.db
       .query("candidateProfiles")
@@ -330,6 +338,110 @@ it("returns the selected user's exact Jobs read model without changing data", as
     auditEvents: await ctx.db.query("adminAuditEvents").take(10),
   }));
   expect(after).toMatchObject({ ...before, auditEvents: [] });
+});
+
+it("reports beta activation and retention from core actions without counting admins", async () => {
+  const t = convexTest(schema, modules);
+  const day = 24 * 60 * 60 * 1_000;
+  const base = Date.now();
+  const { adminId, returningUserId, inactiveUserId } = await t.run(
+    async (ctx) => {
+      const adminId = await ctx.db.insert("users", {
+        email: "admin@example.com",
+      });
+      await ctx.db.insert("adminMemberships", {
+        userId: adminId,
+        role: "admin",
+        active: true,
+        grantedBy: "test",
+        createdAt: base,
+        updatedAt: base,
+      });
+      await ctx.db.insert("productEvents", {
+        userId: adminId,
+        event: "app_visited",
+        occurredAt: base,
+      });
+      const returningUserId = await ctx.db.insert("users", {
+        email: "returning@example.com",
+      });
+      const inactiveUserId = await ctx.db.insert("users", {
+        email: "inactive@example.com",
+      });
+      await ctx.db.insert("productEvents", {
+        userId: returningUserId,
+        event: "job_saved",
+        occurredAt: base + day,
+      });
+      await ctx.db.insert("productEvents", {
+        userId: returningUserId,
+        event: "job_source_clicked",
+        occurredAt: base + 9 * day,
+      });
+      await ctx.db.insert("productEvents", {
+        userId: returningUserId,
+        event: "application_status_changed",
+        occurredAt: base + 13 * day,
+      });
+      await ctx.db.insert("productEvents", {
+        userId: returningUserId,
+        event: "job_saved",
+        occurredAt: base + 20 * day,
+      });
+      await ctx.db.insert("productEvents", {
+        userId: adminId,
+        event: "job_saved",
+        occurredAt: base + 20 * day,
+      });
+      await ctx.db.insert("userActivity", {
+        userId: returningUserId,
+        firstSeenAt: base + day,
+        lastSeenAt: base + 20 * day,
+        lastMeaningfulActionAt: base + 20 * day,
+        lastMeaningfulEvent: "job_saved",
+      });
+      await ctx.db.insert("userActivity", {
+        userId: adminId,
+        firstSeenAt: base,
+        lastSeenAt: base + 20 * day,
+        lastMeaningfulActionAt: base + 20 * day,
+        lastMeaningfulEvent: "job_saved",
+      });
+      return { adminId, returningUserId, inactiveUserId };
+    },
+  );
+
+  const metrics = await asUser(t, adminId).query(api.admin.decisionMetrics, {
+    now: base + 21 * day,
+  });
+
+  expect(metrics).toMatchObject({
+    decision: "collecting",
+    weeklyActiveUsers: 1,
+    weeklyCoreUsers: 1,
+    priorWeekCoreUsers: 1,
+    retainedCoreUsers: 1,
+    rollingRetentionRate: 100,
+    coreActions: 1,
+    averageActiveDays: 1,
+    maturedSignups: 2,
+    activatedSignups: 1,
+    activationRate: 50,
+    retentionEligibleActivated: 1,
+    retainedUsers: 1,
+    cohortRetentionRate: 100,
+    truncated: false,
+  });
+  expect(metrics.cohorts).toContainEqual(
+    expect.objectContaining({
+      signups: 2,
+      activated: 1,
+      retained: 1,
+      activationMatured: true,
+      retentionMatured: true,
+    }),
+  );
+  expect(returningUserId).not.toBe(inactiveUserId);
 });
 
 it("shows normalized job extraction and exact experience evidence to admins", async () => {

@@ -863,12 +863,12 @@
       "matchesCreated": "Matches evaluated",
       "weeklyActiveUsers": "Authenticated WAU",
       "weeklyEngagedUsers": "Engaged WAU",
-      "jobsSaved": "Jobs saved today",
-      "jobSourceClicks": "Job link clicks today",
-      "applicationUpdates": "Application updates today",
-      "emailsDelivered": "Emails delivered today",
-      "emailsOpened": "Emails opened today",
-      "emailsClicked": "Emails clicked today",
+      "jobsSaved": "Jobs saved",
+      "jobSourceClicks": "Job link clicks",
+      "applicationUpdates": "Application updates",
+      "emailsDelivered": "Emails delivered",
+      "emailsOpened": "Emails opened",
+      "emailsClicked": "Emails clicked",
       "failures": "Failures"
     },
     "overview": {
@@ -879,6 +879,49 @@
       "attentionDescription": "Completed profiles that currently have no visible job suggestions.",
       "noVisibleJobs": "No visible jobs",
       "allHealthy": "Every completed profile currently has at least one visible job."
+    },
+    "decision": {
+      "eyebrow": "Beta decision",
+      "title": "Are people getting recurring value?",
+      "trackingSince": "Reliable product-event tracking started {{date}}.",
+      "weeklyCoreUsers": "Users who took a core action",
+      "coreUsersDetail": "{{actions}} job opens, saves, application updates, or deep reviews",
+      "retainedUsers": "Users retained week over week",
+      "retainedUsersDetail": "Out of {{previous}} core users in the previous 7 days",
+      "rollingRetention": "7-day returning-user rate",
+      "activationRate": "Signup activation within 7 days",
+      "activationDetail": "{{activated}} of {{eligible}} mature signups",
+      "cohortRetention": "Activated users returning in days 8–14",
+      "cohortRetentionDetail": "{{retained}} of {{eligible}} eligible activated users",
+      "averageActiveDays": "Average core-active days per user",
+      "cohorts": "Signup cohorts",
+      "cohortsDescription": "Activation means a job open, save, application update, or deep review within seven days of signup. Returned means another core action in days 8–14. Admin accounts are excluded.",
+      "cohort": "Signup week",
+      "signups": "Signups",
+      "activated": "Activated in 7 days",
+      "returned": "Returned in days 8–14",
+      "collecting": "Collecting",
+      "daySignals": "Value signals for the selected day",
+      "emailSignals": "Email signals for the selected day",
+      "emailSignalsDescription": "Treat opens as directional: privacy scanners and mail clients can inflate them. Clicks are a stronger signal.",
+      "status": {
+        "collecting": {
+          "title": "Keep collecting data before deciding",
+          "description": "The sample is still too small for a product verdict. Wait for at least 10 mature signups and 5 retention-eligible activated users."
+        },
+        "promising": {
+          "title": "The beta is showing promising repeat value",
+          "description": "Activation and early retention both clear the working beta thresholds. Validate willingness to pay before building a large billing system."
+        },
+        "mixed": {
+          "title": "The signal is mixed",
+          "description": "Some users get value, but repeat usage is not consistently strong yet. Inspect cohorts and user timelines before increasing marketing spend."
+        },
+        "weak": {
+          "title": "The current beta signal is weak",
+          "description": "Activation or early retention is below the working threshold. Improve the product loop before adding payments or scaling acquisition."
+        }
+      }
     },
     "columns": {
       "user": "User",
@@ -921,7 +964,7 @@
       "noActivity": "No product activity has been recorded yet.",
       "neverSearched": "Never searched",
       "noResults": "No users match this search.",
-      "selectUser": "Select a user to see their visibility funnel and current job feed.",
+      "selectUser": "Select a user to see their recent activity, email engagement, and current job feed.",
       "profileReady": "Search profile complete",
       "profileIncomplete": "Search profile incomplete",
       "visibilityFunnel": "Why this user sees so few jobs",

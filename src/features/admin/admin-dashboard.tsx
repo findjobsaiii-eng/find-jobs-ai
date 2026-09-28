@@ -20,9 +20,11 @@ import {
   LoaderCircle,
   Mail,
   MousePointerClick,
+  Repeat2,
   Search,
   ShieldCheck,
   Sparkles,
+  Target,
   Users,
   X,
   type LucideIcon,
@@ -209,6 +211,18 @@ function formatDateTime(value: number | null, language: string) {
   }).format(value);
 }
 
+function formatShortDate(value: number, language: string) {
+  return new Intl.DateTimeFormat(language, {
+    timeZone: "Asia/Jerusalem",
+    month: "short",
+    day: "numeric",
+  }).format(value);
+}
+
+function formatPercentage(value: number | null) {
+  return value === null ? "—" : `${value}%`;
+}
+
 function displayUser(user: { email: string | null; name: string | null }) {
   return user.name || user.email || "Unknown user";
 }
@@ -259,11 +273,13 @@ function MetricCard({
   value,
   icon: Icon,
   tone = "blue",
+  detail,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: LucideIcon;
   tone?: "blue" | "teal" | "amber" | "rose";
+  detail?: string;
 }) {
   const tones = {
     blue: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
@@ -284,6 +300,9 @@ function MetricCard({
       </span>
       <p className="mt-5 text-3xl font-semibold tabular-nums">{value}</p>
       <p className="text-muted-foreground mt-1 text-xs font-medium">{label}</p>
+      {detail ? (
+        <p className="text-muted-foreground mt-2 text-[11px]">{detail}</p>
+      ) : null}
     </m.article>
   );
 }
@@ -322,39 +341,176 @@ function SearchField({
 }
 
 function Overview({ dateKey }: { dateKey: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const range = useMemo(() => dateRange(dateKey), [dateKey]);
   const data = useQuery(api.admin.overview, { dayKey: dateKey, ...range });
+  const decision = useQuery(api.admin.decisionMetrics, { now: range.end });
   const users = useQuery(api.admin.listUsers);
-  if (!data || !users) return <LoadingBlock />;
+  if (!data || !decision || !users) return <LoadingBlock />;
   const usersWithoutJobs = users.filter(
     (user) => user.onboardingCompleted && user.visibleJobs === 0,
   );
   return (
     <div className="space-y-6">
-      {data.truncated ? (
+      {data.truncated || decision.truncated ? (
         <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           {t("admin.overview.truncated")}
         </div>
       ) : null}
       <LazyMotion features={domAnimation}>
-        <section aria-labelledby="beta-metrics-title">
-          <h2 id="beta-metrics-title" className="mb-3 font-semibold">
-            {t("admin.overview.betaEngagement")}
+        <section
+          aria-labelledby="decision-title"
+          className={cn(
+            "rounded-2xl border p-5",
+            decision.decision === "promising"
+              ? "border-emerald-300/60 bg-emerald-50 dark:bg-emerald-950/20"
+              : decision.decision === "weak"
+                ? "border-rose-300/60 bg-rose-50 dark:bg-rose-950/20"
+                : "border-blue-300/60 bg-blue-50 dark:bg-blue-950/20",
+          )}
+        >
+          <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            {t("admin.decision.eyebrow")}
+          </p>
+          <h2 id="decision-title" className="mt-1 text-xl font-semibold">
+            {t(`admin.decision.status.${decision.decision}.title`)}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
+            {t(`admin.decision.status.${decision.decision}.description`)}
+          </p>
+          {decision.trackingStartedAt ? (
+            <p className="text-muted-foreground mt-3 text-xs">
+              {t("admin.decision.trackingSince", {
+                date: formatDateTime(decision.trackingStartedAt, i18n.language),
+              })}
+            </p>
+          ) : null}
+        </section>
+        <section aria-labelledby="decision-metrics-title" className="mt-6">
+          <h2 id="decision-metrics-title" className="mb-3 font-semibold">
+            {t("admin.decision.title")}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <MetricCard
               label={t("admin.metrics.weeklyActiveUsers")}
-              value={data.weeklyActiveUsers}
+              value={decision.weeklyActiveUsers}
               icon={Users}
+            />
+            <MetricCard
+              label={t("admin.decision.weeklyCoreUsers")}
+              value={decision.weeklyCoreUsers}
+              icon={Activity}
+              tone="teal"
+              detail={t("admin.decision.coreUsersDetail", {
+                actions: decision.coreActions,
+              })}
+            />
+            <MetricCard
+              label={t("admin.decision.retainedUsers")}
+              value={decision.retainedCoreUsers}
+              icon={Repeat2}
+              tone="teal"
+              detail={t("admin.decision.retainedUsersDetail", {
+                previous: decision.priorWeekCoreUsers,
+              })}
+            />
+            <MetricCard
+              label={t("admin.decision.rollingRetention")}
+              value={formatPercentage(decision.rollingRetentionRate)}
+              icon={Repeat2}
               tone="teal"
             />
             <MetricCard
-              label={t("admin.metrics.weeklyEngagedUsers")}
-              value={data.weeklyEngagedUsers}
-              icon={Activity}
-              tone="teal"
+              label={t("admin.decision.activationRate")}
+              value={formatPercentage(decision.activationRate)}
+              icon={Target}
+              detail={t("admin.decision.activationDetail", {
+                activated: decision.activatedSignups,
+                eligible: decision.maturedSignups,
+              })}
             />
+            <MetricCard
+              label={t("admin.decision.cohortRetention")}
+              value={formatPercentage(decision.cohortRetentionRate)}
+              icon={Repeat2}
+              detail={t("admin.decision.cohortRetentionDetail", {
+                retained: decision.retainedUsers,
+                eligible: decision.retentionEligibleActivated,
+              })}
+            />
+            <MetricCard
+              label={t("admin.decision.averageActiveDays")}
+              value={decision.averageActiveDays ?? "—"}
+              icon={CalendarDays}
+            />
+          </div>
+        </section>
+        <section className="border-border bg-card mt-6 overflow-hidden rounded-2xl border shadow-sm">
+          <div className="border-b px-5 py-4">
+            <h2 className="font-semibold">{t("admin.decision.cohorts")}</h2>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t("admin.decision.cohortsDescription")}
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[38rem] text-sm">
+              <thead className="bg-muted/50 text-muted-foreground text-xs">
+                <tr>
+                  <th className="px-5 py-3 text-start font-medium">
+                    {t("admin.decision.cohort")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("admin.decision.signups")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("admin.decision.activated")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("admin.decision.returned")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {decision.cohorts.map((cohort) => (
+                  <tr key={cohort.start}>
+                    <td className="px-5 py-3 font-medium">
+                      {formatShortDate(cohort.start, i18n.language)}–
+                      {formatShortDate(cohort.end - 1, i18n.language)}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">{cohort.signups}</td>
+                    <td className="px-4 py-3 tabular-nums">
+                      {cohort.activated}/{cohort.signups}
+                      <span className="text-muted-foreground ms-2 text-xs">
+                        {formatPercentage(cohort.activationRate)}
+                      </span>
+                      {!cohort.activationMatured ? (
+                        <span className="text-muted-foreground ms-2 text-[10px] font-semibold uppercase">
+                          {t("admin.decision.collecting")}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">
+                      {cohort.retained}/{cohort.activated}
+                      <span className="text-muted-foreground ms-2 text-xs">
+                        {formatPercentage(cohort.retentionRate)}
+                      </span>
+                      {!cohort.retentionMatured ? (
+                        <span className="text-muted-foreground ms-2 text-[10px] font-semibold uppercase">
+                          {t("admin.decision.collecting")}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section aria-labelledby="daily-signals-title" className="mt-6">
+          <h2 id="daily-signals-title" className="mb-3 font-semibold">
+            {t("admin.decision.daySignals")}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard
               label={t("admin.metrics.jobsSaved")}
               value={data.jobsSaved}
@@ -370,6 +526,16 @@ function Overview({ dateKey }: { dateKey: string }) {
               value={data.applicationUpdates}
               icon={CheckCircle2}
             />
+          </div>
+        </section>
+        <section aria-labelledby="email-signals-title" className="mt-6">
+          <h2 id="email-signals-title" className="mb-3 font-semibold">
+            {t("admin.decision.emailSignals")}
+          </h2>
+          <p className="text-muted-foreground -mt-2 mb-3 text-xs">
+            {t("admin.decision.emailSignalsDescription")}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard
               label={t("admin.metrics.emailsDelivered")}
               value={data.emailsDelivered}
@@ -391,7 +557,7 @@ function Overview({ dateKey }: { dateKey: string }) {
           </div>
         </section>
         <section aria-labelledby="operations-metrics-title">
-          <h2 id="operations-metrics-title" className="mb-3 font-semibold">
+          <h2 id="operations-metrics-title" className="mt-6 mb-3 font-semibold">
             {t("admin.overview.operations")}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -766,16 +932,6 @@ function UserInsight({
   const { t, i18n } = useTranslation();
   const data = useQuery(api.admin.getUserInsight, { userId });
   if (!data) return <LoadingBlock />;
-  const funnel = [
-    [t("admin.users.funnel.catalog"), data.counts.canonicalRealJobs],
-    [t("admin.users.funnel.active"), data.counts.activityEligible],
-    [t("admin.users.funnel.fresh"), data.counts.freshnessEligible],
-    [t("admin.users.funnel.location"), data.counts.insideLocation],
-    [t("admin.users.funnel.professional"), data.counts.professionalEligible],
-    [t("admin.users.funnel.threshold"), data.counts.aboveThreshold],
-    [t("admin.users.funnel.displayed"), data.counts.displayed],
-  ] as const;
-  const max = Math.max(1, ...funnel.map((item) => item[1]));
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -888,46 +1044,6 @@ function UserInsight({
               {t("admin.users.noActivity")}
             </p>
           ) : null}
-        </div>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold">
-          {t("admin.users.visibilityFunnel")}
-        </h3>
-        <div className="mt-4 space-y-3">
-          {funnel.map(([label, value]) => (
-            <div
-              key={label}
-              className="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-3 text-xs"
-            >
-              <span className="text-muted-foreground">{label}</span>
-              <span className="bg-muted h-2 overflow-hidden rounded-full">
-                <m.span
-                  className="bg-brand-electric block h-full rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{
-                    width: `${Math.max(value ? 4 : 0, (value / max) * 100)}%`,
-                  }}
-                />
-              </span>
-              <span className="text-end font-semibold tabular-nums">
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold">{t("admin.users.topReasons")}</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {data.rejectionReasons.map((reason) => (
-            <span
-              key={reason.reason}
-              className="bg-muted rounded-full px-2.5 py-1 text-xs"
-            >
-              {reason.reason.replaceAll("_", " ")} · {reason.count}
-            </span>
-          ))}
         </div>
       </div>
       <div>

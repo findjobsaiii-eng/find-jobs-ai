@@ -45,10 +45,12 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Optional PostHog page views, a reviewed semantic event allowlist, opaque
   authenticated identity, and aggressively masked session replay. Automatic
   interaction capture is disabled; production ingestion remains unverified.
-- Convex-owned beta analytics with weekly active and engaged users, last-seen
-  timestamps, semantic activity, saved-job/application counts, Resend delivery
-  events, admin summary cards, and per-user timelines. Data collection starts
-  when this schema is deployed; historical activity is not reconstructed.
+- Convex-owned beta analytics with weekly active and core-value users, rolling
+  and signup-cohort retention, seven-day activation, active-day frequency,
+  last-seen timestamps, semantic activity, Resend delivery events, a guarded
+  beta verdict, and per-user timelines. Admin accounts are excluded from product
+  signals. Data collection starts when this schema is deployed; historical
+  activity is not reconstructed.
 - Sentry browser and Next.js server error capture is wired, with a temporary
   `/sentry-test` button for a controlled verification event. Vercel configuration,
   source-map uploads, and live event delivery remain unverified.
@@ -91,7 +93,7 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Admin job lists and visibility diagnostics expose resolved experience, skills, location, the normalized extraction JSON, and the original provider JSON. User/job visibility inspection compares effective profile experience against both stored and text-resolved job requirements.
 - During the beta/pilot, accounts without an explicit entitlement receive Pro capabilities automatically. Manual search and the development plan switch are gated server-side by `DEV_TOOLS_ENABLED=true`; an explicit Free override still refreshes database results only. Subscribed mode can run repeated manual searches without automatic daily/global quota copy or cooldowns, while still preventing concurrent runs. Development controls use the real discovery pipeline and do not seed synthetic jobs or CVs.
 - Pro/admin users can request a private saved deep review from a job card. The action reverifies the shared job source, compares the role with the effective profile and up to six ready resumes, recommends an existing resume and truthful edits, identifies evidence-based strengths and gaps, and saves Web Search-backed employer/application links. Stale reviews are detected after profile or job changes; free users cannot generate or refresh them.
-- An authorization-checked `/admin` operations console exposes daily overview metrics, actual search runs and provider diagnostics, durable daily scheduler decisions (including skipped reasons), bounded user and job lookup, per-user job-visibility funnels, run-to-job evidence, and a deterministic user/job visibility inspector. Admin membership is stored separately from plan entitlements. Opening a read-only user diagnostic records the admin actor and target user. From that user view, an admin can open a separate read-only Jobs preview that uses the selected user's real profile, preferences, matches, applications, filters, reviews, and discovery state through the same production feed helpers and components; it does not impersonate the user or expose mutation controls.
+- An authorization-checked `/admin` operations console exposes beta decision metrics, actual search runs and provider diagnostics, durable daily scheduler decisions (including skipped reasons), bounded user and job lookup, per-user activity/email/current-feed detail, run-to-job evidence, and a deterministic user/job visibility inspector. Admin membership is stored separately from plan entitlements. Opening a read-only user diagnostic records the admin actor and target user. From that user view, an admin can open a separate read-only Jobs preview that uses the selected user's real profile, preferences, matches, applications, filters, reviews, and discovery state through the same production feed helpers and components; it does not impersonate the user or expose mutation controls.
 
 ## Incomplete or unknown areas
 
@@ -118,10 +120,13 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Next recommended milestone
 
-Add alerting and aggregate counters for high-volume operational reporting, then
-extend the admin console with CV extraction confidence and source-verification
-queues. Decide on CV retention/deletion periods. Mutation-capable impersonation,
-billing, and automated applications remain separate milestones.
+Keep collecting activation and days-8–14 retention until the dashboard reaches
+its minimum mature sample. If the signal is promising, run willingness-to-pay
+interviews or a lightweight pricing test before building billing. Separately,
+add alerting and aggregate counters before analytics volume reaches the current
+bounded-query safety limits. Decide on CV retention/deletion periods.
+Mutation-capable impersonation, billing, and automated applications remain
+separate milestones.
 
 ## Job discovery verification
 

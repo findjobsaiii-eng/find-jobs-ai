@@ -680,12 +680,25 @@ Evidence: `convex/productAnalytics.ts`, `convex/emailDeliveryEvents.ts`,
 `convex/admin.ts`, `src/features/privacy/analytics.ts`, and
 `src/features/admin/admin-dashboard.tsx`.
 
-Convex owns operational beta metrics: authenticated weekly active and engaged
-users, last-seen and last-meaningful-action timestamps, a bounded allowlist of
-semantic product events, saved-job/application aggregates, and verified Resend
-delivery events. The admin console reads those records for reliable user-level
-support and product decisions. Collection starts at deployment and does not
-invent historical activity.
+Convex owns operational beta metrics: authenticated weekly active users,
+last-seen and last-meaningful-action timestamps, a bounded allowlist of semantic
+product events, saved-job/application aggregates, and verified Resend delivery
+events. The admin console reads those records for reliable user-level support
+and product decisions. Collection starts at deployment and does not invent
+historical activity.
+
+The beta decision view treats opening a job source, saving a job, changing an
+application status, or requesting a deep review as a core value action. It
+reports rolling seven-day core users and return rate, active days per core user,
+and signup cohorts. Cohort activation means a first core action within seven
+days of signup; early retention means another core action during days 8–14.
+Active administrator accounts are excluded. A verdict remains `collecting`
+until at least 10 signups have a complete activation window and at least 5
+activated users have a complete retention window. The initial working signals
+are promising at 40% activation and 25% early retention, mixed between that and
+the weak boundary, and weak below 20% activation or 10% retention. These are
+decision aids for the beta, not statistically universal product-market-fit
+claims or a substitute for willingness-to-pay research.
 
 PostHog remains optional and consent-gated. It receives page views, the same
 reviewed semantic events, and an opaque Convex user ID for trend and funnel

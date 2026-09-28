@@ -40,10 +40,12 @@ loaded lazily after opt-in and uses memory-only persistence.
 Convex is the authoritative source for beta operating metrics. It records
 authenticated last-seen and last-meaningful-action timestamps plus a bounded
 semantic event stream, regardless of optional PostHog consent. The admin console
-reports weekly active/engaged users, saved jobs, application updates, source
-clicks, email delivery/engagement, and a per-user activity timeline. It does not
-store page contents, CV text, profile fields, URLs, or arbitrary client payloads
-in the analytics tables.
+reports weekly active users, users taking core job-search actions, rolling and
+signup-cohort retention, activation, active-day frequency, daily value signals,
+email delivery/engagement, and per-user activity timelines. The dashboard keeps
+the beta verdict in a collecting state until the activation and retention
+samples have matured. It does not store page contents, CV text, profile fields,
+URLs, or arbitrary client payloads in the analytics tables.
 
 ## Error monitoring
 

@@ -9,7 +9,6 @@ import {
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
-  buildMatchAudit,
   jobFeedViewValidator,
   loadSearchProfile,
   loadUserJobsFeed,
@@ -29,6 +28,26 @@ import {
   resolveExperienceRequirement,
 } from "./jobDiscoveryModel";
 import { productEventValidator } from "./productAnalytics";
+
+const DAY_MS = 24 * 60 * 60 * 1_000;
+const WEEK_MS = 7 * DAY_MS;
+const DECISION_COHORT_COUNT = 8;
+const DECISION_EVENT_LIMIT = 5_001;
+const DECISION_USER_LIMIT = 1_001;
+const CORE_PRODUCT_EVENTS = new Set([
+  "job_source_clicked",
+  "job_saved",
+  "application_status_changed",
+  "deep_review_requested",
+]);
+
+function isCoreProductEvent(event: string) {
+  return CORE_PRODUCT_EVENTS.has(event);
+}
+
+function percentage(numerator: number, denominator: number) {
+  return denominator ? Math.round((numerator / denominator) * 100) : null;
+}
 
 const userSummary = v.object({
   userId: v.id("users"),
@@ -419,6 +438,233 @@ export const overview = query({
   },
 });
 
+const decisionCohort = v.object({
+  start: v.number(),
+  end: v.number(),
+  signups: v.number(),
+  activated: v.number(),
+  retained: v.number(),
+  activationRate: v.union(v.number(), v.null()),
+  retentionRate: v.union(v.number(), v.null()),
+  activationMatured: v.boolean(),
+  retentionMatured: v.boolean(),
+});
+
+export const decisionMetrics = query({
+  args: { now: v.number() },
+  returns: v.object({
+    trackingStartedAt: v.union(v.number(), v.null()),
+    decision: v.union(
+      v.literal("collecting"),
+      v.literal("promising"),
+      v.literal("mixed"),
+      v.literal("weak"),
+    ),
+    weeklyActiveUsers: v.number(),
+    weeklyCoreUsers: v.number(),
+    priorWeekCoreUsers: v.number(),
+    retainedCoreUsers: v.number(),
+    rollingRetentionRate: v.union(v.number(), v.null()),
+    coreActions: v.number(),
+    averageActiveDays: v.union(v.number(), v.null()),
+    maturedSignups: v.number(),
+    activatedSignups: v.number(),
+    activationRate: v.union(v.number(), v.null()),
+    retentionEligibleActivated: v.number(),
+    retainedUsers: v.number(),
+    cohortRetentionRate: v.union(v.number(), v.null()),
+    cohorts: v.array(decisionCohort),
+    truncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const [firstEvent, adminMemberships] = await Promise.all([
+      ctx.db
+        .query("productEvents")
+        .withIndex("by_occurredAt")
+        .order("asc")
+        .first(),
+      ctx.db.query("adminMemberships").take(DECISION_USER_LIMIT),
+    ]);
+    const trackingStartedAt = firstEvent?.occurredAt ?? null;
+    const historyStart = args.now - (DECISION_COHORT_COUNT + 1) * WEEK_MS;
+    const currentWeekStart = args.now - WEEK_MS;
+    const priorWeekStart = args.now - 2 * WEEK_MS;
+    const [events, users, activeUsers] = await Promise.all([
+      ctx.db
+        .query("productEvents")
+        .withIndex("by_occurredAt", (q) =>
+          q.gte("occurredAt", historyStart).lt("occurredAt", args.now),
+        )
+        .take(DECISION_EVENT_LIMIT),
+      trackingStartedAt === null
+        ? []
+        : ctx.db
+            .query("users")
+            .withIndex("by_creation_time", (q) =>
+              q
+                .gte("_creationTime", trackingStartedAt)
+                .lt("_creationTime", args.now),
+            )
+            .take(DECISION_USER_LIMIT),
+      ctx.db
+        .query("userActivity")
+        .withIndex("by_lastSeenAt", (q) =>
+          q.gte("lastSeenAt", currentWeekStart).lt("lastSeenAt", args.now),
+        )
+        .take(DECISION_USER_LIMIT),
+    ]);
+    const adminIds = new Set(
+      adminMemberships
+        .filter((membership) => membership.active)
+        .map((membership) => membership.userId),
+    );
+    const betaUsers = users.filter((user) => !adminIds.has(user._id));
+    const coreEvents = events.filter(
+      (event) => !adminIds.has(event.userId) && isCoreProductEvent(event.event),
+    );
+    const currentCoreEvents = coreEvents.filter(
+      (event) => event.occurredAt >= currentWeekStart,
+    );
+    const priorCoreEvents = coreEvents.filter(
+      (event) =>
+        event.occurredAt >= priorWeekStart &&
+        event.occurredAt < currentWeekStart,
+    );
+    const currentCoreUsers = new Set(
+      currentCoreEvents.map((event) => event.userId),
+    );
+    const priorCoreUsers = new Set(
+      priorCoreEvents.map((event) => event.userId),
+    );
+    const retainedCoreUsers = [...currentCoreUsers].filter((userId) =>
+      priorCoreUsers.has(userId),
+    ).length;
+    const activeDays = new Map<string, Set<number>>();
+    for (const event of currentCoreEvents) {
+      const days = activeDays.get(event.userId) ?? new Set<number>();
+      days.add(Math.floor((event.occurredAt - currentWeekStart) / DAY_MS));
+      activeDays.set(event.userId, days);
+    }
+    const coreEventsByUser = new Map<Id<"users">, typeof coreEvents>();
+    for (const event of coreEvents) {
+      const userEvents = coreEventsByUser.get(event.userId) ?? [];
+      userEvents.push(event);
+      coreEventsByUser.set(event.userId, userEvents);
+    }
+    const cohorts = Array.from(
+      { length: DECISION_COHORT_COUNT },
+      (_, index) => {
+        const start = args.now - (index + 1) * WEEK_MS;
+        const end = args.now - index * WEEK_MS;
+        const cohortUsers = betaUsers.filter(
+          (user) => user._creationTime >= start && user._creationTime < end,
+        );
+        let activated = 0;
+        let retained = 0;
+        for (const user of cohortUsers) {
+          const activationEnd = user._creationTime + WEEK_MS;
+          const retentionEnd = activationEnd + WEEK_MS;
+          const userEvents = coreEventsByUser.get(user._id) ?? [];
+          const userActivated = userEvents.some(
+            (event) =>
+              event.occurredAt >= user._creationTime &&
+              event.occurredAt < activationEnd,
+          );
+          if (userActivated) activated += 1;
+          if (
+            userActivated &&
+            userEvents.some(
+              (event) =>
+                event.occurredAt >= activationEnd &&
+                event.occurredAt < retentionEnd,
+            )
+          ) {
+            retained += 1;
+          }
+        }
+        return {
+          start,
+          end,
+          signups: cohortUsers.length,
+          activated,
+          retained,
+          activationRate: percentage(activated, cohortUsers.length),
+          retentionRate: percentage(retained, activated),
+          activationMatured: end + WEEK_MS <= args.now,
+          retentionMatured: end + 2 * WEEK_MS <= args.now,
+        };
+      },
+    );
+    const activationCohorts = cohorts.filter(
+      (cohort) => cohort.activationMatured,
+    );
+    const retentionCohorts = cohorts.filter(
+      (cohort) => cohort.retentionMatured,
+    );
+    const maturedSignups = activationCohorts.reduce(
+      (sum, cohort) => sum + cohort.signups,
+      0,
+    );
+    const activatedSignups = activationCohorts.reduce(
+      (sum, cohort) => sum + cohort.activated,
+      0,
+    );
+    const retentionEligibleActivated = retentionCohorts.reduce(
+      (sum, cohort) => sum + cohort.activated,
+      0,
+    );
+    const retainedUsers = retentionCohorts.reduce(
+      (sum, cohort) => sum + cohort.retained,
+      0,
+    );
+    const activationRate = percentage(activatedSignups, maturedSignups);
+    const cohortRetentionRate = percentage(
+      retainedUsers,
+      retentionEligibleActivated,
+    );
+    const decision: "collecting" | "promising" | "mixed" | "weak" =
+      maturedSignups < 10 || retentionEligibleActivated < 5
+        ? "collecting"
+        : (activationRate ?? 0) >= 40 && (cohortRetentionRate ?? 0) >= 25
+          ? "promising"
+          : (activationRate ?? 0) < 20 || (cohortRetentionRate ?? 0) < 10
+            ? "weak"
+            : "mixed";
+    const totalActiveDays = [...activeDays.values()].reduce(
+      (sum, days) => sum + days.size,
+      0,
+    );
+    return {
+      trackingStartedAt,
+      decision,
+      weeklyActiveUsers: activeUsers.filter(
+        (activity) => !adminIds.has(activity.userId),
+      ).length,
+      weeklyCoreUsers: currentCoreUsers.size,
+      priorWeekCoreUsers: priorCoreUsers.size,
+      retainedCoreUsers,
+      rollingRetentionRate: percentage(retainedCoreUsers, priorCoreUsers.size),
+      coreActions: currentCoreEvents.length,
+      averageActiveDays: currentCoreUsers.size
+        ? Math.round((totalActiveDays / currentCoreUsers.size) * 10) / 10
+        : null,
+      maturedSignups,
+      activatedSignups,
+      activationRate,
+      retentionEligibleActivated,
+      retainedUsers,
+      cohortRetentionRate,
+      cohorts,
+      truncated:
+        events.length === DECISION_EVENT_LIMIT ||
+        users.length === DECISION_USER_LIMIT ||
+        activeUsers.length === DECISION_USER_LIMIT ||
+        adminMemberships.length === DECISION_USER_LIMIT,
+    };
+  },
+});
+
 const runSummary = v.object({
   runId: v.id("jobSearchRuns"),
   user: userSummary,
@@ -662,18 +908,6 @@ export const getUserInsight = query({
       complained: v.number(),
       lastSentAt: v.union(v.number(), v.null()),
     }),
-    counts: v.object({
-      canonicalRealJobs: v.number(),
-      activityEligible: v.number(),
-      freshnessEligible: v.number(),
-      insideLocation: v.number(),
-      professionalEligible: v.number(),
-      aboveThreshold: v.number(),
-      displayed: v.number(),
-    }),
-    rejectionReasons: v.array(
-      v.object({ reason: v.string(), count: v.number() }),
-    ),
     visibleJobs: v.array(
       v.object({
         jobId: v.id("jobs"),
@@ -742,20 +976,9 @@ export const getUserInsight = query({
         },
         activity: activityView,
         email: emailView,
-        counts: {
-          canonicalRealJobs: 0,
-          activityEligible: 0,
-          freshnessEligible: 0,
-          insideLocation: 0,
-          professionalEligible: 0,
-          aboveThreshold: 0,
-          displayed: 0,
-        },
-        rejectionReasons: [{ reason: "profile_incomplete", count: 1 }],
         visibleJobs: [],
       };
     }
-    const audit = await buildMatchAudit(ctx, args.userId);
     const matches = await ctx.db
       .query("jobMatches")
       .withIndex(
@@ -767,24 +990,27 @@ export const getUserInsight = query({
             .eq("displayEligible", true),
       )
       .order("desc")
-      .take(50);
-    const visibleJobs = [];
-    for (const match of matches) {
-      const job = await ctx.db.get("jobs", match.jobId);
-      if (!job) continue;
-      const experience = resolveExperienceRequirement(job);
-      visibleJobs.push({
-        jobId: job._id,
-        title: job.title,
-        companyName: job.companyName,
-        relevanceScore: match.relevanceScore,
-        matchQuality: match.matchQuality ?? null,
-        requiredExperienceYearsMin: experience.min,
-        requiredExperienceYearsMax: experience.max,
-        requiredSkills: job.requiredSkills.slice(0, 8),
-        locationText: job.locationText,
-      });
-    }
+      .take(20);
+    const visibleJobs = (
+      await Promise.all(
+        matches.map(async (match) => {
+          const job = await ctx.db.get("jobs", match.jobId);
+          if (!job) return null;
+          const experience = resolveExperienceRequirement(job);
+          return {
+            jobId: job._id,
+            title: job.title,
+            companyName: job.companyName,
+            relevanceScore: match.relevanceScore,
+            matchQuality: match.matchQuality ?? null,
+            requiredExperienceYearsMin: experience.min,
+            requiredExperienceYearsMax: experience.max,
+            requiredSkills: job.requiredSkills.slice(0, 8),
+            locationText: job.locationText,
+          };
+        }),
+      )
+    ).filter((job) => job !== null);
     return {
       user: await summarizeUser(ctx, args.userId),
       profile: {
@@ -795,16 +1021,6 @@ export const getUserInsight = query({
       },
       activity: activityView,
       email: emailView,
-      counts: {
-        canonicalRealJobs: audit.counts.canonicalRealJobs,
-        activityEligible: audit.counts.activityEligible,
-        freshnessEligible: audit.counts.freshnessEligible,
-        insideLocation: audit.counts.insideLocation,
-        professionalEligible: audit.counts.professionalEligible,
-        aboveThreshold: audit.counts.aboveThreshold,
-        displayed: audit.counts.displayed,
-      },
-      rejectionReasons: audit.rejectionReasons.slice(0, 12),
       visibleJobs,
     };
   },
