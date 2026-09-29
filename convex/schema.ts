@@ -725,6 +725,28 @@ const schema = defineSchema({
       "status",
       "completedAt",
     ]),
+  aiUsageEvents: defineTable({
+    responseId: v.string(),
+    userId: v.id("users"),
+    operation: v.union(
+      v.literal("job_search"),
+      v.literal("deep_review"),
+      v.literal("resume_extraction"),
+    ),
+    model: v.string(),
+    searchRunId: v.optional(v.id("jobSearchRuns")),
+    jobId: v.optional(v.id("jobs")),
+    resumeId: v.optional(v.id("resumeDocuments")),
+    inputTokens: nullableNumber,
+    cachedInputTokens: nullableNumber,
+    outputTokens: nullableNumber,
+    totalTokens: nullableNumber,
+    webSearchCalls: v.number(),
+    estimatedUsd: nullableNumber,
+    createdAt: v.number(),
+  })
+    .index("by_responseId", ["responseId"])
+    .index("by_createdAt", ["createdAt"]),
   jobs: defineTable({
     rawProviderJson: v.optional(v.string()),
     geo: v.optional(

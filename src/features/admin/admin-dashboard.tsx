@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleX,
+  Coins,
   Eye,
   Gauge,
   LoaderCircle,
@@ -38,7 +39,8 @@ import { Brand } from "@/features/auth/brand";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Section = "overview" | "users" | "searches" | "jobs" | "inspector";
+type Section =
+  "overview" | "users" | "searches" | "tokenUsage" | "jobs" | "inspector";
 
 function israelDateKey(timestamp = Date.now()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1086,6 +1088,164 @@ function UserInsight({
   );
 }
 
+function TokenUsage({ dateKey }: { dateKey: string }) {
+  const { t, i18n } = useTranslation();
+  const range = useMemo(() => dateRange(dateKey), [dateKey]);
+  const data = useQuery(api.admin.tokenUsage, range);
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(i18n.language),
+    [i18n.language],
+  );
+  const usdFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(i18n.language, {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      }),
+    [i18n.language],
+  );
+  if (!data) return <LoadingBlock />;
+  const number = (value: number) => numberFormatter.format(value);
+  const usd = (value: number | null) =>
+    value === null
+      ? t("admin.tokenUsage.unavailable")
+      : usdFormatter.format(value);
+  const operationLabel = (operation: string) =>
+    t(`admin.tokenUsage.operations.${operation}`);
+  return (
+    <div className="space-y-5">
+      <p className="text-muted-foreground text-sm">
+        {t("admin.tokenUsage.description")}{" "}
+        <a
+          href="https://developers.openai.com/api/docs/pricing"
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-600 underline underline-offset-2"
+        >
+          {t("admin.tokenUsage.pricingLink")}
+        </a>
+      </p>
+      <div className="grid gap-3 md:grid-cols-3">
+        {data.totals.map((item) => (
+          <section
+            key={item.operation}
+            className="border-border bg-card rounded-2xl border p-4 shadow-sm"
+          >
+            <p className="text-muted-foreground text-xs font-medium">
+              {operationLabel(item.operation)}
+            </p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums">
+              {usd(item.estimatedUsd)}
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t("admin.tokenUsage.summary", {
+                calls: number(item.requests),
+                input: number(item.inputTokens),
+                output: number(item.outputTokens),
+                searches: number(item.webSearchCalls),
+              })}
+            </p>
+            {item.unpricedRequests || item.unmeasuredRequests ? (
+              <p className="mt-2 text-xs text-amber-700">
+                {t("admin.tokenUsage.incomplete", {
+                  unpriced: item.unpricedRequests,
+                  unmeasured: item.unmeasuredRequests,
+                })}
+              </p>
+            ) : null}
+          </section>
+        ))}
+      </div>
+      {data.truncated ? (
+        <p className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+          {t("admin.tokenUsage.truncated")}
+        </p>
+      ) : null}
+      <div className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-muted/50 text-muted-foreground text-xs">
+              <tr>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("admin.tokenUsage.action")}
+                </th>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("admin.columns.time")}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {t("admin.tokenUsage.input")}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {t("admin.tokenUsage.output")}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {t("admin.tokenUsage.webCalls")}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {t("admin.tokenUsage.estimatedCost")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-4 py-3">
+                    <p className="font-medium">
+                      {operationLabel(row.operation)}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {row.model}
+                      {row.requestCount > 1
+                        ? ` · ${t("admin.tokenUsage.responses", {
+                            count: row.requestCount,
+                          })}`
+                        : ""}
+                      {row.historicalSearch
+                        ? ` · ${t("admin.tokenUsage.historical")}`
+                        : ""}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {formatDateTime(row.startedAt, i18n.language)}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums">
+                    {row.inputTokens === null
+                      ? t("admin.tokenUsage.unavailable")
+                      : number(row.inputTokens)}
+                    {row.cachedInputTokens ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t("admin.tokenUsage.cached", {
+                          count: number(row.cachedInputTokens),
+                        })}
+                      </p>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums">
+                    {row.outputTokens === null
+                      ? t("admin.tokenUsage.unavailable")
+                      : number(row.outputTokens)}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums">
+                    {number(row.webSearchCalls)}
+                  </td>
+                  <td className="px-4 py-3 text-end font-medium tabular-nums">
+                    {usd(row.estimatedUsd)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!data.rows.length ? (
+          <EmptyBlock>{t("admin.tokenUsage.empty")}</EmptyBlock>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function UsersSection() {
   const { t, i18n } = useTranslation();
   const users = useQuery(api.admin.listUsers);
@@ -1573,6 +1733,7 @@ function AdminDashboard() {
     { id: "overview", label: t("admin.nav.overview"), icon: Gauge },
     { id: "users", label: t("admin.nav.users"), icon: Users },
     { id: "searches", label: t("admin.nav.searches"), icon: Search },
+    { id: "tokenUsage", label: t("admin.nav.tokenUsage"), icon: Coins },
     { id: "jobs", label: t("admin.nav.jobs"), icon: BriefcaseBusiness },
     { id: "inspector", label: t("admin.nav.inspector"), icon: Eye },
   ];
@@ -1628,7 +1789,9 @@ function AdminDashboard() {
                 {items.find((item) => item.id === section)?.label}
               </h1>
             </div>
-            {section === "overview" || section === "searches" ? (
+            {section === "overview" ||
+            section === "searches" ||
+            section === "tokenUsage" ? (
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <CalendarDays className="size-4" />
                 <input
@@ -1654,6 +1817,8 @@ function AdminDashboard() {
                 <UsersSection />
               ) : section === "searches" ? (
                 <Searches dateKey={dateKey} />
+              ) : section === "tokenUsage" ? (
+                <TokenUsage dateKey={dateKey} />
               ) : section === "jobs" ? (
                 <JobsSection />
               ) : (

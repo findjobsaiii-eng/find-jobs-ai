@@ -708,6 +708,27 @@ performance data, query strings, and arbitrary properties. Resend open and click
 events are displayed as directional signals because privacy scanners and mail
 clients make them unsuitable as exact human engagement counts.
 
+### D-035: Attribute OpenAI usage per provider response
+
+Status: Accepted (2026-09-29)
+
+Evidence: `convex/aiUsage.ts`, `convex/aiUsageModel.ts`, `convex/admin.ts`, and
+`src/features/admin/admin-dashboard.tsx`.
+
+The three app OpenAI workflows (job discovery, deep review, and CV analysis)
+record token usage and web-search calls after each provider response. This
+includes a search response discarded before a compact retry. Response IDs
+deduplicate records without retaining prompts or CV text. The admin view groups
+search responses by run and reads stored pre-ledger search totals separately.
+Historical deep reviews and CV analyses have no token data.
+
+USD values are estimates from model prices checked on 2026-09-29 and a web
+search charge of $0.01 per call. Cached-token details improve new estimates;
+older search totals lack that breakdown. Unknown models have no dollar
+estimate. The dashboard does not replace OpenAI billing and does not include
+other OpenAI projects, Codex, Convex, or hosting costs. A bounded daily query
+marks its totals incomplete if it reaches the read cap.
+
 ## Job activity freshness (2026-09-09)
 
 Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.

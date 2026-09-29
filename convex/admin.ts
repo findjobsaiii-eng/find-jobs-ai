@@ -32,6 +32,7 @@ import {
   resolveExperienceRequirement,
 } from "./jobDiscoveryModel";
 import { productEventValidator } from "./productAnalytics";
+import { estimateOpenAiUsd } from "./aiUsageModel";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const WEEK_MS = 7 * DAY_MS;
@@ -1064,6 +1065,196 @@ function adminJobSummaryView(job: Doc<"jobs">) {
     locationText: job.locationText,
   };
 }
+
+const usageOperation = v.union(
+  v.literal("job_search"),
+  v.literal("deep_review"),
+  v.literal("resume_extraction"),
+);
+const usageRow = v.object({
+  id: v.string(),
+  operation: usageOperation,
+  model: v.string(),
+  startedAt: v.number(),
+  requestCount: v.number(),
+  inputTokens: v.union(v.number(), v.null()),
+  cachedInputTokens: v.union(v.number(), v.null()),
+  outputTokens: v.union(v.number(), v.null()),
+  totalTokens: v.union(v.number(), v.null()),
+  webSearchCalls: v.number(),
+  estimatedUsd: v.union(v.number(), v.null()),
+  historicalSearch: v.boolean(),
+});
+type UsageRow = typeof usageRow.type;
+
+export const tokenUsage = query({
+  args: { start: v.number(), end: v.number() },
+  returns: v.object({
+    rows: v.array(usageRow),
+    truncated: v.boolean(),
+    totals: v.array(
+      v.object({
+        operation: usageOperation,
+        requests: v.number(),
+        inputTokens: v.number(),
+        outputTokens: v.number(),
+        webSearchCalls: v.number(),
+        estimatedUsd: v.union(v.number(), v.null()),
+        unpricedRequests: v.number(),
+        unmeasuredRequests: v.number(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    if (
+      !Number.isFinite(args.start) ||
+      !Number.isFinite(args.end) ||
+      args.end <= args.start ||
+      args.end - args.start > 32 * DAY_MS
+    ) {
+      throw new ConvexError({ code: "INVALID_USAGE_RANGE" });
+    }
+    const [rawEvents, rawRuns] = await Promise.all([
+      ctx.db
+        .query("aiUsageEvents")
+        .withIndex("by_createdAt", (q) =>
+          q.gte("createdAt", args.start).lt("createdAt", args.end),
+        )
+        .order("desc")
+        .take(501),
+      ctx.db
+        .query("jobSearchRuns")
+        .withIndex("by_startedAt", (q) =>
+          q.gte("startedAt", args.start).lt("startedAt", args.end),
+        )
+        .order("desc")
+        .take(501),
+    ]);
+    const events = rawEvents.slice(0, 500);
+    const runs = rawRuns.slice(0, 500);
+    const rowsById = new Map<string, UsageRow>();
+    const meteredRunIds = new Set<string>();
+    for (const event of events) {
+      const key = event.searchRunId
+        ? `run:${event.searchRunId}`
+        : `response:${event.responseId}`;
+      if (event.searchRunId) meteredRunIds.add(event.searchRunId);
+      const previous = rowsById.get(key);
+      if (previous) {
+        previous.requestCount += 1;
+        previous.inputTokens =
+          previous.inputTokens === null || event.inputTokens === null
+            ? null
+            : previous.inputTokens + event.inputTokens;
+        previous.cachedInputTokens =
+          previous.cachedInputTokens === null ||
+          event.cachedInputTokens === null
+            ? null
+            : previous.cachedInputTokens + event.cachedInputTokens;
+        previous.outputTokens =
+          previous.outputTokens === null || event.outputTokens === null
+            ? null
+            : previous.outputTokens + event.outputTokens;
+        previous.totalTokens =
+          previous.totalTokens === null || event.totalTokens === null
+            ? null
+            : previous.totalTokens + event.totalTokens;
+        previous.webSearchCalls += event.webSearchCalls;
+        previous.estimatedUsd =
+          previous.estimatedUsd === null || event.estimatedUsd === null
+            ? null
+            : previous.estimatedUsd + event.estimatedUsd;
+      } else {
+        rowsById.set(key, {
+          id: key,
+          operation: event.operation,
+          model: event.model,
+          startedAt: event.createdAt,
+          requestCount: 1,
+          inputTokens: event.inputTokens,
+          cachedInputTokens: event.cachedInputTokens,
+          outputTokens: event.outputTokens,
+          totalTokens: event.totalTokens,
+          webSearchCalls: event.webSearchCalls,
+          estimatedUsd: event.estimatedUsd,
+          historicalSearch: false,
+        });
+      }
+    }
+    for (const run of runs) {
+      if (meteredRunIds.has(run._id)) continue;
+      const inputTokens = run.usage?.inputTokens ?? null;
+      const outputTokens = run.usage?.outputTokens ?? null;
+      const webSearchCalls = run.webSearchToolCallCount ?? 0;
+      rowsById.set(`run:${run._id}`, {
+        id: `run:${run._id}`,
+        operation: "job_search",
+        model: run.model,
+        startedAt: run.startedAt,
+        requestCount: run.usage ? 1 : 0,
+        inputTokens,
+        cachedInputTokens: null,
+        outputTokens,
+        totalTokens: run.usage?.totalTokens ?? null,
+        webSearchCalls,
+        estimatedUsd: estimateOpenAiUsd({
+          model: run.model,
+          inputTokens,
+          cachedInputTokens: null,
+          outputTokens,
+          webSearchCalls,
+        }),
+        historicalSearch: true,
+      });
+    }
+    const rows = [...rowsById.values()].sort(
+      (left, right) => right.startedAt - left.startedAt,
+    );
+    const operations = [
+      "job_search",
+      "deep_review",
+      "resume_extraction",
+    ] as const;
+    const totals = operations.map((operation) => {
+      const matching = rows.filter((row) => row.operation === operation);
+      return {
+        operation,
+        requests: matching.reduce((sum, row) => sum + row.requestCount, 0),
+        inputTokens: matching.reduce(
+          (sum, row) => sum + (row.inputTokens ?? 0),
+          0,
+        ),
+        outputTokens: matching.reduce(
+          (sum, row) => sum + (row.outputTokens ?? 0),
+          0,
+        ),
+        webSearchCalls: matching.reduce(
+          (sum, row) => sum + row.webSearchCalls,
+          0,
+        ),
+        estimatedUsd:
+          matching.length === 0 ||
+          matching.some((row) => row.estimatedUsd !== null)
+            ? matching.reduce((sum, row) => sum + (row.estimatedUsd ?? 0), 0)
+            : null,
+        unpricedRequests: matching.reduce(
+          (sum, row) =>
+            sum + (row.requestCount > 0 && row.estimatedUsd === null ? 1 : 0),
+          0,
+        ),
+        unmeasuredRequests: matching.filter(
+          (row) => row.inputTokens === null || row.outputTokens === null,
+        ).length,
+      };
+    });
+    return {
+      rows,
+      truncated: rawEvents.length > 500 || rawRuns.length > 500,
+      totals,
+    };
+  },
+});
 
 export const listJobs = query({
   args: {},

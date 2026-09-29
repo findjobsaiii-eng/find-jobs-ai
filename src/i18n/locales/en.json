@@ -823,9 +823,32 @@
       "overview": "Overview",
       "users": "Users",
       "searches": "Searches",
+      "tokenUsage": "Token usage",
       "jobs": "Jobs",
       "inspector": "Visibility inspector",
       "console": "Admin console"
+    },
+    "tokenUsage": {
+      "description": "OpenAI API calls made by this app on the selected day. USD values are estimates at published standard rates, not your invoice. Other projects, Codex, Convex, and Vercel are outside this view. Calls that fail before a response may be missing. Earlier searches use saved run totals; older deep reviews and CV analyses were not recorded.",
+      "pricingLink": "OpenAI pricing",
+      "operations": {
+        "job_search": "Job searches",
+        "deep_review": "Deep reviews",
+        "resume_extraction": "CV analysis"
+      },
+      "summary": "{{calls}} calls · {{input}} input · {{output}} output tokens · {{searches}} web searches",
+      "incomplete": "{{unpriced}} without a price · {{unmeasured}} without token totals",
+      "truncated": "This day has more than 500 records. These totals are incomplete; check OpenAI billing for the full amount.",
+      "action": "Action / model",
+      "input": "Input tokens",
+      "output": "Output tokens",
+      "webCalls": "Web searches",
+      "estimatedCost": "Estimated USD",
+      "unavailable": "Unknown",
+      "responses": "{{count}} responses",
+      "historical": "older search total",
+      "cached": "{{count}} cached",
+      "empty": "No recorded OpenAI usage for this day."
     },
     "access": {
       "title": "Admin access required",

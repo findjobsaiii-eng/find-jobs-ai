@@ -10,6 +10,8 @@
 
 import type * as accountData from "../accountData.js";
 import type * as admin from "../admin.js";
+import type * as aiUsage from "../aiUsage.js";
+import type * as aiUsageModel from "../aiUsageModel.js";
 import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
@@ -62,6 +64,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   accountData: typeof accountData;
   admin: typeof admin;
+  aiUsage: typeof aiUsage;
+  aiUsageModel: typeof aiUsageModel;
   auth: typeof auth;
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;

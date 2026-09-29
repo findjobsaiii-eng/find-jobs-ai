@@ -146,14 +146,25 @@ describe("OpenAI job provider boundary", () => {
         usage: { input_tokens: 80, output_tokens: 100, total_tokens: 180 },
       });
     const client = { responses: { parse } } as unknown as OpenAI;
+    const onResponse = vi.fn(async (_response: { id: string }) => {});
 
-    const result = await searchJobsWithOpenAI(client, "test-model", ["query"], {
-      maxQueries: 1,
-      maxAcceptedJobs: 5,
-      maxOutputTokens: 2_000,
-    });
+    const result = await searchJobsWithOpenAI(
+      client,
+      "test-model",
+      ["query"],
+      {
+        maxQueries: 1,
+        maxAcceptedJobs: 5,
+        maxOutputTokens: 2_000,
+      },
+      onResponse,
+    );
 
     expect(parse).toHaveBeenCalledTimes(2);
+    expect(onResponse.mock.calls.map(([response]) => response.id)).toEqual([
+      "resp_incomplete",
+      "resp_complete",
+    ]);
     expect(parse.mock.calls[1]?.[0]).toMatchObject({
       max_tool_calls: 3,
       tools: [{ type: "web_search", search_context_size: "low" }],

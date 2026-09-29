@@ -9,6 +9,7 @@ import { action, env } from "./_generated/server";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
 import { deepReviewResponseSchema } from "./jobReviewModel";
 import { verifyJobSource } from "./jobSourceVerification";
+import { openAiResponseUsage } from "./aiUsageModel";
 
 function requiredConfiguration(name: string, value: string | undefined) {
   if (!value?.trim())
@@ -163,6 +164,18 @@ export const reviewJob = action({
           format: zodTextFormat(deepReviewResponseSchema, "job_deep_review"),
         },
       });
+      try {
+        await ctx.runMutation(internal.aiUsage.recordResponse, {
+          responseId: response.id,
+          userId,
+          operation: "deep_review",
+          model: response.model || model,
+          jobId: args.jobId,
+          ...openAiResponseUsage(response),
+        });
+      } catch (error) {
+        console.error("ai_usage_record_failed", error);
+      }
       const parsed = response.output_parsed;
       if (!parsed) throw new Error("EMPTY_REVIEW_RESPONSE");
 

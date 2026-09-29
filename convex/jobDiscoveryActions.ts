@@ -14,6 +14,7 @@ import {
 } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
+import { openAiResponseUsage } from "./aiUsageModel";
 import {
   JobSearchProviderResponseError,
   searchJobsWithOpenAI,
@@ -295,6 +296,20 @@ async function discoverForUser(
           maxQueries: 1,
           maxAcceptedJobs: JOB_DISCOVERY_LIMITS.maxJobsPerQuery,
           maxOutputTokens: runtime.outputTokenLimit,
+        },
+        async (response) => {
+          try {
+            await ctx.runMutation(internal.aiUsage.recordResponse, {
+              responseId: response.id,
+              userId,
+              operation: "job_search",
+              model: response.model || model,
+              searchRunId: begun.runId,
+              ...openAiResponseUsage(response),
+            });
+          } catch (error) {
+            console.error("ai_usage_record_failed", error);
+          }
         },
       );
       const jobs = await verifyJobSources(provider.accepted);

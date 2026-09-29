@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import { openAiResponseUsage } from "./aiUsageModel";
 import { action, env } from "./_generated/server";
 import {
   normalizeResumeExtraction,
@@ -383,6 +384,18 @@ export const processResume = action({
             format: zodTextFormat(resumeExtractionSchema, "career_profile"),
           },
         });
+        try {
+          await ctx.runMutation(internal.aiUsage.recordResponse, {
+            responseId: parsed.id,
+            userId,
+            operation: "resume_extraction",
+            model: parsed.model || model,
+            resumeId: resume._id,
+            ...openAiResponseUsage(parsed),
+          });
+        } catch (error) {
+          console.error("ai_usage_record_failed", error);
+        }
       } catch (error) {
         throw new ResumeProcessingError(
           "CV_AI_PARSE_FAILED",

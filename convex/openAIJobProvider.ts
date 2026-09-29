@@ -192,6 +192,17 @@ export async function searchJobsWithOpenAI(
     maxAcceptedJobs: number;
     maxOutputTokens: number;
   },
+  onResponse?: (response: {
+    id: string;
+    model: string;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      input_tokens_details?: { cached_tokens?: number };
+    } | null;
+    output?: unknown;
+  }) => Promise<void>,
 ) {
   const accepted: NormalizedJob[] = [];
   const candidateUrls = new Set<string>();
@@ -217,6 +228,7 @@ export async function searchJobsWithOpenAI(
       false,
     );
     addUsage(usage, response);
+    await onResponse?.(response);
     diagnostics = providerDiagnostics(response);
     if (
       !response.output_parsed &&
@@ -231,6 +243,7 @@ export async function searchJobsWithOpenAI(
         true,
       );
       addUsage(usage, response);
+      await onResponse?.(response);
       diagnostics = providerDiagnostics(response);
     }
     if (!response.output_parsed) {
