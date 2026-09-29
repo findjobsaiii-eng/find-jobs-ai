@@ -810,7 +810,9 @@ const schema = defineSchema({
     .index("by_lifecycleStatus_and_lastVerifiedAt", [
       "lifecycleStatus",
       "lastVerifiedAt",
-    ]),
+    ])
+    .searchIndex("search_title", { searchField: "title" })
+    .searchIndex("search_companyName", { searchField: "companyName" }),
   jobSources: defineTable({
     jobId: v.id("jobs"),
     sourceName: v.optional(nullableString),

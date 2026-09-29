@@ -1005,7 +1005,8 @@
     "jobs": {
       "search": "Search title or company",
       "openSource": "Open source",
-      "noResults": "No jobs match this search."
+      "noResults": "No jobs match this search.",
+      "loadMore": "Load more jobs"
     },
     "diagnostics": {
       "show": "Show extracted data",

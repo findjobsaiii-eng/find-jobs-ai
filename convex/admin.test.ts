@@ -39,6 +39,13 @@ it("keeps every admin query closed to ordinary signed-in users", async () => {
     /ADMIN_REQUIRED/u,
   );
   await expect(
+    user.query(api.admin.searchJobs, {
+      search: "Frontend Engineer",
+      field: "title",
+      paginationOpts: { cursor: null, numItems: 25 },
+    }),
+  ).rejects.toThrow(/ADMIN_REQUIRED/u);
+  await expect(
     user.query(api.admin.getUserJobsPreview, {
       userId,
       view: "suggestions",
@@ -597,6 +604,52 @@ it("shows normalized job extraction and exact experience evidence to admins", as
   expect(explanation?.checks).toContainEqual(
     expect.objectContaining({ key: "experience", passed: false }),
   );
+
+  await t.run(async (ctx) => {
+    const oldJob = await ctx.db.get("jobs", jobId);
+    if (!oldJob) throw new Error("Missing test job");
+    const { _id, _creationTime, ...fields } = oldJob;
+    for (let index = 0; index < 201; index += 1) {
+      await ctx.db.insert("jobs", {
+        ...fields,
+        title: `Different role ${index}`,
+        companyName: "Different company",
+        normalizedSourceUrl: `https://example.com/jobs/${index}`,
+        jobFingerprint: `different-${index}`,
+        firstDiscoveredAt: now + index + 1,
+      });
+    }
+  });
+  expect(
+    (await admin.query(api.admin.listJobs)).some((job) => job.jobId === jobId),
+  ).toBe(false);
+  for (const [field, search] of [
+    ["title", "Frontend Engineer"],
+    ["companyName", "Example"],
+  ] as const) {
+    const results = await admin.query(api.admin.searchJobs, {
+      field,
+      search,
+      paginationOpts: { cursor: null, numItems: 25 },
+    });
+    expect(results.page).toEqual(
+      expect.arrayContaining([expect.objectContaining({ jobId })]),
+    );
+  }
+  const firstPage = await admin.query(api.admin.searchJobs, {
+    field: "companyName",
+    search: "Different company",
+    paginationOpts: { cursor: null, numItems: 25 },
+  });
+  expect(firstPage.page).toHaveLength(25);
+  expect(firstPage.isDone).toBe(false);
+  const secondPage = await admin.query(api.admin.searchJobs, {
+    field: "companyName",
+    search: "Different company",
+    paginationOpts: { cursor: firstPage.continueCursor, numItems: 25 },
+  });
+  expect(secondPage.page).toHaveLength(25);
+  expect(secondPage.page[0].jobId).not.toBe(firstPage.page[0].jobId);
 });
 
 it("bootstraps an admin by exact normalized email and audits user views", async () => {

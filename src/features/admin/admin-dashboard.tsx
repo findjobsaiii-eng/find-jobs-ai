@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -1170,24 +1170,62 @@ function UsersSection() {
   );
 }
 
+function useAdminJobs(search: string) {
+  const term = search.trim().replace(/\s+/gu, " ").slice(0, 100);
+  const recentJobs = useQuery(api.admin.listJobs, term ? "skip" : {});
+  const titleMatches = usePaginatedQuery(
+    api.admin.searchJobs,
+    term ? { search: term, field: "title" } : "skip",
+    { initialNumItems: 25 },
+  );
+  const companyMatches = usePaginatedQuery(
+    api.admin.searchJobs,
+    term ? { search: term, field: "companyName" } : "skip",
+    { initialNumItems: 25 },
+  );
+  const jobs = useMemo(() => {
+    if (!term) return recentJobs;
+    const byId = new Map(
+      [...titleMatches.results, ...companyMatches.results].map((job) => [
+        job.jobId,
+        job,
+      ]),
+    );
+    const normalizedTerm = term.toLocaleLowerCase();
+    const exactMatch = (job: { title: string; companyName: string }) =>
+      job.title.toLocaleLowerCase().includes(normalizedTerm) ||
+      job.companyName.toLocaleLowerCase().includes(normalizedTerm);
+    return [...byId.values()].sort(
+      (left, right) =>
+        Number(exactMatch(right)) - Number(exactMatch(left)) ||
+        right.firstDiscoveredAt - left.firstDiscoveredAt,
+    );
+  }, [term, recentJobs, titleMatches.results, companyMatches.results]);
+  const loading = term
+    ? titleMatches.status === "LoadingFirstPage" ||
+      companyMatches.status === "LoadingFirstPage"
+    : recentJobs === undefined;
+  const hasMore =
+    term &&
+    (titleMatches.status === "CanLoadMore" ||
+      companyMatches.status === "CanLoadMore");
+  const loadMore = () => {
+    if (titleMatches.status === "CanLoadMore") titleMatches.loadMore(25);
+    if (companyMatches.status === "CanLoadMore") companyMatches.loadMore(25);
+  };
+  return { jobs, loading, hasMore, loadMore };
+}
+
 function JobsSection() {
   const { t, i18n } = useTranslation();
-  const jobs = useQuery(api.admin.listJobs);
   const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    if (!jobs || !term) return jobs ?? [];
-    return jobs.filter((job) =>
-      `${job.title} ${job.companyName}`.toLocaleLowerCase().includes(term),
-    );
-  }, [jobs, search]);
-  if (!jobs) return <LoadingBlock />;
+  const { jobs, loading, hasMore, loadMore } = useAdminJobs(search);
   return (
     <section className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
       <div className="border-b p-4">
         <SearchField
           value={search}
-          onChange={setSearch}
+          onChange={(value) => setSearch(value.slice(0, 100))}
           placeholder={t("admin.jobs.search")}
         />
       </div>
@@ -1210,51 +1248,60 @@ function JobsSection() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filtered.map((job) => (
-              <tr key={job.jobId}>
-                <td className="px-5 py-3">
-                  <p className="font-medium">{job.title}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {job.companyName}
-                  </p>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    {t("admin.diagnostics.experience")}:{" "}
-                    {experienceRequirement(
-                      job.requiredExperienceYearsMin,
-                      job.requiredExperienceYearsMax,
-                      t("admin.diagnostics.unknown"),
-                    )}
-                    {job.locationText ? ` · ${job.locationText}` : ""}
-                  </p>
-                  {job.requiredSkills.length ? (
-                    <p className="text-muted-foreground mt-1 max-w-xl truncate text-xs">
-                      {job.requiredSkills.join(" · ")}
+            {!loading &&
+              jobs?.map((job) => (
+                <tr key={job.jobId}>
+                  <td className="px-5 py-3">
+                    <p className="font-medium">{job.title}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {job.companyName}
                     </p>
-                  ) : null}
-                  <JobDiagnosticDisclosure jobId={job.jobId} />
-                </td>
-                <td className="px-4 py-3">
-                  <StatusPill status={job.lifecycleStatus} />
-                </td>
-                <td className="px-4 py-3 text-xs">
-                  {formatDateTime(job.firstDiscoveredAt, i18n.language)}
-                </td>
-                <td className="px-5 py-3 text-end">
-                  <a
-                    href={job.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {t("admin.jobs.openSource")}
-                  </a>
-                </td>
-              </tr>
-            ))}
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {t("admin.diagnostics.experience")}:{" "}
+                      {experienceRequirement(
+                        job.requiredExperienceYearsMin,
+                        job.requiredExperienceYearsMax,
+                        t("admin.diagnostics.unknown"),
+                      )}
+                      {job.locationText ? ` · ${job.locationText}` : ""}
+                    </p>
+                    {job.requiredSkills.length ? (
+                      <p className="text-muted-foreground mt-1 max-w-xl truncate text-xs">
+                        {job.requiredSkills.join(" · ")}
+                      </p>
+                    ) : null}
+                    <JobDiagnosticDisclosure jobId={job.jobId} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusPill status={job.lifecycleStatus} />
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {formatDateTime(job.firstDiscoveredAt, i18n.language)}
+                  </td>
+                  <td className="px-5 py-3 text-end">
+                    <a
+                      href={job.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t("admin.jobs.openSource")}
+                    </a>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
-        {!filtered.length ? (
+        {loading ? <LoadingBlock /> : null}
+        {!loading && !jobs?.length ? (
           <EmptyBlock>{t("admin.jobs.noResults")}</EmptyBlock>
+        ) : null}
+        {!loading && hasMore ? (
+          <div className="border-t p-4 text-center">
+            <Button variant="outline" onClick={loadMore}>
+              {t("admin.jobs.loadMore")}
+            </Button>
+          </div>
         ) : null}
       </div>
     </section>
@@ -1264,17 +1311,22 @@ function JobsSection() {
 function Inspector() {
   const { t } = useTranslation();
   const users = useQuery(api.admin.listUsers);
-  const jobs = useQuery(api.admin.listJobs);
   const [userSearch, setUserSearch] = useState("");
   const [jobSearch, setJobSearch] = useState("");
   const [userId, setUserId] = useState<Id<"users"> | null>(null);
   const [jobId, setJobId] = useState<Id<"jobs"> | null>(null);
+  const {
+    jobs,
+    loading: jobsLoading,
+    hasMore,
+    loadMore,
+  } = useAdminJobs(jobId ? "" : jobSearch);
   const [evaluationNow, setEvaluationNow] = useState(() => Date.now());
   const explanation = useQuery(
     api.admin.explainUserJob,
     userId && jobId ? { userId, jobId, now: evaluationNow } : "skip",
   );
-  if (!users || !jobs) return <LoadingBlock />;
+  if (!users) return <LoadingBlock />;
   const userOptions = users
     .filter(({ user }) =>
       `${user.name ?? ""} ${user.email ?? ""}`
@@ -1282,13 +1334,7 @@ function Inspector() {
         .includes(userSearch.toLocaleLowerCase()),
     )
     .slice(0, 8);
-  const jobOptions = jobs
-    .filter((job) =>
-      `${job.title} ${job.companyName}`
-        .toLocaleLowerCase()
-        .includes(jobSearch.toLocaleLowerCase()),
-    )
-    .slice(0, 8);
+  const jobOptions = jobs ?? [];
   return (
     <div className="space-y-6">
       <section className="border-border bg-card rounded-2xl border p-5 shadow-sm">
@@ -1337,31 +1383,42 @@ function Inspector() {
               <SearchField
                 value={jobSearch}
                 onChange={(value) => {
-                  setJobSearch(value);
+                  setJobSearch(value.slice(0, 100));
                   setJobId(null);
                 }}
                 placeholder={t("admin.inspector.jobPlaceholder")}
               />
             </div>
             {jobSearch && !jobId ? (
-              <div className="mt-2 overflow-hidden rounded-xl border">
-                {jobOptions.map((job) => (
+              <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border">
+                {jobsLoading ? <LoadingBlock /> : null}
+                {!jobsLoading &&
+                  jobOptions.map((job) => (
+                    <button
+                      type="button"
+                      key={job.jobId}
+                      onClick={() => {
+                        setJobId(job.jobId);
+                        setJobSearch(`${job.title} · ${job.companyName}`);
+                        setEvaluationNow(Date.now());
+                      }}
+                      className="hover:bg-muted block w-full border-b px-3 py-2 text-start text-sm last:border-0"
+                    >
+                      <span className="font-medium">{job.title}</span>
+                      <span className="text-muted-foreground ms-2 text-xs">
+                        {job.companyName}
+                      </span>
+                    </button>
+                  ))}
+                {!jobsLoading && hasMore ? (
                   <button
                     type="button"
-                    key={job.jobId}
-                    onClick={() => {
-                      setJobId(job.jobId);
-                      setJobSearch(`${job.title} · ${job.companyName}`);
-                      setEvaluationNow(Date.now());
-                    }}
-                    className="hover:bg-muted block w-full border-b px-3 py-2 text-start text-sm last:border-0"
+                    onClick={loadMore}
+                    className="hover:bg-muted w-full px-3 py-2 text-start text-sm"
                   >
-                    <span className="font-medium">{job.title}</span>
-                    <span className="text-muted-foreground ms-2 text-xs">
-                      {job.companyName}
-                    </span>
+                    {t("admin.jobs.loadMore")}
                   </button>
-                ))}
+                ) : null}
               </div>
             ) : null}
           </div>

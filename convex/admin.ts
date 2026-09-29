@@ -1,6 +1,10 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
+import {
   internalMutation,
   mutation,
   query,
@@ -1026,25 +1030,44 @@ export const getUserInsight = query({
   },
 });
 
+const adminJobSummary = v.object({
+  jobId: v.id("jobs"),
+  title: v.string(),
+  companyName: v.string(),
+  lifecycleStatus: v.string(),
+  activityStatus: v.string(),
+  firstDiscoveredAt: v.number(),
+  lastDiscoveredAt: v.number(),
+  postedAt: v.union(v.string(), v.null()),
+  sourceUrl: v.string(),
+  requiredExperienceYearsMin: v.union(v.number(), v.null()),
+  requiredExperienceYearsMax: v.union(v.number(), v.null()),
+  requiredSkills: v.array(v.string()),
+  locationText: v.union(v.string(), v.null()),
+});
+
+function adminJobSummaryView(job: Doc<"jobs">) {
+  const experience = resolveExperienceRequirement(job);
+  return {
+    jobId: job._id,
+    title: job.title,
+    companyName: job.companyName,
+    lifecycleStatus: job.lifecycleStatus ?? "unknown",
+    activityStatus: job.activityStatus,
+    firstDiscoveredAt: job.firstDiscoveredAt,
+    lastDiscoveredAt: job.lastDiscoveredAt,
+    postedAt: job.postedAt,
+    sourceUrl: normalizePublicUrl(job.sourceUrl) ?? job.sourceUrl,
+    requiredExperienceYearsMin: experience.min,
+    requiredExperienceYearsMax: experience.max,
+    requiredSkills: job.requiredSkills.slice(0, 8),
+    locationText: job.locationText,
+  };
+}
+
 export const listJobs = query({
   args: {},
-  returns: v.array(
-    v.object({
-      jobId: v.id("jobs"),
-      title: v.string(),
-      companyName: v.string(),
-      lifecycleStatus: v.string(),
-      activityStatus: v.string(),
-      firstDiscoveredAt: v.number(),
-      lastDiscoveredAt: v.number(),
-      postedAt: v.union(v.string(), v.null()),
-      sourceUrl: v.string(),
-      requiredExperienceYearsMin: v.union(v.number(), v.null()),
-      requiredExperienceYearsMax: v.union(v.number(), v.null()),
-      requiredSkills: v.array(v.string()),
-      locationText: v.union(v.string(), v.null()),
-    }),
-  ),
+  returns: v.array(adminJobSummary),
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const jobs = await ctx.db
@@ -1052,24 +1075,36 @@ export const listJobs = query({
       .withIndex("by_firstDiscoveredAt")
       .order("desc")
       .take(200);
-    return jobs.map((job) => {
-      const experience = resolveExperienceRequirement(job);
-      return {
-        jobId: job._id,
-        title: job.title,
-        companyName: job.companyName,
-        lifecycleStatus: job.lifecycleStatus ?? "unknown",
-        activityStatus: job.activityStatus,
-        firstDiscoveredAt: job.firstDiscoveredAt,
-        lastDiscoveredAt: job.lastDiscoveredAt,
-        postedAt: job.postedAt,
-        sourceUrl: normalizePublicUrl(job.sourceUrl) ?? job.sourceUrl,
-        requiredExperienceYearsMin: experience.min,
-        requiredExperienceYearsMax: experience.max,
-        requiredSkills: job.requiredSkills.slice(0, 8),
-        locationText: job.locationText,
-      };
-    });
+    return jobs.map(adminJobSummaryView);
+  },
+});
+
+export const searchJobs = query({
+  args: {
+    search: v.string(),
+    field: v.union(v.literal("title"), v.literal("companyName")),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(adminJobSummary),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const search = args.search.trim().replace(/\s+/gu, " ");
+    if (!search || search.length > 100) {
+      throw new ConvexError({ code: "INVALID_JOB_SEARCH" });
+    }
+    const page =
+      args.field === "title"
+        ? await ctx.db
+            .query("jobs")
+            .withSearchIndex("search_title", (q) => q.search("title", search))
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("jobs")
+            .withSearchIndex("search_companyName", (q) =>
+              q.search("companyName", search),
+            )
+            .paginate(args.paginationOpts);
+    return { ...page, page: page.page.map(adminJobSummaryView) };
   },
 });
 
