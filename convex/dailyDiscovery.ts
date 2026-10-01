@@ -18,12 +18,9 @@ const discoveryBucketValidator = v.union(
   v.literal(9),
 );
 type DiscoveryBucket = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
-const MAX_DAILY_DISCOVERY_ATTEMPTS = 3;
-const EMPTY_DISCOVERY_RETRY_DELAY_MS = 15 * 60 * 1_000;
 
 type DiscoveryAttempt = {
   dayKey?: string;
-  nextAttemptAt?: number;
   attemptCount?: number;
   lastOutcome: string;
 };
@@ -66,51 +63,11 @@ async function recordDailyAudit(
   }
 }
 
-function blockedReason(
-  attempt: DiscoveryAttempt | null,
-  dayKey: string,
-  now: number,
-  hasVisibleJobsForDay: boolean,
-) {
+function blockedReason(attempt: DiscoveryAttempt | null, dayKey: string) {
   if (!attempt || attempt.dayKey !== dayKey) return null;
-  if (hasVisibleJobsForDay) return "visible_jobs_already_available";
-  if (attempt.lastOutcome === "queued") return "already_queued";
-  if ((attempt.attemptCount ?? 1) >= MAX_DAILY_DISCOVERY_ATTEMPTS)
-    return "daily_attempt_limit";
-  if (attempt.nextAttemptAt !== undefined && attempt.nextAttemptAt > now)
-    return "retry_scheduled";
-  return "not_due";
-}
-
-function canQueueAttempt(
-  attempt: DiscoveryAttempt | null,
-  dayKey: string,
-  now: number,
-  hasVisibleJobs: boolean,
-) {
-  if (!attempt || attempt.dayKey !== dayKey) return true;
-  if (attempt.lastOutcome === "queued" || hasVisibleJobs) return false;
-  if ((attempt.attemptCount ?? 1) >= MAX_DAILY_DISCOVERY_ATTEMPTS) return false;
-  return attempt.nextAttemptAt === undefined || attempt.nextAttemptAt <= now;
-}
-
-async function hasVisibleJobs(
-  ctx: MutationCtx,
-  profile: { userId: Id<"users">; updatedAt: number },
-) {
-  return Boolean(
-    await ctx.db
-      .query("jobMatches")
-      .withIndex(
-        "by_userId_profileRevision_displayEligible_relevanceScore",
-        (q) =>
-          q
-            .eq("userId", profile.userId)
-            .eq("profileRevision", profile.updatedAt)
-            .eq("displayEligible", true),
-      )
-      .first(),
-  );
+  return attempt.lastOutcome === "queued"
+    ? "already_queued"
+    : "daily_attempt_limit";
 }
 
 export function discoveryBucket(userId: string) {
@@ -173,8 +130,6 @@ export const dispatch = internalMutation({
         .query("dailyDiscoveryAttempts")
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
-      const visible =
-        attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
       const plan = await activePaidPlan(ctx, profile.userId, now);
       if (plan === "free") {
         await recordDailyAudit(ctx, {
@@ -188,18 +143,12 @@ export const dispatch = internalMutation({
         });
         continue;
       }
-      if (!canQueueAttempt(attempt, dayKey, now, visible)) {
-        const reason =
-          blockedReason(attempt, dayKey, now, visible) ?? "not_due";
+      if (blockedReason(attempt, dayKey)) {
+        const reason = blockedReason(attempt, dayKey) ?? "not_due";
         await recordDailyAudit(ctx, {
           userId: profile.userId,
           dayKey,
-          status:
-            reason === "already_queued"
-              ? "queued"
-              : reason === "retry_scheduled"
-                ? "planned"
-                : "skipped",
+          status: reason === "already_queued" ? "queued" : "skipped",
           reason,
           attemptCount: attempt?.attemptCount ?? 0,
           now,
@@ -214,7 +163,6 @@ export const dispatch = internalMutation({
         lastAttemptAt: now,
         lastOutcome: "queued",
         attemptCount,
-        nextAttemptAt: undefined,
       };
       if (attempt)
         await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
@@ -276,19 +224,12 @@ export const enqueueUser = internalMutation({
       });
       return null;
     }
-    const visible =
-      attempt?.dayKey === dayKey ? await hasVisibleJobs(ctx, profile) : false;
-    if (!canQueueAttempt(attempt, dayKey, now, visible)) {
-      const reason = blockedReason(attempt, dayKey, now, visible) ?? "not_due";
+    if (blockedReason(attempt, dayKey)) {
+      const reason = blockedReason(attempt, dayKey) ?? "not_due";
       await recordDailyAudit(ctx, {
         userId: args.userId,
         dayKey,
-        status:
-          reason === "already_queued"
-            ? "queued"
-            : reason === "retry_scheduled"
-              ? "planned"
-              : "skipped",
+        status: reason === "already_queued" ? "queued" : "skipped",
         reason,
         attemptCount: attempt?.attemptCount ?? 0,
         now,
@@ -303,7 +244,6 @@ export const enqueueUser = internalMutation({
       lastAttemptAt: now,
       lastOutcome: "queued",
       attemptCount,
-      nextAttemptAt: undefined,
     };
     if (attempt)
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
@@ -329,7 +269,6 @@ export const finishAttempt = internalMutation({
   args: {
     userId: v.id("users"),
     outcome: v.string(),
-    retryable: v.boolean(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -339,14 +278,9 @@ export const finishAttempt = internalMutation({
       .unique();
     if (attempt) {
       const attemptCount = attempt.attemptCount ?? 1;
-      const shouldRetry =
-        args.retryable && attemptCount < MAX_DAILY_DISCOVERY_ATTEMPTS;
       const now = Date.now();
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
         lastOutcome: args.outcome.slice(0, 80),
-        nextAttemptAt: shouldRetry
-          ? now + EMPTY_DISCOVERY_RETRY_DELAY_MS
-          : undefined,
       });
       const status: DailyDiscoveryStatus =
         args.outcome === "reused" || args.outcome === "no_search"
@@ -362,14 +296,40 @@ export const finishAttempt = internalMutation({
         attemptCount,
         now,
       });
-      if (shouldRetry) {
-        await ctx.scheduler.runAfter(
-          EMPTY_DISCOVERY_RETRY_DELAY_MS,
-          internal.dailyDiscovery.enqueueUser,
-          { userId: args.userId },
-        );
-      }
     }
     return null;
+  },
+});
+
+// Claim the role separately from queueing, so duplicate workers cannot spend twice.
+export const claimDailyRole = internalMutation({
+  args: { userId: v.id("users"), roles: v.array(v.string()) },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    if (!args.roles.length) return null;
+    const attempt = await ctx.db
+      .query("dailyDiscoveryAttempts")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+    const now = Date.now();
+    const dayKey = globalDayKey(now);
+    if (attempt?.roleClaimDayKey === dayKey) return null;
+    const index = (attempt?.nextRoleIndex ?? 0) % args.roles.length;
+    const values = {
+      roleClaimDayKey: dayKey,
+      nextRoleIndex: (index + 1) % args.roles.length,
+    };
+    if (attempt)
+      await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
+    else
+      await ctx.db.insert("dailyDiscoveryAttempts", {
+        userId: args.userId,
+        dayKey,
+        attemptCount: 1,
+        lastAttemptAt: now,
+        lastOutcome: "queued",
+        ...values,
+      });
+    return args.roles[index];
   },
 });

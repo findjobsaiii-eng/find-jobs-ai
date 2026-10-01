@@ -316,7 +316,7 @@ describe("shared job discovery", () => {
     });
   });
 
-  it("allows a same-day query retry when the previous search produced no visible jobs", async () => {
+  it("reuses a completed same-day query even when it produced no visible jobs", async () => {
     const t = convexTest(schema, modules);
     const firstUser = await createUser(t);
     const secondUser = await createUser(t);
@@ -350,7 +350,7 @@ describe("shared job discovery", () => {
         internal.jobDiscovery.beginSearch,
         beginArgs(secondUser, "empty-frontend-tel-aviv"),
       ),
-    ).not.toBeNull();
+    ).toBeNull();
     await t.run(async (ctx) => {
       const completed = await ctx.db.get("jobSearchRuns", first.runId);
       expect(completed?.providerDiagnostics).toMatchObject({

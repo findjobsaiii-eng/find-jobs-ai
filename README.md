@@ -244,8 +244,8 @@ shared aliases.
 Paid users with completed profiles receive a daily discovery attempt without
 opening the app. Ten deterministic user cohorts run hourly from 08:00 through
 17:00 Israel time. A newly completed paid profile is queued immediately if it
-has not already received that day's attempt. Sequential workers create one
-deterministic query for each unique target role, up to five, and call the OpenAI
+has not already received that day's attempt. Sequential workers select one unique target role per user per Israel calendar
+day, following the saved role order and wrapping after the last role, and call the OpenAI
 Responses API with Web Search from a server action. Free users never enter this
 provider path; their feed is assembled only from jobs already stored in the
 central database. The browser never receives the API key, selected model,
@@ -322,10 +322,11 @@ request. Internal plans are `free`, `pro`, and `admin`. During the beta/pilot,
 accounts without an explicit entitlement resolve to `pro`, so all new users
 receive paid capabilities without checkout. An explicit development `free`
 override still wins and supports testing both experiences.
-An automatic query is shared across users only when the current user already
-has a visible result from the shared catalog. If the prior run produced no
-visible jobs, a fresh provider search is allowed. Empty and skipped searches
-retry up to three times that day with a 15-minute delay. Provider response
+Automatic queries share in-flight and completed same-day searches across users,
+even when the completed search returned no visible jobs. Each user's daily slot
+advances the role rotation whether the search is fresh, shared, empty, or failed.
+Empty and failed slots do not schedule another automatic attempt that day.
+Provider response
 status, incomplete reason, parse status, and bounded raw/output excerpts are
 stored on the search run for diagnosis; an absent structured result is a
 failure, never an empty successful result. The automatic path remains protected by

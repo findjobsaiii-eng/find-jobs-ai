@@ -784,7 +784,7 @@ export const beginSearch = internalMutation({
         : null;
       if (
         claimedRun?.status === "running" ||
-        (await hasVisibleMatchesForCurrentProfile(ctx, args.userId))
+        claimedRun?.status === "completed"
       ) {
         return null;
       }
@@ -2008,7 +2008,6 @@ function currentDiscoveryState(
   );
   if (
     todaysAttempt?.lastOutcome === "queued" ||
-    todaysAttempt?.nextAttemptAt !== undefined ||
     todaysRuns.some((run) => run.status === "running")
   ) {
     return "running" as const;

@@ -235,12 +235,8 @@ search profile. Paid automatic searches remain behind the global kill switch and
 daily run/query/concurrency limits.
 
 Each exact normalized query criterion set is atomically claimed across users.
-An in-flight same-day claim is shared, and a completed claim is reused only
-when the current profile has a visible materialized match. Otherwise a new run
-is allowed. A claim records its owning run so an older failure cannot clear a
-newer claim. Failures release their own claim for retry. Empty or skipped
-automatic discovery retries after 15 minutes, up to three attempts per Israel
-day. Only one active run per user is allowed and stale reservations recover
+In-flight and completed same-day claims are shared, including empty results. A claim records its owning run so an older failure cannot clear a
+newer claim. Failures release their own claim for retry. Automatic discovery allows one role slot per Israel day, with no same-day scheduler retries. Only one active run per user is allowed and stale reservations recover
 after ten minutes.
 
 The development-only entitlement switch and manual action require
@@ -299,7 +295,7 @@ paid profiles and records one attempt per Israel calendar day. Free profiles are
 skipped before scheduling.
 Internal Node workers process a page sequentially and schedule continuation;
 profile failures do not abort the rest of the page. A plan with several unique target
-roles generates one query per role, capped at five. Shared query claims prevent
+roles selects one role per Israel day in saved order and wraps after the last role. Shared query claims prevent
 another user from repeating that provider query on the same day. The kill switch,
 global automatic limits, and provider accounting still apply.
 Only internal helpers may accept scheduler-selected user IDs. The public manual
@@ -738,3 +734,18 @@ HTTP 404/410, expanded English/Hebrew closure text, an expired matching JobPosti
 Development backfill progress is exposed through the bounded internal `jobActivity:getCatalogActivitySummary` query. It reports catalog lifecycle, verification attempts, queued work, alternative-source preservation, and remaining recent jobs without returning job records.
 
 Activity provenance is stored in `jobs.activityReason`. Normal feed jobs require a fresh successful source verification (`http_verified`, `structured_jobposting_valid`, or `alternative_source_active`). Development fixtures retain `development_fixture_active` and their sources use `development_fixture`; both markers exclude them from feeds, match materialization, deep reviews, and real-catalog diagnostics in every environment. Provider sightings without successful verification use `provider_recently_seen_unverified` and remain outside the normal feed. Records with no recoverable URL use `unverifiable_source` and remain outside the feed. Provider evidence URLs are retained as separate pending source records, with employer and ATS sources preferred after verification.
+
+### D-036: Rotate one automatic role search per user per Israel day
+
+Status: Accepted
+
+To reduce provider spend, each eligible user receives at most one automatic role
+slot per Israel calendar day. The cursor starts at the first saved role, advances
+on each claimed daily slot, and wraps after the last searchable role. Reused,
+empty, and failed slots advance too; missed days do not generate catch-up searches.
+Role edits apply to the next day's slot; the cursor is reduced modulo the new
+role count. Atomic role claims prevent duplicate workers from spending twice.
+Completed shared queries are reused even when no visible jobs were produced.
+Failures release the shared query claim for another user's own daily slot, but
+do not grant the failing user another slot. Existing bounded provider request
+retries and development-only manual searches remain separate from daily slots.

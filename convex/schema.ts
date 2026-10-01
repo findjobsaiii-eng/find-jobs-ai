@@ -581,7 +581,8 @@ const schema = defineSchema({
   dailyDiscoveryAttempts: defineTable({
     userId: v.id("users"),
     dayKey: v.optional(v.string()),
-    nextAttemptAt: v.optional(v.number()),
+    roleClaimDayKey: v.optional(v.string()),
+    nextRoleIndex: v.optional(v.number()),
     attemptCount: v.optional(v.number()),
     lastAttemptAt: v.number(),
     lastOutcome: v.string(),

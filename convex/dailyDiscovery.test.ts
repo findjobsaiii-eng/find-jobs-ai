@@ -115,57 +115,109 @@ it("queues a new pilot user immediately without a purchased entitlement", async 
   });
 });
 
-it("retries an empty discovery at most three times in the same day", async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-09-15T09:00:00Z"));
-  const t = convexTest(schema, modules);
-  const userId = await t.run(async (ctx) => {
-    const id = await ctx.db.insert("users", {});
-    await ctx.db.insert("dailyDiscoveryAttempts", {
-      userId: id,
-      dayKey: "2026-09-15",
-      attemptCount: 1,
-      lastAttemptAt: Date.now(),
-      lastOutcome: "queued",
+it.each(["completed_empty", "JOB_DISCOVERY_FAILED", "no_search", "reused"])(
+  "does not retry %s or queue again on the same Israel day",
+  async (outcome) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T09:00:00Z"));
+    const t = convexTest(schema, modules);
+    const userId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("users", {});
+      await ctx.db.insert("candidateProfiles", {
+        userId: id,
+        email: "candidate@example.com",
+        onboardingCompleted: true,
+        onboardingStep: 4,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return id;
     });
-    return id;
-  });
-
-  await t.mutation(internal.dailyDiscovery.finishAttempt, {
-    userId,
-    outcome: "completed_empty",
-    retryable: true,
-  });
-  await t.run(async (ctx) => {
-    const attempt = await ctx.db.query("dailyDiscoveryAttempts").unique();
-    if (!attempt) throw new Error("Expected discovery attempt");
-    expect(attempt.nextAttemptAt).toBe(Date.now() + 15 * 60 * 1_000);
-    expect(
-      await ctx.db.system.query("_scheduled_functions").collect(),
-    ).toHaveLength(1);
-    await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
-      attemptCount: 3,
-    });
-  });
-  await t.mutation(internal.dailyDiscovery.finishAttempt, {
-    userId,
-    outcome: "completed_empty",
-    retryable: true,
-  });
-  await t.run(async (ctx) => {
-    const attempt = await ctx.db.query("dailyDiscoveryAttempts").unique();
-    if (!attempt) throw new Error("Expected discovery attempt");
-    expect(attempt.nextAttemptAt).toBeUndefined();
-    expect(
-      await ctx.db.system.query("_scheduled_functions").collect(),
-    ).toHaveLength(1);
-    expect(await ctx.db.query("dailyDiscoveryAudits").unique()).toMatchObject({
+    await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+    await t.mutation(internal.dailyDiscovery.finishAttempt, {
       userId,
-      status: "completed",
-      reason: "completed_empty",
-      attemptCount: 3,
+      outcome,
     });
-  });
+    await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+    await t.mutation(internal.dailyDiscovery.dispatch, { bucket: null });
+    await t.run(async (ctx) => {
+      expect(
+        await ctx.db.system.query("_scheduled_functions").collect(),
+      ).toHaveLength(1);
+      expect(
+        await ctx.db.query("dailyDiscoveryAttempts").unique(),
+      ).toMatchObject({
+        lastOutcome: outcome,
+        attemptCount: 1,
+      });
+    });
+    vi.setSystemTime(new Date("2026-09-16T09:00:00Z"));
+    await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+    await t.run(async (ctx) => {
+      expect(
+        await ctx.db.system.query("_scheduled_functions").collect(),
+      ).toHaveLength(2);
+    });
+  },
+);
+
+it("rotates six roles in saved order, wraps, and claims once across Israel midnight", async () => {
+  vi.useFakeTimers();
+  const t = convexTest(schema, modules);
+  const userId = await t.run((ctx) => ctx.db.insert("users", {}));
+  const roles = [
+    "Zoologist",
+    "Architect",
+    "Designer",
+    "Engineer",
+    "Analyst",
+    "Manager",
+  ];
+  for (let day = 0; day < 7; day++) {
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 15 + day, 20, 59)));
+    const args = { userId, roles };
+    const claims = await Promise.all([
+      t.mutation(internal.dailyDiscovery.claimDailyRole, args),
+      t.mutation(internal.dailyDiscovery.claimDailyRole, args),
+    ]);
+    expect(claims.filter((role) => role !== null)).toEqual([
+      roles[day % roles.length],
+    ]);
+  }
+  // 21:00 UTC is the next Israel calendar day during daylight saving time.
+  vi.setSystemTime(new Date("2026-09-21T21:00:00Z"));
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimDailyRole, { userId, roles }),
+  ).toBe(roles[1]);
+});
+
+it("keeps single-role users daily and bounds the cursor when roles change", async () => {
+  vi.useFakeTimers();
+  const t = convexTest(schema, modules);
+  const userId = await t.run((ctx) => ctx.db.insert("users", {}));
+  for (let day = 0; day < 2; day++) {
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 15 + day, 9)));
+    expect(
+      await t.mutation(internal.dailyDiscovery.claimDailyRole, {
+        userId,
+        roles: ["Engineer"],
+      }),
+    ).toBe("Engineer");
+  }
+  vi.setSystemTime(new Date("2026-09-17T09:00:00Z"));
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimDailyRole, {
+      userId,
+      roles: ["Engineer", "Designer", "Analyst"],
+    }),
+  ).toBe("Engineer");
+  vi.setSystemTime(new Date("2026-09-18T09:00:00Z"));
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimDailyRole, {
+      userId,
+      roles: ["Analyst"],
+    }),
+  ).toBe("Analyst");
 });
 
 it("disables the manual action and panel by default even for signed-in users", async () => {

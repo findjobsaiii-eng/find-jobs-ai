@@ -252,7 +252,26 @@ async function discoverForUser(
     "OPENAI_JOB_SEARCH_MODEL",
     env.OPENAI_JOB_SEARCH_MODEL,
   );
-  const allQueryPlans = buildSearchPlan(profile).queryPlans;
+  if (!manual) {
+    const roles = profile.targetJobTitles.filter(
+      (role, index, titles) =>
+        titles.findIndex(
+          (title) =>
+            normalizeTitleIdentity(title) === normalizeTitleIdentity(role),
+        ) === index,
+    );
+    const dailyRole: string | null = await ctx.runMutation(
+      internal.dailyDiscovery.claimDailyRole,
+      { userId, roles },
+    );
+    if (dailyRole === null) return result;
+    requestedRole = dailyRole;
+  }
+  const allQueryPlans = buildSearchPlan(
+    !manual && requestedRole
+      ? { ...profile, targetJobTitles: [requestedRole] }
+      : profile,
+  ).queryPlans;
   const requestedIdentity = requestedRole
     ? normalizeTitleIdentity(requestedRole)
     : null;
@@ -281,7 +300,7 @@ async function discoverForUser(
       const apiKey = requireConfiguration("OPENAI_API_KEY", env.OPENAI_API_KEY);
       // The SDK retries transient connection, timeout, 408/409, 429, and 5xx
       // failures with bounded exponential backoff. Permanent failures still
-      // fail immediately and the daily scheduler remains the outer backstop.
+      // fail immediately; the next daily slot advances to the next role.
       const client = new OpenAI({ apiKey, maxRetries: 1, timeout: 90_000 });
       await ctx.runMutation(internal.jobDiscovery.markProviderStarted, {
         userId,
@@ -391,7 +410,6 @@ export const runDailyBatch = internalAction({
   handler: async (ctx, args) => {
     for (const userId of args.userIds) {
       let outcome = "completed";
-      let retryable = false;
       let shouldNotify = false;
       try {
         const result = await discoverForUser(ctx, userId);
@@ -402,20 +420,16 @@ export const runDailyBatch = internalAction({
         shouldNotify = hasVisibleJobs;
         if (result.generatedQueryCount === 0) {
           outcome = hasVisibleJobs ? "reused" : "no_search";
-          retryable = !hasVisibleJobs;
         } else if (result.acceptedCount === 0) {
           outcome = "completed_empty";
-          retryable = true;
         }
       } catch (error) {
         // Keep one failed profile/provider from stopping the remaining candidates.
         outcome = convexErrorCode(error) ?? "UNKNOWN";
-        retryable = outcome === "JOB_DISCOVERY_FAILED";
       }
       await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
         userId,
         outcome,
-        retryable,
       });
       if (shouldNotify) {
         await ctx.scheduler.runAfter(
