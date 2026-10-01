@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 // @vitest-environment edge-runtime
 import { convexTest } from "convex-test";
+import { ConvexError } from "convex/values";
+import { discoveryFailureReason } from "./jobDiscoveryActions";
 import { afterEach, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { discoveryBucket, israelDiscoveryBucket } from "./dailyDiscovery";
@@ -106,7 +108,7 @@ it("queues a new pilot user immediately without a purchased entitlement", async 
     expect(await ctx.db.query("dailyDiscoveryAudits").unique()).toMatchObject({
       userId,
       status: "queued",
-      reason: "already_queued",
+      reason: "scheduled",
       attemptCount: 1,
     });
     expect(
@@ -115,9 +117,16 @@ it("queues a new pilot user immediately without a purchased entitlement", async 
   });
 });
 
-it.each(["completed_empty", "JOB_DISCOVERY_FAILED", "no_search", "reused"])(
-  "does not retry %s or queue again on the same Israel day",
-  async (outcome) => {
+it.each([
+  ["completed", "completed"],
+  ["completed_empty", "completed"],
+  ["provider_rate_limit", "failed"],
+  ["INCOMPLETE_SEARCH_PROFILE", "failed"],
+  ["no_search", "skipped"],
+  ["reused", "skipped"],
+])(
+  "preserves %s in the admin audit and does not queue again on the same Israel day",
+  async (outcome, status) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-15T09:00:00Z"));
     const t = convexTest(schema, modules);
@@ -138,8 +147,36 @@ it.each(["completed_empty", "JOB_DISCOVERY_FAILED", "no_search", "reused"])(
       userId,
       outcome,
     });
+    const originalAudit = await t.run((ctx) =>
+      ctx.db.query("dailyDiscoveryAudits").unique(),
+    );
+    expect(originalAudit).toMatchObject({ status, reason: outcome });
+    vi.setSystemTime(new Date("2026-09-15T10:00:00Z"));
     await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
     await t.mutation(internal.dailyDiscovery.dispatch, { bucket: null });
+    expect(
+      await t.run((ctx) => ctx.db.query("dailyDiscoveryAudits").unique()),
+    ).toEqual(originalAudit);
+    // A plan change must not hide today's completed or failed attempt either.
+    await t.run((ctx) =>
+      ctx.db.insert("userEntitlements", {
+        userId,
+        plan: "free",
+        active: true,
+        source: "manual",
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+    await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+    await t.mutation(internal.dailyDiscovery.dispatch, { bucket: null });
+    expect(
+      await t.run((ctx) => ctx.db.query("dailyDiscoveryAudits").unique()),
+    ).toEqual(originalAudit);
+    await t.run(async (ctx) => {
+      const entitlement = await ctx.db.query("userEntitlements").unique();
+      if (entitlement) await ctx.db.delete("userEntitlements", entitlement._id);
+    });
     await t.run(async (ctx) => {
       expect(
         await ctx.db.system.query("_scheduled_functions").collect(),
@@ -236,3 +273,23 @@ it("disables the manual action and panel by default even for signed-in users", a
     true,
   );
 }, 15_000);
+
+it("records specific provider failures and keeps configuration/profile errors", () => {
+  expect(
+    discoveryFailureReason(
+      new ConvexError({
+        code: "JOB_DISCOVERY_FAILED",
+        category: "provider_rate_limit",
+      }),
+    ),
+  ).toBe("provider_rate_limit");
+  expect(
+    discoveryFailureReason(
+      new ConvexError({ code: "INCOMPLETE_SEARCH_PROFILE" }),
+    ),
+  ).toBe("INCOMPLETE_SEARCH_PROFILE");
+  expect(
+    discoveryFailureReason(new ConvexError({ code: "JOB_DISCOVERY_FAILED" })),
+  ).toBe("JOB_DISCOVERY_FAILED");
+  expect(discoveryFailureReason(new Error("unexpected"))).toBe("UNKNOWN");
+});

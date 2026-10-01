@@ -425,7 +425,9 @@ The daily sweep runs the matching cohort hourly from 08:00 through 17:00 Israel
 time, with at most one automatic attempt per eligible paid profile on an Israel
 calendar day. New completed paid profiles are queued immediately. No browser
 session is required. Failures are recorded in
-`dailyDiscoveryAttempts.lastOutcome`; a failed shared-query claim may be retried
+`dailyDiscoveryAttempts.lastOutcome`. Repeat scheduler checks preserve the day's
+original queued or finished admin audit, including the specific provider failure
+category. Existing jobs do not prevent the next day's search. A failed shared-query claim may be retried
 by another eligible user.
 
 ## Page URLs and layouts

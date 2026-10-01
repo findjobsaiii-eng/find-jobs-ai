@@ -162,6 +162,22 @@ function convexErrorCode(error: unknown) {
   return typeof data.code === "string" ? data.code : null;
 }
 
+export function discoveryFailureReason(error: unknown): string {
+  const code = convexErrorCode(error);
+  if (code === "JOB_DISCOVERY_FAILED" && error instanceof ConvexError) {
+    const data = error.data as unknown;
+    if (
+      data &&
+      typeof data === "object" &&
+      "category" in data &&
+      typeof data.category === "string"
+    ) {
+      return data.category;
+    }
+  }
+  return code ?? "UNKNOWN";
+}
+
 export const discoverJobsForCurrentUser = action({
   args: {},
   returns: resultValidator,
@@ -425,7 +441,7 @@ export const runDailyBatch = internalAction({
         }
       } catch (error) {
         // Keep one failed profile/provider from stopping the remaining candidates.
-        outcome = convexErrorCode(error) ?? "UNKNOWN";
+        outcome = discoveryFailureReason(error);
       }
       await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
         userId,

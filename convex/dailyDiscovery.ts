@@ -19,12 +19,6 @@ const discoveryBucketValidator = v.union(
 );
 type DiscoveryBucket = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
-type DiscoveryAttempt = {
-  dayKey?: string;
-  attemptCount?: number;
-  lastOutcome: string;
-};
-
 type DailyDiscoveryStatus =
   "planned" | "queued" | "skipped" | "completed" | "failed";
 
@@ -61,13 +55,6 @@ async function recordDailyAudit(
       ...values,
     });
   }
-}
-
-function blockedReason(attempt: DiscoveryAttempt | null, dayKey: string) {
-  if (!attempt || attempt.dayKey !== dayKey) return null;
-  return attempt.lastOutcome === "queued"
-    ? "already_queued"
-    : "daily_attempt_limit";
 }
 
 export function discoveryBucket(userId: string) {
@@ -130,6 +117,8 @@ export const dispatch = internalMutation({
         .query("dailyDiscoveryAttempts")
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
+      // A repeat scheduler check must not overwrite the actual daily result.
+      if (attempt?.dayKey === dayKey) continue;
       const plan = await activePaidPlan(ctx, profile.userId, now);
       if (plan === "free") {
         await recordDailyAudit(ctx, {
@@ -143,20 +132,7 @@ export const dispatch = internalMutation({
         });
         continue;
       }
-      if (blockedReason(attempt, dayKey)) {
-        const reason = blockedReason(attempt, dayKey) ?? "not_due";
-        await recordDailyAudit(ctx, {
-          userId: profile.userId,
-          dayKey,
-          status: reason === "already_queued" ? "queued" : "skipped",
-          reason,
-          attemptCount: attempt?.attemptCount ?? 0,
-          now,
-        });
-        continue;
-      }
-      const attemptCount =
-        attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1;
+      const attemptCount = 1;
       const values = {
         userId: profile.userId,
         dayKey,
@@ -212,6 +188,7 @@ export const enqueueUser = internalMutation({
     ]);
     const dayKey = globalDayKey(now);
     if (!profile?.onboardingCompleted) return null;
+    if (attempt?.dayKey === dayKey) return null;
     if (!plan || plan === "free") {
       await recordDailyAudit(ctx, {
         userId: args.userId,
@@ -224,20 +201,7 @@ export const enqueueUser = internalMutation({
       });
       return null;
     }
-    if (blockedReason(attempt, dayKey)) {
-      const reason = blockedReason(attempt, dayKey) ?? "not_due";
-      await recordDailyAudit(ctx, {
-        userId: args.userId,
-        dayKey,
-        status: reason === "already_queued" ? "queued" : "skipped",
-        reason,
-        attemptCount: attempt?.attemptCount ?? 0,
-        now,
-      });
-      return null;
-    }
-    const attemptCount =
-      attempt?.dayKey === dayKey ? (attempt.attemptCount ?? 1) + 1 : 1;
+    const attemptCount = 1;
     const values = {
       userId: args.userId,
       dayKey,
