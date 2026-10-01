@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
+import { reviewRequirements } from "./schema";
 import { recordProductEvent } from "./productAnalytics";
 
 const reviewLanguage = v.union(v.literal("en"), v.literal("he"));
@@ -10,11 +11,6 @@ const reviewVerdict = v.union(
   v.literal("good"),
   v.literal("stretch"),
   v.literal("low"),
-);
-const importance = v.union(
-  v.literal("must_have"),
-  v.literal("important"),
-  v.literal("minor"),
 );
 const resumeContext = v.object({
   id: v.id("resumeDocuments"),
@@ -98,7 +94,7 @@ export const prepare = internalMutation({
     const source = job.bestSourceId
       ? await ctx.db.get("jobSources", job.bestSourceId)
       : null;
-    if (!source?.finalUrl || !isUserFacingJobSource(source))
+    if (!source || !isUserFacingJobSource(source))
       throw new Error("JOB_SOURCE_NOT_AVAILABLE");
 
     const allResumes = await ctx.db
@@ -156,6 +152,9 @@ export const prepare = internalMutation({
       jobContentHash: job.contentHash,
       requestedAt: now,
       updatedAt: now,
+      resumeOptions: resumes.map(({ id, name }) => ({ id, name })),
+      resumeId: undefined,
+      resumeName: undefined,
       completedAt: undefined,
       errorCode: undefined,
     };
@@ -199,7 +198,7 @@ export const prepare = internalMutation({
         salaryPeriod: job.salaryPeriod,
         workAuthorizationRequirements:
           job.workAuthorizationRequirements ?? null,
-        sourceUrl: source.finalUrl,
+        sourceUrl: source.finalUrl ?? source.normalizedUrl,
         sourceTier: source.sourceTier,
         sourceText: source.rawSourceText?.slice(0, 20_000) ?? null,
       },
@@ -219,15 +218,7 @@ export const complete = internalMutation({
     matchPercentage: v.number(),
     verdict: reviewVerdict,
     summary: v.string(),
-    strengths: v.array(v.object({ title: v.string(), detail: v.string() })),
-    gaps: v.array(
-      v.object({
-        requirement: v.string(),
-        currentEvidence: v.string(),
-        howToClose: v.string(),
-        importance,
-      }),
-    ),
+    requirements: reviewRequirements,
     resumeRationale: v.string(),
     resumeChanges: v.array(
       v.object({

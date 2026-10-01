@@ -406,8 +406,6 @@
     "loadingDescription": "משווים בין דרישות המשרה, קורות החיים שלך והמקורות הרשמיים של המעסיק.",
     "proOnly": "זמין במנוי Pro",
     "stale": "מומלץ לעדכן",
-    "strengths": "איפה יש לך יתרון",
-    "gaps": "פערים בדרישות",
     "interviewFocus": "למה כדאי להתכונן",
     "refresh": "עדכון הסקירה",
     "error": "לא הצלחנו להשלים את הסקירה. אפשר לנסות שוב.",
@@ -419,18 +417,57 @@
       "low": "התאמה נמוכה"
     },
     "importance": {
-      "must_have": "דרישת חובה",
+      "must_have": "דרישות חובה",
       "important": "חשוב",
-      "minor": "משני"
+      "minor": "יתרון"
     },
     "resume": {
-      "heading": "קורות החיים שכדאי לשלוח",
-      "use": "הגרסה הקיימת המתאימה ביותר: {{name}}"
+      "heading": "אילו קורות חיים לשלוח",
+      "compared": "קורות החיים שהושוו בסקירה",
+      "recommended": "מומלץ לשלוח",
+      "alternative": "נבדק גם",
+      "none": "אין קורות חיים זמינים לסקירה הזו.",
+      "beforeApplying": "לפני ששולחים"
     },
     "apply": {
       "heading": "איפה עדיף להגיש",
       "direct": "הגשה ישירה",
-      "company": "אתר החברה"
+      "company": "אתר החברה",
+      "listing": "המודעה המקורית",
+      "recommended": "מומלץ",
+      "why": "למה להגיש כאן?"
+    },
+    "collapse": "סגירת הסקירה",
+    "fitScore": "התאמה למשרה: {{score}} אחוזים",
+    "requirements": "איפה יש התאמה",
+    "requirementOverview": "תמונת מצב של הדרישות",
+    "requirementStatus": {
+      "met": "יש התאמה",
+      "gap": "פער",
+      "unknown": "צריך לבדוק"
+    },
+    "requirementCount": {
+      "met_one": "{{count}} התאמה",
+      "met_other": "{{count}} התאמות",
+      "gap_one": "{{count}} פער",
+      "gap_other": "{{count}} פערים",
+      "unknown_one": "{{count}} לבדיקה",
+      "unknown_other": "{{count}} לבדיקה",
+      "met_two": "{{count}} התאמות",
+      "gap_two": "{{count}} פערים",
+      "unknown_two": "{{count}} לבדיקה"
+    },
+    "facts": {
+      "open": "פתוחה — אומת",
+      "probable": "כנראה פתוחה",
+      "closed": "לא זמינה יותר"
+    },
+    "employmentTypes": {
+      "full-time": "משרה מלאה",
+      "part-time": "משרה חלקית",
+      "contract": "חוזה",
+      "temporary": "משרה זמנית",
+      "internship": "התמחות"
     }
   },
   "resume": {

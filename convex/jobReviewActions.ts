@@ -143,7 +143,8 @@ export const reviewJob = action({
             role: "system",
             content: [
               "You are a rigorous career advisor. Compare only facts stated in the supplied job, candidate profile, and resumes.",
-              "Never invent candidate experience or qualifications. A missing skill is a gap, not implied experience.",
+              "Never invent candidate experience or qualifications. For every key requirement return status met only with explicit candidate evidence, gap only with a known contradiction or shortfall, and unknown when evidence is missing. Missing evidence does not prove the candidate lacks a skill. Classify must_have only for explicit mandatory requirements; use important or minor for preferences. Cover both matches and gaps, including education, experience and language requirements. Keep requirement names short, evidence to one short sentence, and nextStep to one concrete action or null.",
+              "This is a quick decision aid. Write a summary of at most two short sentences. Do not repeat requirements, resume edits, or application advice in the summary. Keep resumeRationale to one sentence, prioritize at most four truthful resume edits, and give short interview prompts. applicationNote is at most one sentence explaining the preferred route; do not include Markdown, citations, URLs or a narrative of your research in any prose field.",
               "Choose the strongest existing resume by resumeKey and recommend concrete truthful edits for this role.",
               "Use web search to find the employer's official website and, when possible, the employer or official ATS application page for this exact role.",
               "Prefer an employer-owned careers page or official ATS over recruiters, staffing agencies, aggregators, and job boards.",
@@ -197,8 +198,7 @@ export const reviewJob = action({
         matchPercentage: parsed.matchPercentage,
         verdict: parsed.verdict,
         summary: parsed.summary,
-        strengths: parsed.strengths,
-        gaps: parsed.gaps,
+        requirements: parsed.requirements,
         resumeRationale: parsed.resumeRationale,
         resumeChanges: parsed.resumeChanges,
         companyWebsiteUrl: evidenceBackedUrl(

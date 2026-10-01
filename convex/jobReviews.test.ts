@@ -209,13 +209,20 @@ describe("deep job reviews", () => {
       matchPercentage: 88,
       verdict: "strong",
       summary: "A strong, evidence-backed match.",
-      strengths: [{ title: "React", detail: "The resume shows React work." }],
-      gaps: [
+      requirements: [
+        {
+          requirement: "React",
+          status: "met",
+          importance: "must_have",
+          evidence: "The resume shows React work.",
+          nextStep: null,
+        },
         {
           requirement: "Python",
-          currentEvidence: "Python is not present in the resume.",
-          howToClose: "Do not claim it; add only completed, relevant learning.",
+          status: "unknown",
           importance: "minor",
+          evidence: "Python is not present in the resume.",
+          nextStep: "Add it only if you have real experience.",
         },
       ],
       resumeRationale: "This version emphasizes frontend delivery.",
@@ -242,6 +249,11 @@ describe("deep job reviews", () => {
       matchPercentage: 88,
       resumeId,
       resumeName: "Frontend CV",
+      resumeOptions: [{ id: resumeId, name: "Frontend CV" }],
+      requirements: [
+        expect.objectContaining({ status: "met" }),
+        expect.objectContaining({ status: "unknown" }),
+      ],
     });
   });
 
@@ -280,5 +292,42 @@ describe("deep job reviews", () => {
         requestId: "request-2",
       });
     });
+  });
+});
+
+// Resume cards must use the reviewed user's documents, including in admin previews.
+it("keeps other users' resumes out of the compared resume cards", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, jobId, resumeId } = await setupReviewContext(t);
+  await t.run(async (ctx) => {
+    const foreignUserId = await ctx.db.insert("users", {
+      email: "another@example.com",
+    });
+    const storageId = await ctx.storage.store(
+      new Blob(["Private resume text"]),
+    );
+    await ctx.db.insert("resumeDocuments", {
+      userId: foreignUserId,
+      storageId,
+      fileName: "private.pdf",
+      mimeType: "application/pdf",
+      size: 19,
+      status: "ready",
+      extractedText: "Private resume text",
+      createdAt: 100,
+      updatedAt: 100,
+    });
+  });
+  const context = await t.mutation(internal.jobReviews.prepare, {
+    userId,
+    jobId,
+    language: "en",
+    requestId: "private-resumes",
+  });
+  expect(context.resumes.map((resume) => resume.id)).toEqual([resumeId]);
+  await t.run(async (ctx) => {
+    expect(
+      (await ctx.db.get("jobDeepReviews", context.reviewId))?.resumeOptions,
+    ).toEqual([{ id: resumeId, name: "Frontend CV" }]);
   });
 });

@@ -1,58 +1,44 @@
-import { useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { useAction } from "convex/react";
-import { AnimatePresence, motion } from "motion/react";
 import {
-  AlertTriangle,
+  AnimatePresence,
+  domAnimation,
+  LazyMotion,
+  useReducedMotion,
+} from "motion/react";
+import * as m from "motion/react-m";
+import {
   ChevronDown,
-  ExternalLink,
-  FileText,
+  ChevronUp,
   LockKeyhole,
   RefreshCw,
   Sparkles,
-  Target,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { captureProductEvent } from "@/features/privacy/analytics";
-
-type Review = {
-  status: "pending" | "completed" | "failed";
-  language: "en" | "he";
-  stale: boolean;
-  matchPercentage?: number;
-  verdict?: "strong" | "good" | "stretch" | "low";
-  summary?: string;
-  strengths?: Array<{ title: string; detail: string }>;
-  gaps?: Array<{
-    requirement: string;
-    currentEvidence: string;
-    howToClose: string;
-    importance: "must_have" | "important" | "minor";
-  }>;
-  resumeName?: string;
-  resumeRationale?: string;
-  resumeChanges?: Array<{ section: string; change: string; reason: string }>;
-  companyWebsiteUrl?: string | null;
-  directApplicationUrl?: string | null;
-  applicationNote?: string;
-  interviewFocus?: string[];
-  errorCode?: string;
-};
+import {
+  DeepReviewContent,
+  type DeepReview,
+  type ReviewJobFacts,
+} from "./job-deep-review-content";
 
 export function JobDeepReview({
   jobId,
   unavailable,
   plan,
   review,
+  facts,
   actions,
   readOnly = false,
 }: {
   jobId: Id<"jobs">;
   unavailable: boolean;
   plan: "free" | "pro" | "admin";
-  review?: Review;
+  review?: DeepReview;
+  facts: ReviewJobFacts;
   actions: ReactNode;
   readOnly?: boolean;
 }) {
@@ -61,11 +47,25 @@ export function JobDeepReview({
   const [requesting, setRequesting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const reduceMotion = useReducedMotion();
   const isPaid = plan === "pro" || plan === "admin";
   const isLoading = requesting || review?.status === "pending";
+  const hasReview = review?.status === "completed" && Boolean(review.summary);
 
+  const collapse = () => {
+    setExpanded(false);
+    requestAnimationFrame(() => {
+      toggleRef.current?.focus({ preventScroll: true });
+      toggleRef.current?.scrollIntoView?.({
+        block: "nearest",
+        behavior: reduceMotion ? "instant" : "smooth",
+      });
+    });
+  };
   const requestReview = async () => {
-    if (!isPaid || unavailable || isLoading) return;
+    if (readOnly || !isPaid || unavailable || isLoading) return;
     setRequesting(true);
     setFailed(false);
     setExpanded(true);
@@ -84,263 +84,179 @@ export function JobDeepReview({
       setRequesting(false);
     }
   };
+  const label = isLoading
+    ? t("jobReview.loading")
+    : hasReview
+      ? t("jobReview.open", { score: review?.matchPercentage })
+      : t("jobReview.action");
 
-  const hasReview = review?.status === "completed" && review.summary;
   return (
-    <div className="border-border mt-5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 border-t pt-4 @2xl:gap-3">
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="relative min-h-11 min-w-11 overflow-hidden @2xl:min-w-0"
-          disabled={
-            isLoading || (!hasReview && (readOnly || !isPaid || unavailable))
-          }
-          aria-label={
-            isLoading
-              ? t("jobReview.loading")
-              : hasReview
-                ? t("jobReview.open", { score: review.matchPercentage })
-                : t("jobReview.action")
-          }
-          aria-expanded={hasReview ? expanded : undefined}
-          onClick={() => {
-            if (hasReview) setExpanded((value) => !value);
-            else if (!readOnly) void requestReview();
-          }}
-          title={
-            readOnly && !hasReview
-              ? t("admin.preview.readOnly")
-              : !isPaid && !hasReview
-                ? t("jobReview.proOnly")
-                : undefined
-          }
-        >
-          {isLoading ? (
-            <ReviewPulse />
-          ) : isPaid || hasReview ? (
-            <Sparkles aria-hidden="true" className="text-primary" />
-          ) : (
-            <LockKeyhole aria-hidden="true" />
-          )}
-          <span className="hidden @2xl:inline">
-            {isLoading
-              ? t("jobReview.loading")
-              : hasReview
-                ? t("jobReview.open", { score: review.matchPercentage })
-                : t("jobReview.action")}
-          </span>
-          {hasReview ? (
-            <ChevronDown
-              aria-hidden="true"
-              className={`hidden transition-transform motion-reduce:transition-none @2xl:block ${expanded ? "rotate-180" : ""}`}
-            />
+    <LazyMotion features={domAnimation}>
+      <div className="border-border mt-5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 border-t pt-4 @2xl:gap-3">
+        <div className="flex items-center gap-2">
+          <Button
+            ref={toggleRef}
+            type="button"
+            variant="outline"
+            className="relative min-h-11 min-w-11 overflow-hidden @2xl:min-w-0"
+            disabled={
+              isLoading || (!hasReview && (readOnly || !isPaid || unavailable))
+            }
+            aria-label={label}
+            aria-expanded={expanded}
+            aria-controls={expanded ? panelId : undefined}
+            onClick={() => {
+              if (hasReview) {
+                if (expanded) collapse();
+                else setExpanded(true);
+              } else if (!readOnly) void requestReview();
+            }}
+            title={
+              readOnly && !hasReview
+                ? t("admin.preview.readOnly")
+                : !isPaid && !hasReview
+                  ? t("jobReview.proOnly")
+                  : undefined
+            }
+          >
+            {isLoading ? (
+              <ReviewPulse />
+            ) : isPaid || hasReview ? (
+              <Sparkles aria-hidden="true" className="text-primary" />
+            ) : (
+              <LockKeyhole aria-hidden="true" />
+            )}
+            <span className="hidden @2xl:inline">{label}</span>
+            {hasReview ? (
+              <ChevronDown
+                aria-hidden="true"
+                className={`hidden transition-transform motion-reduce:transition-none @2xl:block ${expanded ? "rotate-180" : ""}`}
+              />
+            ) : null}
+          </Button>
+          {!isPaid && !hasReview ? (
+            <span className="text-muted-foreground hidden text-xs @2xl:inline">
+              {t("jobReview.proOnly")}
+            </span>
           ) : null}
-        </Button>
-        {!isPaid && !hasReview ? (
-          <span className="text-muted-foreground hidden text-xs @2xl:inline">
-            {t("jobReview.proOnly")}
-          </span>
-        ) : null}
-      </div>
-
-      {actions}
-
-      <AnimatePresence initial={false}>
-        {isLoading && expanded ? (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="border-primary/15 bg-primary/5 col-span-full overflow-hidden rounded-xl border"
-          >
-            <div className="flex items-center gap-3 px-4 py-4">
-              <span className="bg-primary/10 text-primary grid size-10 place-items-center rounded-xl">
-                <Sparkles aria-hidden="true" className="size-5 animate-pulse" />
-              </span>
-              <div>
-                <p className="text-sm font-medium">
-                  {t("jobReview.loadingTitle")}
-                </p>
-                <p className="text-muted-foreground mt-1 text-xs">
-                  {t("jobReview.loadingDescription")}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        ) : null}
-
-        {hasReview && expanded && !isLoading ? (
-          <motion.section
-            key="review"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-            aria-label={t("jobReview.heading")}
-            className="border-border bg-muted/35 col-span-full rounded-xl border p-4 sm:p-5"
-          >
-            <div className="flex items-start gap-4">
-              <div className="border-primary/20 bg-card grid size-16 shrink-0 place-items-center rounded-2xl border shadow-sm">
-                <span className="text-primary text-xl font-semibold">
-                  {review.matchPercentage}%
+        </div>
+        {actions}
+        <AnimatePresence initial={false}>
+          {isLoading && expanded ? (
+            <m.div
+              id={panelId}
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              className="border-primary/15 bg-primary/5 col-span-full rounded-2xl border"
+              role="status"
+            >
+              <div className="flex items-center gap-3 p-4">
+                <span className="bg-primary/10 text-primary grid size-10 place-items-center rounded-xl">
+                  <Sparkles
+                    aria-hidden="true"
+                    className="size-5 animate-pulse motion-reduce:animate-none"
+                  />
                 </span>
+                <div>
+                  <p className="text-sm font-medium">
+                    {t("jobReview.loadingTitle")}
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t("jobReview.loadingDescription")}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold">{t("jobReview.heading")}</h3>
-                  {review.verdict ? (
-                    <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                      {t(`jobReview.verdict.${review.verdict}`)}
-                    </span>
-                  ) : null}
+            </m.div>
+          ) : null}
+          {hasReview && review && expanded && !isLoading ? (
+            <m.section
+              id={panelId}
+              key="review"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              aria-label={t("jobReview.heading")}
+              className="border-border bg-muted/25 @container col-span-full rounded-2xl border"
+            >
+              <div className="border-border bg-card/95 sticky top-16 z-20 flex min-h-13 items-center justify-between gap-2 rounded-t-2xl border-b px-4 py-2 backdrop-blur-md sm:top-17 sm:px-5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Sparkles
+                    aria-hidden="true"
+                    className="text-primary size-4 shrink-0"
+                  />
+                  <h3 className="text-sm font-semibold">
+                    {t("jobReview.heading")}
+                  </h3>
                   {review.stale ? (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs">
+                    <span className="bg-warning/10 text-warning rounded-full px-2 py-0.5 text-[10px] font-medium">
                       {t("jobReview.stale")}
                     </span>
                   ) : null}
                 </div>
-                <p className="text-foreground/80 mt-2 text-sm leading-6 text-pretty">
-                  {review.summary}
-                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10 shrink-0 gap-1.5"
+                  onClick={collapse}
+                  aria-controls={panelId}
+                  aria-expanded={true}
+                >
+                  <ChevronUp aria-hidden="true" className="size-4" />
+                  {t("jobReview.collapse")}
+                </Button>
               </div>
-            </div>
-
-            {review.strengths?.length ? (
-              <ReviewSection icon={Sparkles} title={t("jobReview.strengths")}>
-                <ul className="space-y-2">
-                  {review.strengths.map((strength) => (
-                    <li key={`${strength.title}-${strength.detail}`}>
-                      <span className="text-sm font-medium">
-                        {strength.title}
-                      </span>
-                      <p className="text-muted-foreground mt-0.5 text-sm leading-6 text-pretty">
-                        {strength.detail}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </ReviewSection>
-            ) : null}
-
-            {review.gaps?.length ? (
-              <ReviewSection icon={AlertTriangle} title={t("jobReview.gaps")}>
-                <ul className="space-y-3">
-                  {review.gaps.map((gap) => (
-                    <li
-                      key={`${gap.requirement}-${gap.currentEvidence}`}
-                      className="border-border bg-card rounded-lg border p-3"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {gap.requirement}
-                        </span>
-                        <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
-                          {t(`jobReview.importance.${gap.importance}`)}
-                        </span>
-                      </div>
-                      <p className="text-muted-foreground mt-1.5 text-sm leading-6 text-pretty">
-                        {gap.currentEvidence}
-                      </p>
-                      <p className="text-foreground/80 mt-1 text-sm leading-6 text-pretty">
-                        {gap.howToClose}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </ReviewSection>
-            ) : null}
-
-            <ReviewSection
-              icon={FileText}
-              title={t("jobReview.resume.heading")}
-            >
-              {review.resumeName ? (
-                <p className="text-sm font-medium">
-                  {t("jobReview.resume.use", { name: review.resumeName })}
-                </p>
-              ) : null}
-              {review.resumeRationale ? (
-                <p className="text-muted-foreground mt-1 text-sm leading-6 text-pretty">
-                  {review.resumeRationale}
-                </p>
-              ) : null}
-              {review.resumeChanges?.length ? (
-                <ul className="mt-3 space-y-2">
-                  {review.resumeChanges.map((change) => (
-                    <li key={`${change.section}-${change.change}`}>
-                      <span className="text-sm font-medium">
-                        {change.section}
-                      </span>
-                      <p className="text-foreground/80 mt-0.5 text-sm leading-6">
-                        {change.change}
-                      </p>
-                      <p className="text-muted-foreground text-xs leading-5">
-                        {change.reason}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </ReviewSection>
-
-            <ReviewSection icon={Target} title={t("jobReview.apply.heading")}>
-              <p className="text-muted-foreground text-sm leading-6">
-                {review.applicationNote}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {review.directApplicationUrl ? (
-                  <ReviewLink href={review.directApplicationUrl}>
-                    {t("jobReview.apply.direct")}
-                  </ReviewLink>
-                ) : null}
-                {review.companyWebsiteUrl ? (
-                  <ReviewLink href={review.companyWebsiteUrl}>
-                    {t("jobReview.apply.company")}
-                  </ReviewLink>
-                ) : null}
+              <DeepReviewContent
+                review={review}
+                facts={facts}
+                unavailable={unavailable}
+              />
+              <div className="border-border flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 sm:px-5">
+                {isPaid && !unavailable && !readOnly ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground min-h-10"
+                    onClick={() => void requestReview()}
+                  >
+                    <RefreshCw aria-hidden="true" className="size-3.5" />
+                    {t("jobReview.refresh")}
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10"
+                  onClick={collapse}
+                  aria-controls={panelId}
+                  aria-expanded={true}
+                >
+                  <ChevronUp aria-hidden="true" className="size-4" />
+                  {t("jobReview.collapse")}
+                </Button>
               </div>
-            </ReviewSection>
-
-            {review.interviewFocus?.length ? (
-              <ReviewSection
-                icon={Target}
-                title={t("jobReview.interviewFocus")}
-              >
-                <ul className="list-disc space-y-1 ps-5 text-sm leading-6">
-                  {review.interviewFocus.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </ReviewSection>
-            ) : null}
-
-            {isPaid && !unavailable && !readOnly ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="mt-4 min-h-10"
-                onClick={() => void requestReview()}
-              >
-                <RefreshCw aria-hidden="true" />
-                {t("jobReview.refresh")}
-              </Button>
-            ) : null}
-          </motion.section>
+            </m.section>
+          ) : null}
+        </AnimatePresence>
+        {(failed || review?.status === "failed") && !isLoading ? (
+          <p role="alert" className="text-destructive col-span-full text-sm">
+            {t(
+              review?.errorCode === "job_inactive"
+                ? "jobReview.inactive"
+                : "jobReview.error",
+            )}
+          </p>
         ) : null}
-      </AnimatePresence>
-
-      {(failed || review?.status === "failed") && !isLoading ? (
-        <p role="alert" className="text-destructive col-span-full text-sm">
-          {t(
-            review?.errorCode === "job_inactive"
-              ? "jobReview.inactive"
-              : "jobReview.error",
-          )}
-        </p>
-      ) : null}
-    </div>
+      </div>
+    </LazyMotion>
   );
 }
 
@@ -358,39 +274,5 @@ function ReviewPulse() {
         />
       ))}
     </span>
-  );
-}
-
-function ReviewSection({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof Sparkles;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-border mt-5 border-t pt-4">
-      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Icon aria-hidden="true" className="text-primary size-4" />
-        {title}
-      </h4>
-      {children}
-    </section>
-  );
-}
-
-function ReviewLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="border-border bg-card hover:border-primary/30 focus-visible:ring-ring/40 inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none"
-    >
-      {children}
-      <ExternalLink aria-hidden="true" className="size-3.5" />
-    </a>
   );
 }

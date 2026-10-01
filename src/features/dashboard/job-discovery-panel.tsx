@@ -391,7 +391,7 @@ export function JobDiscoveryPanel({
                             transition={{ duration: 0.45, ease: "easeOut" }}
                           >
                             <article
-                              className={`bg-card @container isolate overflow-hidden rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none @md:p-6 ${
+                              className={`bg-card @container isolate overflow-clip rounded-3xl border p-5 shadow-[var(--brand-shadow-card)] transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none @md:p-6 ${
                                 job.unavailable
                                   ? "border-destructive/25"
                                   : trackingStatus === "saved"
@@ -589,6 +589,7 @@ export function JobDiscoveryPanel({
                                 unavailable={Boolean(job.unavailable)}
                                 plan={plan}
                                 review={job.deepReview}
+                                facts={job}
                                 readOnly={readOnly}
                                 actions={
                                   <div className="flex min-w-0 items-center justify-end gap-2">

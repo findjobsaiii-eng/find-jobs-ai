@@ -241,6 +241,23 @@ const relevanceComponents = v.object({
   preferences: v.optional(v.number()),
 });
 
+export const reviewRequirements = v.array(
+  v.object({
+    requirement: v.string(),
+    status: v.union(v.literal("met"), v.literal("gap"), v.literal("unknown")),
+    importance: v.union(
+      v.literal("must_have"),
+      v.literal("important"),
+      v.literal("minor"),
+    ),
+    evidence: v.string(),
+    nextStep: v.union(v.string(), v.null()),
+  }),
+);
+export const reviewResumeOptions = v.array(
+  v.object({ id: v.id("resumeDocuments"), name: v.string() }),
+);
+
 export const deepReviewView = v.object({
   status: deepReviewStatus,
   language: v.union(v.literal("en"), v.literal("he")),
@@ -248,23 +265,8 @@ export const deepReviewView = v.object({
   matchPercentage: v.optional(v.number()),
   verdict: v.optional(deepReviewVerdict),
   summary: v.optional(v.string()),
-  strengths: v.optional(
-    v.array(v.object({ title: v.string(), detail: v.string() })),
-  ),
-  gaps: v.optional(
-    v.array(
-      v.object({
-        requirement: v.string(),
-        currentEvidence: v.string(),
-        howToClose: v.string(),
-        importance: v.union(
-          v.literal("must_have"),
-          v.literal("important"),
-          v.literal("minor"),
-        ),
-      }),
-    ),
-  ),
+  requirements: v.optional(reviewRequirements),
+  resumeOptions: v.optional(reviewResumeOptions),
   resumeId: v.optional(v.id("resumeDocuments")),
   resumeName: v.optional(v.string()),
   resumeRationale: v.optional(v.string()),
@@ -306,6 +308,7 @@ export const jobFeedItem = v.object({
   locationText: v.union(v.string(), v.null()),
   locationNames: v.optional(v.object({ en: v.string(), he: v.string() })),
   workArrangement: v.string(),
+  employmentType: v.optional(v.string()),
   salaryMin: v.union(v.number(), v.null()),
   salaryMax: v.union(v.number(), v.null()),
   salaryCurrency: v.union(v.string(), v.null()),
@@ -984,23 +987,8 @@ const schema = defineSchema({
     matchPercentage: v.optional(v.number()),
     verdict: v.optional(deepReviewVerdict),
     summary: v.optional(v.string()),
-    strengths: v.optional(
-      v.array(v.object({ title: v.string(), detail: v.string() })),
-    ),
-    gaps: v.optional(
-      v.array(
-        v.object({
-          requirement: v.string(),
-          currentEvidence: v.string(),
-          howToClose: v.string(),
-          importance: v.union(
-            v.literal("must_have"),
-            v.literal("important"),
-            v.literal("minor"),
-          ),
-        }),
-      ),
-    ),
+    requirements: v.optional(reviewRequirements),
+    resumeOptions: v.optional(reviewResumeOptions),
     resumeName: v.optional(v.string()),
     resumeRationale: v.optional(v.string()),
     resumeChanges: v.optional(

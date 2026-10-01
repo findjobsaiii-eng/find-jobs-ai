@@ -1,3 +1,4 @@
+import type { Id } from "../../../convex/_generated/dataModel";
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -562,17 +563,29 @@ describe("job result cards", () => {
           matchPercentage: 86,
           verdict: "good",
           summary: "Your product experience maps well to this role.",
-          strengths: [
-            { title: "Product strategy", detail: "Strong relevant evidence." },
-          ],
-          gaps: [
+          requirements: [
+            {
+              requirement: "Product strategy",
+              status: "met",
+              importance: "must_have",
+              evidence: "Strong relevant evidence.",
+              nextStep: null,
+            },
             {
               requirement: "Python",
-              currentEvidence: "Python is not shown in the selected resume.",
-              howToClose: "Do not claim it without real experience.",
+              status: "unknown",
               importance: "minor",
+              evidence: "Python is not shown in the selected resume.",
+              nextStep: "Do not claim it without real experience.",
             },
           ],
+          resumeOptions: [
+            {
+              id: "resumeDocuments:one" as Id<"resumeDocuments">,
+              name: "Product CV",
+            },
+          ],
+          resumeId: "resumeDocuments:one" as Id<"resumeDocuments">,
           resumeName: "Product CV",
           resumeRationale: "This version best shows product ownership.",
           resumeChanges: [],
@@ -590,12 +603,35 @@ describe("job result cards", () => {
     await user.click(screen.getByRole("button", { name: "Deep review · 86%" }));
     expect(screen.getByText("AI deep review")).toBeInTheDocument();
     expect(screen.getByText("Python")).toBeInTheDocument();
-    expect(
-      screen.getByText("Best existing version: Product CV"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Product CV")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Apply directly" }),
     ).toHaveAttribute("href", "https://careers.acme.example/roles/123");
+    const region = screen.getByRole("region", { name: "AI deep review" });
+    const evidence = screen.getByText(
+      "Python is not shown in the selected resume.",
+    );
+    expect(evidence).not.toBeVisible();
+    expect(screen.getByText("Apply directly through Acme.")).not.toBeVisible();
+    await user.click(screen.getByText("Python").closest("summary")!);
+    expect(evidence).toBeVisible();
+    expect(
+      screen.getByText("Do not claim it without real experience."),
+    ).toBeVisible();
+    await user.click(screen.getByText("Why this route?"));
+    expect(screen.getByText("Apply directly through Acme.")).toBeVisible();
+    await user.click(
+      within(region).getAllByRole("button", { name: "Close review" })[0],
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "AI deep review" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Deep review · 86%" }),
+    ).toHaveFocus();
+    expect(hooks.runReview).not.toHaveBeenCalled();
   });
 
   it("starts a Hebrew deep review with the selected job", async () => {

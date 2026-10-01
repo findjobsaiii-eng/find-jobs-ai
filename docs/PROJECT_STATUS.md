@@ -297,3 +297,25 @@ expiry, ingestion through the feed, and closure after display.
 
 Unknown: live-provider assessment accuracy and production rollout; mocked tests
 do not establish how often a provider correctly assesses real listings.
+
+## Visual deep review (2026-10-01)
+
+Implemented: concise requirement checklist with met/gap/unknown semantics,
+grouped importance, score ring, current job-fact tags, compared resume cards with
+a highlighted recommendation, short truthful resume edits, clear application
+routes, expandable explanations, and sticky/bottom collapse controls with focus
+restoration. English/Hebrew, desktop/mobile, evidence disclosures, source links,
+and read-only preview behavior are covered by implementation and validation.
+The redesign keeps the existing explicit provider call and adds no AI call.
+
+Validation: `npm run check`, all 340 tests, `npm run build -- --webpack`, and
+development Convex deployment validation passed. Hebrew RTL and English LTR
+desktop/mobile previews were checked for overflow, expandable evidence, and
+sticky collapse with restored keyboard focus. React Doctor reported no errors;
+two control-flow complexity warnings remain. Final Turbopack attempts were
+blocked by the environment's process/port permission restriction.
+
+Development: three old-format cached reviews were reset for the clean schema;
+resume records and application history were retained. Production rollout and
+live-provider output quality remain unverified; local visual checks use sample
+review data and mocked tests cannot establish real-world AI assessment accuracy.

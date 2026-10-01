@@ -306,11 +306,30 @@ Do not create a browser-prefixed copy of either variable.
 Pro and admin users can request a saved, private AI review for any job currently
 available to them. The action first reverifies the posting and updates its shared
 activity state, then compares the job with the effective profile and up to six
-ready resume versions. It stores a match percentage, evidence-based strengths
-and gaps, the best existing resume plus truthful tailoring suggestions,
+ready resume versions. It stores a match percentage, a structured requirement
+checklist, the compared resume names and recommended version, truthful tailoring suggestions,
 interview preparation topics, and evidence-backed employer/application links.
 Free users can read a previously saved review but cannot generate or refresh one.
 Only URLs returned by Web Search or the verified current source are persisted.
+
+The review is designed for a quick visual scan: score and two-sentence summary,
+live job-fact tags, grouped must-have/important/nice-to-have checks, compared
+resume cards with the recommendation highlighted, short edits before applying,
+application route cards, and interview prompts. Requirement status is explicit:
+**✓ met** requires candidate evidence, **✕ gap** requires a known shortfall, and
+**? unknown** means there is not enough evidence. Missing information is never
+presented as a confirmed missing skill. Each row expands to its evidence and a
+concrete next step; resume-edit reasons and application guidance also expand on
+demand. The header stays below the app navigation while scrolling, with collapse
+controls at the top and bottom that restore focus to the review button.
+
+New reviews use concise structured output in the same AI call. Resume cards show
+the owned versions actually compared for that review, not invented alternatives.
+Job availability tags use the current feed state rather than an old AI report;
+closed listings cannot expose an active application action. The report cache now
+uses `requirements` instead of separate `strengths`/`gaps` arrays. Old-format
+pre-production cached reports must be cleared and regenerated before deploying
+this schema; resumes and application history are independent of that cache.
 
 All limit variables are required and fail closed if missing or invalid. Setting
 `JOB_SEARCH_ENABLED` to `false` immediately blocks fresh provider calls without

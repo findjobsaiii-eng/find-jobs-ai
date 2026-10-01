@@ -500,8 +500,8 @@ Deep review is an explicit Pro/admin action, never part of background matching.
 Before calling the model, the action reverifies the current best source and
 updates the shared job lifecycle. It sends the effective candidate profile and
 a bounded set of owned, ready resume text to the server-side model. The result
-is stored once per user/job and includes a match percentage, factual strengths,
-requirement gaps, a recommended existing resume, truthful tailoring changes,
+is stored once per user/job and includes a match percentage, evidence-backed
+requirement statuses, a recommended existing resume, truthful tailoring changes,
 application guidance, and interview topics. A request ID prevents stale or
 concurrent calls from overwriting a newer review.
 
@@ -793,3 +793,31 @@ preserve confirmed closures until a server check confirms reopening, so old AI e
 eligible source can still keep the canonical vacancy visible. Passed application
 deadlines and normal matching/freshness filters always apply. The README contains
 the decision table; the feed labels probable jobs in both supported languages.
+
+### D-039: Deep reviews are visual decision aids with evidence on demand
+
+Status: Accepted
+
+The deep-review model returns a bounded checklist of requirements with explicit
+`met`, `gap`, or `unknown` status, importance, concise evidence, and an optional
+next step. `gap` means a known shortfall; missing evidence produces `unknown`.
+The old separate strengths/gaps format is removed rather than inferred into a
+checklist in the client. Summary is bounded to 360 characters, each explanation
+to 240, resume edits to four, and interview prompts to five. The existing explicit
+review call and provider budget remain; the redesign adds no separate AI call.
+
+Persist the IDs/names of the owned resume versions actually compared, highlighting
+the recommended ID rather than matching filenames. Current job facts come from
+the feed; AI review snapshots do not determine current availability. The UI uses
+semantic success/warning/info/destructive tokens with icons and text, grouped
+requirement disclosures, document cards, application route cards, and secondary
+explanations on demand. Native disclosures preserve keyboard access. The review
+header sticks below the app navigation; both collapse controls return focus to
+the original button. Card clipping uses `overflow-clip`, which does not create a
+scroll container that would break the sticky header. Motion respects reduced
+motion, and the layout is verified in Hebrew RTL and English LTR on mobile.
+
+The old development report cache is disposable and regenerated under the
+pre-production data policy. Application snapshots and resume documents are not
+cleared. Production rollout requires an explicit deployment decision and clearing
+any incompatible cached reports first.

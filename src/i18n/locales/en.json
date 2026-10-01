@@ -405,8 +405,6 @@
     "loadingDescription": "Comparing the requirements, your resumes, and the employer’s official sources.",
     "proOnly": "Available with Pro",
     "stale": "Update recommended",
-    "strengths": "Where you stand out",
-    "gaps": "Requirement gaps",
     "interviewFocus": "What to prepare for",
     "refresh": "Update review",
     "error": "The review could not be completed. Please try again.",
@@ -418,18 +416,54 @@
       "low": "Low match"
     },
     "importance": {
-      "must_have": "Must have",
+      "must_have": "Must-have requirements",
       "important": "Important",
-      "minor": "Minor"
+      "minor": "Nice to have"
     },
     "resume": {
-      "heading": "Resume to send",
-      "use": "Best existing version: {{name}}"
+      "heading": "Which resume to send",
+      "compared": "Resumes compared for this review",
+      "recommended": "Recommended",
+      "alternative": "Also compared",
+      "none": "No resume available for this review.",
+      "beforeApplying": "Before you send it"
     },
     "apply": {
-      "heading": "Best place to apply",
+      "heading": "Where to apply",
       "direct": "Apply directly",
-      "company": "Company website"
+      "company": "Company website",
+      "listing": "Original listing",
+      "recommended": "Recommended",
+      "why": "Why this route?"
+    },
+    "collapse": "Close review",
+    "fitScore": "Job fit: {{score}} percent",
+    "requirements": "How you match",
+    "requirementOverview": "Requirement overview",
+    "requirementStatus": {
+      "met": "Meets",
+      "gap": "Gap",
+      "unknown": "Check"
+    },
+    "requirementCount": {
+      "met_one": "{{count}} match",
+      "met_other": "{{count}} matches",
+      "gap_one": "{{count}} gap",
+      "gap_other": "{{count}} gaps",
+      "unknown_one": "{{count}} to check",
+      "unknown_other": "{{count}} to check"
+    },
+    "facts": {
+      "open": "Verified open",
+      "probable": "Probably open",
+      "closed": "No longer available"
+    },
+    "employmentTypes": {
+      "full-time": "Full time",
+      "part-time": "Part time",
+      "contract": "Contract",
+      "temporary": "Temporary",
+      "internship": "Internship"
     }
   },
   "resume": {
