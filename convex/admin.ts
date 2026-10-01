@@ -25,7 +25,7 @@ import {
 } from "./emailPreferences";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import { evaluateSuggestionFreshness } from "./jobFreshness";
-import { isFreshActiveSource } from "./jobActivityPolicy";
+import { isDisplayEligibleSource } from "./jobActivityPolicy";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
 import {
   normalizePublicUrl,
@@ -1522,9 +1522,8 @@ export const explainUserJob = query({
     const sourceEligible = Boolean(
       source &&
       isUserFacingJobSource(source) &&
-      isFreshActiveSource(source, args.now) &&
-      source.finalUrl &&
-      source.lastVerifiedAt,
+      isDisplayEligibleSource(source, args.now) &&
+      source.normalizedUrl,
     );
     const materializedCurrent = Boolean(
       materialized?.displayEligible &&

@@ -82,7 +82,7 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - Central vacancies can own several source records. Deterministic consolidation checks domain/provider ID, canonical URLs, normalized company/title/location, and content. URL tracking noise and common formatting differences collapse while seniority and distinct cities remain separate. Transactional indexed lookups protect concurrent ingestion. Every observation is retained in an ingestion event.
 - Only canonical `verified_active` or recently observed `probably_active` jobs with no hard-filter contradiction appear. Bounded background reconciliation materializes eligible per-profile matches across the entire active catalog; feed reads are indexed and are not limited to the newest 500 central jobs. Profile changes sweep both active lifecycle partitions, while job ingestion and activity changes fan one job out across completed profiles. Employer pages outrank ATS pages, job boards, and aggregators.
 - Minimum required experience is a hard eligibility rule; explicit English/Hebrew ranges, `X+`, and stated minimums are normalized before matching, while unknown requirements remain eligible. Seniority, employment-type, and work-arrangement gaps remain scoring signals rather than hard exclusions.
-- An hourly bounded worker rechecks due sources after a three-day cache interval. Conclusive 404/410, closure markers, redirects to generic careers pages, and passed deadlines close listings. Temporary failures preserve prior state and retry with bounded exponential backoff. Unknown, closed, and expired records remain stored but are hidden from suggestions.
+- An hourly bounded worker rechecks due sources after a three-day cache interval. Conclusive 404/410, closure markers, redirects to generic careers pages, and passed deadlines close listings. Temporary failures preserve prior state and retry with bounded exponential backoff. Unknown, closed, and expired canonical records remain stored but are hidden from suggestions. Explicit grounded AI-open evidence can produce a probably-active job for three days when the server check is inconclusive; the rules and table are documented in the README.
 - Job locations resolve through an offline GeoNames Israel locality dataset. Jobs store a stable place ID, locality centroid, and canonical English/Hebrew names; radius filtering uses Haversine distance without AI. A failed structured-city lookup falls back to the full location text. Unknown, ambiguous, and foreign locations are excluded.
 
 - The homepage is a job feed with Suggestions / In progress tabs, clean cards for title, company, location, work model, date, summary, skills, source, and actions, a fixed logical-start profile panel, and a server-flagged floating development panel. Profile editing reuses the prefilled onboarding form.
@@ -283,3 +283,17 @@ own titles/canonicals/locales. Browser checks covered both reading directions,
 saved English preference restoration and route-specific legal titles. The Hebrew
 social-preview image was visually checked. Default Turbopack builds were blocked
 by this execution environment's local-port restriction.
+
+## Combined AI and server job activity
+
+Implemented: discovery JSON includes open/closed/unknown and exact-listing evidence
+within the existing provider call. Deterministic verification takes precedence;
+credible AI-open evidence may qualify an inconclusive source for three days as
+probably active. Unsafe/generic/broken/mismatched sources remain excluded. Feed,
+matching, admin preview, and background refresh use the combined policy, with a
+localized Probably open label and separate AI/server timestamps. The README
+records the decision table. Automated tests cover precedence, evidence validity,
+expiry, ingestion through the feed, and closure after display.
+
+Unknown: live-provider assessment accuracy and production rollout; mocked tests
+do not establish how often a provider correctly assesses real listings.

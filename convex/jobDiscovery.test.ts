@@ -155,6 +155,12 @@ async function addCompletedProfile(
 }
 
 const rawJob: OpenAIJob = {
+  aiAssessment: {
+    status: "unknown",
+    evidenceType: "none",
+    evidenceUrl: null,
+    evidenceText: null,
+  },
   title: "Frontend Engineer",
   companyName: "Example Company",
   sourceUrl: "https://careers.example.com/jobs/role-1",
@@ -490,7 +496,11 @@ describe("shared job discovery", () => {
       ];
       for (const [index, variant] of variants.entries()) {
         const job = normalizedJob();
-        const { geo: _storedGeo, ...jobWithoutGeo } = job;
+        const {
+          geo: _storedGeo,
+          aiAssessment: _assessment,
+          ...jobWithoutGeo
+        } = job;
         const jobId = await ctx.db.insert("jobs", {
           ...jobWithoutGeo,
           title: variant.title,
@@ -604,8 +614,9 @@ describe("shared job discovery", () => {
         requiredExperienceYearsMax: null,
       });
       for (const [index, candidate] of [experienced, junior].entries()) {
+        const { aiAssessment: _assessment, ...storedCandidate } = candidate;
         const jobId = await ctx.db.insert("jobs", {
-          ...candidate,
+          ...storedCandidate,
           firstDiscoveredAt: now + index,
           lastDiscoveredAt: now + index,
           lastVerifiedAt: now + index,
@@ -744,7 +755,7 @@ describe("shared job discovery", () => {
     await addCompletedProfile(t, userId);
     await t.run(async (ctx) => {
       for (let index = 0; index < 33; index += 1) {
-        const job = normalizedJob();
+        const { aiAssessment: _assessment, ...job } = normalizedJob();
         const now = Date.now() + index;
         const jobId = await ctx.db.insert("jobs", {
           ...job,
@@ -1630,5 +1641,123 @@ describe("stored job activity", () => {
     expect(diagnostics.sources[0]).toMatchObject({
       activityStatus: "verified_active",
     });
+  });
+});
+
+describe("combined AI and server activity", () => {
+  it("shows AI-supported jobs, then hides them when the server confirms closure", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    const job = normalizeCandidate({
+      ...rawJob,
+      aiAssessment: {
+        status: "open",
+        evidenceType: "application_available",
+        evidenceUrl: rawJob.sourceUrl,
+        evidenceText: "The job-specific application form is available.",
+      },
+    });
+    await ingestCandidates(t, userId, [
+      {
+        job,
+        verification: {
+          ...verification(),
+          activityStatus: "verification_failed",
+          activeEvidenceType: null,
+          identityMatched: false,
+          applicationAvailable: false,
+          finalUrl: null,
+          verificationEvidence: "Authentication or bot challenge",
+        },
+      },
+    ]);
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "probably_active",
+      cursor: null,
+    });
+    const suggestions = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(suggestions.jobs).toHaveLength(1);
+    expect(suggestions.jobs[0]).toMatchObject({
+      activityConfidence: "probable",
+      lastVerifiedAt: null,
+      sourceUrl: rawJob.sourceUrl,
+    });
+    const sourceId = await t.run(async (ctx) => {
+      const stored = await ctx.db.query("jobs").first();
+      expect(stored).toMatchObject({
+        lifecycleStatus: "probably_active",
+        activityReason: "ai_open_server_unknown",
+      });
+      expect(stored?.lastVerifiedAt).toBeUndefined();
+      return (await ctx.db.query("jobSources").first())!._id;
+    });
+    await t.mutation(internal.jobActivity.recordVerification, {
+      sourceId,
+      verification: {
+        ...verification(),
+        activityStatus: "inactive",
+        activeEvidenceType: null,
+        verificationEvidence: "HTTP 410",
+      },
+    });
+    expect(
+      (
+        await asUser(t, userId).query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "suggestions",
+        })
+      ).jobs,
+    ).toHaveLength(0);
+    await t.mutation(internal.jobActivity.recordVerification, {
+      sourceId,
+      verification: {
+        ...verification(),
+        activityStatus: "unknown",
+        activeEvidenceType: null,
+        verificationEvidence: "undated_listing_http_only",
+      },
+    });
+    expect(
+      (
+        await asUser(t, userId).query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "suggestions",
+        })
+      ).jobs,
+    ).toHaveLength(0);
+    // A failed recheck must not revive a server-confirmed closure using old AI evidence.
+    await t.mutation(internal.jobActivity.recordVerification, {
+      sourceId,
+      verification: {
+        ...verification(),
+        activityStatus: "verification_failed",
+        activeEvidenceType: null,
+        verificationEvidence: "Temporary HTTP 500",
+      },
+    });
+    expect(
+      (
+        await asUser(t, userId).query(api.jobDiscovery.listCurrentUserJobs, {
+          view: "suggestions",
+        })
+      ).jobs,
+    ).toHaveLength(0);
+  });
+
+  it("does not treat another URL's AI evidence as exact-listing evidence", () => {
+    expect(
+      normalizeCandidate({
+        ...rawJob,
+        aiAssessment: {
+          status: "open",
+          evidenceType: "application_available",
+          evidenceUrl: "https://example.com/careers",
+          evidenceText: "Apply",
+        },
+      }).aiAssessment.status,
+    ).toBe("unknown");
   });
 });

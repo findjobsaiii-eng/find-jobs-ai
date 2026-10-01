@@ -27,7 +27,8 @@ import {
 import {
   activityReasonForLifecycle,
   deriveJobLifecycle,
-  isFreshActiveSource,
+  isDisplayEligibleSource,
+  hasFreshJobActivity,
   isActiveFeedLifecycle,
   JOB_ACTIVITY_POLICY,
   retryDelayMs,
@@ -139,8 +140,12 @@ async function refreshJobLifecycle(
     .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
     .take(50);
   const active = sources
-    .filter((source) => isFreshActiveSource(source, now))
+    .filter((source) => isDisplayEligibleSource(source, now))
     .sort((left, right) => {
+      if (left.activityStatus !== right.activityStatus) {
+        if (left.activityStatus === "verified_active") return -1;
+        if (right.activityStatus === "verified_active") return 1;
+      }
       const a = sourcePriority(left);
       const b = sourcePriority(right);
       return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
@@ -156,6 +161,10 @@ async function refreshJobLifecycle(
     bestSourceId: best?._id,
     ...(best ? { sourceUrl: best.finalUrl ?? best.normalizedUrl } : {}),
     lastVerifiedAt: best?.lastVerifiedAt,
+    aiActivityEvidenceAt:
+      lifecycle.reason === "ai_open_server_unknown"
+        ? best?.aiAssessedAt
+        : undefined,
     lifecycleStatus: lifecycle.status,
     activityStatus: isActiveFeedLifecycle(lifecycle.status)
       ? "active"
@@ -223,7 +232,7 @@ export const backfillMissingSourceRecords = internalMutation({
           }
           if (
             source.activityStatus !== "inactive" &&
-            !isFreshActiveSource(source, now) &&
+            !isDisplayEligibleSource(source, now) &&
             (source.verificationLeaseUntil ?? 0) <= now &&
             source.nextVerificationAt !== now
           ) {
@@ -681,12 +690,16 @@ export const recordVerification = internalMutation({
         verificationMethod: args.verification.verificationMethod,
         verificationEvidence: args.verification.verificationEvidence,
         activityStatus:
+          source.activityStatus === "inactive" ||
           source.activeEvidenceType !== undefined
             ? source.activityStatus
             : "unknown",
       });
     } else {
       const closed = args.verification.activityStatus === "inactive";
+      const preserveClosure =
+        source.activityStatus === "inactive" &&
+        args.verification.activityStatus === "unknown";
       await ctx.db.patch("jobSources", source._id, {
         finalUrl: args.verification.finalUrl ?? source.finalUrl,
         domain: args.verification.domain,
@@ -701,7 +714,9 @@ export const recordVerification = internalMutation({
         nextVerificationAt: now + JOB_ACTIVITY_POLICY.activeVerificationTtlMs,
         verificationFailureCount: 0,
         verificationLeaseUntil: undefined,
-        activityStatus: args.verification.activityStatus,
+        activityStatus: preserveClosure
+          ? "inactive"
+          : args.verification.activityStatus,
         verificationMethod: args.verification.verificationMethod,
         verificationEvidence: args.verification.verificationEvidence,
         activeEvidenceType: args.verification.activeEvidenceType ?? undefined,
@@ -720,10 +735,12 @@ export const recordVerification = internalMutation({
         pageTitle: args.verification.pageTitle ?? undefined,
         redirected: args.verification.redirected,
         rawSourceText: args.verification.rawSourceText,
-        closedAt: closed ? now : undefined,
-        closureReason: closed
-          ? args.verification.verificationEvidence
-          : undefined,
+        closedAt: preserveClosure ? source.closedAt : closed ? now : undefined,
+        closureReason: preserveClosure
+          ? source.closureReason
+          : closed
+            ? args.verification.verificationEvidence
+            : undefined,
       });
     }
     if (args.verification.datePosted) {
@@ -986,7 +1003,6 @@ export const getCatalogActivitySummary = internalQuery({
         !fixtureJobIds.has(job._id),
     );
     const activeCutoff = args.now - JOB_ACTIVITY_POLICY.activeVerificationTtlMs;
-    const visibleCutoff = args.now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs;
     const recentCutoff = args.now - JOB_ACTIVITY_POLICY.staleAfterMs;
     const sourceByJob = new Map<Id<"jobs">, typeof boundedSources>();
     const sourceById = new Map(
@@ -1004,15 +1020,16 @@ export const getCatalogActivitySummary = internalQuery({
       return (
         isActiveFeedLifecycle(job.lifecycleStatus) &&
         bestSource !== undefined &&
-        isFreshActiveSource(bestSource, args.now) &&
-        (job.lastVerifiedAt ?? 0) >= visibleCutoff
+        isDisplayEligibleSource(bestSource, args.now) &&
+        hasFreshJobActivity(job, args.now)
       );
     });
     const alternativeSourcePreserved = canonical.filter((job) => {
       const jobSources = sourceByJob.get(job._id) ?? [];
       return (
-        jobSources.some((source) => isFreshActiveSource(source, args.now)) &&
-        jobSources.some((source) => source.activityStatus === "inactive")
+        jobSources.some((source) =>
+          isDisplayEligibleSource(source, args.now),
+        ) && jobSources.some((source) => source.activityStatus === "inactive")
       );
     }).length;
     const remainingFeedRelevant = canonical.filter((job) => {
@@ -1026,7 +1043,7 @@ export const getCatalogActivitySummary = internalQuery({
       return (
         jobSources.length > 0 &&
         job.lastDiscoveredAt >= recentCutoff &&
-        !jobSources.some((source) => isFreshActiveSource(source, args.now))
+        !jobSources.some((source) => isDisplayEligibleSource(source, args.now))
       );
     }).length;
     return {
@@ -1159,13 +1176,13 @@ export const getDiagnostics = query({
       isActiveFeedLifecycle(job.lifecycleStatus) &&
       bestSource !== undefined &&
       isUserFacingJobSource(bestSource) &&
-      isFreshActiveSource(bestSource, args.now);
+      isDisplayEligibleSource(bestSource, args.now);
     return {
       canonicalJobId,
       eligible,
       eligibilityReason: job.activityReason ?? "activity_reason_missing",
       eligibilityEvidenceAt:
-        bestSource?.lastVerifiedAt ?? bestSource?.lastSeenAt ?? null,
+        job.aiActivityEvidenceAt ?? bestSource?.lastVerifiedAt ?? null,
       postedAt: job.postedAt,
       firstSeenAt: job.firstDiscoveredAt,
       sourceCount: sources.length,

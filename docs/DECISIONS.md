@@ -727,13 +727,13 @@ marks its totals incomplete if it reaches the read cap.
 
 ## Job activity freshness (2026-09-09)
 
-Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Web-search rediscovery is not authoritative activity evidence; it updates sightings and schedules verification but cannot reopen a source by itself.
+Reuse canonical lifecycle and per-source verification. A deterministic source check is strong positive evidence only when the same job has a future structured `validThrough`, a recent structured/page publication date, or a job-specific application action. HTTP 200 and matching title/company alone produce `unknown`. Strong evidence is active for 3 days, then probably active through day 14. After day 14, server-side display eligibility excludes the job regardless of cached lifecycle; unknown jobs are hidden. The background verifier derives expired after 45 days without discovery or successful active verification. Bare web-search rediscovery is not activity evidence. D-038 adds a bounded fallback only for explicit, grounded AI open evidence when server verification is inconclusive.
 
 HTTP 404/410, expanded English/Hebrew closure text, an expired matching JobPosting `validThrough`, a changed job identifier, and a generic redirect without the expected role are closure evidence. Login/challenge pages and transient errors preserve prior strong status and back off retries without refreshing its evidence time. Query-ID canonical redirects remain eligible only when the returned job has strong activity evidence. Verification remains internal, hourly and incremental (20 sources per action, three concurrent requests), with no page-load URL checks. Source selection excludes weak and stale sources; one fresh strong source keeps the canonical job eligible. Saved/application snapshots remain intact with the existing localized unavailable indication. No matching weights change.
 
 Development backfill progress is exposed through the bounded internal `jobActivity:getCatalogActivitySummary` query. It reports catalog lifecycle, verification attempts, queued work, alternative-source preservation, and remaining recent jobs without returning job records.
 
-Activity provenance is stored in `jobs.activityReason`. Normal feed jobs require a fresh successful source verification (`http_verified`, `structured_jobposting_valid`, or `alternative_source_active`). Development fixtures retain `development_fixture_active` and their sources use `development_fixture`; both markers exclude them from feeds, match materialization, deep reviews, and real-catalog diagnostics in every environment. Provider sightings without successful verification use `provider_recently_seen_unverified` and remain outside the normal feed. Records with no recoverable URL use `unverifiable_source` and remain outside the feed. Provider evidence URLs are retained as separate pending source records, with employer and ATS sources preferred after verification.
+Activity provenance is stored in `jobs.activityReason`. Normal feed jobs require fresh server evidence or the bounded AI fallback in D-038. Development fixtures retain `development_fixture_active` and their sources use `development_fixture`; both markers exclude them from feeds, match materialization, deep reviews, and real-catalog diagnostics in every environment. Bare provider sightings without successful verification use `provider_recently_seen_unverified` and remain outside the normal feed. Records with no recoverable URL use `unverifiable_source` and remain outside the feed. Provider evidence URLs are retained as separate pending source records, with employer and ATS sources preferred after verification.
 
 ### D-036: Rotate one automatic role search per user per Israel day
 
@@ -770,3 +770,26 @@ Google Search Console verification, sitemap submission and production indexing
 remain release tasks; no ranking outcome is assumed. The social image renders
 with a locally bundled OFL Hebrew font. Its Hebrew-only text requires visual
 glyph ordering because the current Satori renderer does not apply Hebrew bidi.
+
+### D-038: Combine AI listing assessment with deterministic verification
+
+Status: Accepted
+
+The existing discovery response includes an `aiAssessment` with open/closed/unknown,
+evidence type, exact cited listing URL, and concise evidence text. No separate AI
+status call is introduced. Server-open evidence wins over any AI assessment;
+server-closed evidence prevents the AI fallback. Inconclusive server checks may
+use explicit AI-open evidence for a job-specific application action or a posting
+date within 30 days. Broken or unsafe URLs, generic destinations, identity
+mismatches, absent evidence, and future/old dates do not qualify. An observed old
+server date cannot be overridden by a claimed recent AI date.
+
+AI-supported jobs are `probably_active` with `ai_open_server_unknown` provenance
+and a separate three-day evidence timestamp. Server evidence retains its existing
+three-day verified / 14-day grace windows. Display, match materialization, admin
+preview, source selection, and background lifecycle refresh share this policy.
+Server-confirmed sources rank ahead of AI-only sources. Inconclusive rechecks
+preserve confirmed closures until a server check confirms reopening, so old AI evidence cannot revive them. A separate
+eligible source can still keep the canonical vacancy visible. Passed application
+deadlines and normal matching/freshness filters always apply. The README contains
+the decision table; the feed labels probable jobs in both supported languages.

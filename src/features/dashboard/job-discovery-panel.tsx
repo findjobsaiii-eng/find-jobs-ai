@@ -427,6 +427,17 @@ export function JobDiscoveryPanel({
                                       />
                                       {job.companyName}
                                     </span>
+                                    {job.activityConfidence === "probable" &&
+                                    !job.unavailable ? (
+                                      <span
+                                        className="text-xs"
+                                        title={t(
+                                          "jobDiscovery.probablyOpenDescription",
+                                        )}
+                                      >
+                                        {t("jobDiscovery.probablyOpen")}
+                                      </span>
+                                    ) : null}
                                     <span className="basis-full text-xs @md:basis-auto">
                                       {t("jobDiscovery.source", {
                                         source:

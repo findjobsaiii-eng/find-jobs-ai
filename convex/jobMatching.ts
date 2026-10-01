@@ -5,7 +5,7 @@ import { internalMutation, type MutationCtx } from "./_generated/server";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
-import { isFreshActiveSource } from "./jobActivityPolicy";
+import { isDisplayEligibleSource } from "./jobActivityPolicy";
 import { evaluateSuggestionFreshness } from "./jobFreshness";
 
 const lifecycleValidator = v.union(
@@ -133,9 +133,8 @@ export const reconcileUserPage = internalMutation({
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
         source !== null &&
-        isFreshActiveSource(source) &&
-        source.finalUrl &&
-        source.lastVerifiedAt,
+        isDisplayEligibleSource(source) &&
+        source.normalizedUrl,
       );
       const existing = await ctx.db
         .query("jobMatches")
@@ -259,9 +258,8 @@ export const reconcileJobUsers = internalMutation({
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
         source !== null &&
-        isFreshActiveSource(source) &&
-        source.finalUrl &&
-        source.lastVerifiedAt,
+        isDisplayEligibleSource(source) &&
+        source.normalizedUrl,
       );
       const existing = await ctx.db
         .query("jobMatches")
@@ -341,9 +339,8 @@ export const reconcileUserJob = internalMutation({
       isDisplayEligibleJob(job) &&
       isUserFacingJobSource(source) &&
       source !== null &&
-      isFreshActiveSource(source) &&
-      source.finalUrl &&
-      source.lastVerifiedAt,
+      isDisplayEligibleSource(source) &&
+      source.normalizedUrl,
     );
     if (!displayEligible) {
       if (existing) await ctx.db.delete("jobMatches", existing._id);

@@ -23,6 +23,16 @@ const languageProficiency = v.union(
 );
 
 const nullableString = v.union(v.string(), v.null());
+export const aiActivityAssessment = v.object({
+  status: v.union(v.literal("open"), v.literal("closed"), v.literal("unknown")),
+  evidenceType: v.union(
+    v.literal("application_available"),
+    v.literal("recent_posting"),
+    v.literal("none"),
+  ),
+  evidenceUrl: v.union(v.string(), v.null()),
+  evidenceText: v.union(v.string(), v.null()),
+});
 const nullableNumber = v.union(v.number(), v.null());
 const workArrangementWithUnknown = v.union(
   workArrangement,
@@ -301,7 +311,10 @@ export const jobFeedItem = v.object({
   salaryCurrency: v.union(v.string(), v.null()),
   salaryPeriod: v.union(v.string(), v.null()),
   discoveredAt: v.number(),
-  lastVerifiedAt: v.number(),
+  lastVerifiedAt: v.union(v.number(), v.null()),
+  activityConfidence: v.optional(
+    v.union(v.literal("verified"), v.literal("probable")),
+  ),
   relevanceScore: v.number(),
   matchQuality: v.optional(matchQuality),
   scoreComponents: v.optional(relevanceComponents),
@@ -823,6 +836,7 @@ const schema = defineSchema({
     canonicalJobId: v.optional(v.id("jobs")),
     duplicateReason: v.optional(v.string()),
     bestSourceId: v.optional(v.id("jobSources")),
+    aiActivityEvidenceAt: v.optional(v.number()),
     workAuthorizationRequirements: v.optional(nullableString),
   })
     .index("by_firstDiscoveredAt", ["firstDiscoveredAt"])
@@ -866,6 +880,9 @@ const schema = defineSchema({
     verificationMethod: v.optional(v.string()),
     verificationEvidence: v.optional(v.string()),
     activeEvidenceType: v.optional(v.string()),
+    aiAssessment: v.optional(aiActivityAssessment),
+    aiAssessedAt: v.optional(v.number()),
+    aiPostedAt: v.optional(v.string()),
     identityMatched: v.optional(v.boolean()),
     applicationAvailable: v.optional(v.boolean()),
     applicationUrl: v.optional(v.string()),

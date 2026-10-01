@@ -358,6 +358,36 @@ awaits a successful recheck. Jobs with no recent conclusive evidence become
 `verified_active` and `probably_active` canonical jobs enter the normal feed.
 Historical application snapshots remain visible with an unavailable label.
 
+Job discovery returns an `aiAssessment` (`open`, `closed`, or `unknown`) in the
+existing AI response. It does not add a separate AI call. The server still checks
+the exact listing with HTTP and HTML parsing. The following table applies to each
+source; existing location, experience, relevance, freshness, and deadline rules
+also apply before a job appears:
+
+| AI assessment                              | Server result                                             | Display                                    |
+| ------------------------------------------ | --------------------------------------------------------- | ------------------------------------------ |
+| Open                                       | Open                                                      | Yes, verified active                       |
+| Closed or unknown                          | Open                                                      | Yes, verified active; server evidence wins |
+| Open, with credible exact-listing evidence | Unknown / temporarily inaccessible                        | Yes, probably active                       |
+| Closed or unknown                          | Unknown / temporarily inaccessible                        | No                                         |
+| Any                                        | Closed                                                    | No; AI cannot override a confirmed closure |
+| Any                                        | Broken/unsafe URL, generic page, or job identity mismatch | No                                         |
+
+The AI fallback requires the same cited listing URL plus a short description of
+an observed application action or a publication date within the last 30 days.
+A bare `open` value, search snippet, or HTTP 200 is insufficient. Recent-date
+claims cannot override a server-observed old publication date. The fallback
+expires three days after the AI assessment, independently of server timestamps;
+repeated sightings alone do not extend it. The UI labels these jobs **Probably
+open** (localized in Hebrew and English). AI and HTTP evidence remain separate;
+AI evidence never becomes a successful server verification.
+
+Confirmed server evidence retains its existing three-day verified window and
+14-day grace period. Temporary failures preserve a prior confirmed open or
+closed state. A confirmed closure remains until a later server check confirms reopening. A vacancy with several sources can remain visible through another
+eligible listing when one source closes; server-confirmed sources are preferred
+over AI-only sources. Saved applications keep their historical snapshots.
+
 Jobs receive a local GeoNames Israel locality centroid when their location has
 one unambiguous match. Feed filtering uses Haversine distance against the
 candidate's saved coordinates and radius, without an AI call. Unknown,

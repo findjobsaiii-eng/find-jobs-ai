@@ -392,7 +392,9 @@
       "partial": "partial",
       "possible": "possible",
       "reject": "rejected"
-    }
+    },
+    "probablyOpen": "Probably open",
+    "probablyOpenDescription": "Recent evidence suggests this job is open, but the server could not confirm it recently."
   },
   "jobReview": {
     "action": "Deep review",

@@ -6,6 +6,12 @@ describe("OpenAI job provider boundary", () => {
   it("uses bounded web search and rejects jobs without provider URL evidence", async () => {
     const citedUrl = "https://careers.example.com/jobs/123";
     const baseJob = {
+      aiAssessment: {
+        status: "unknown",
+        evidenceType: "none",
+        evidenceUrl: null,
+        evidenceText: null,
+      },
       title: "Product Engineer",
       companyName: "Example",
       sourceName: "Example Careers",

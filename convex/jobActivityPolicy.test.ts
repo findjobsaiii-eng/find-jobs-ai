@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activityReasonForLifecycle,
   deriveJobLifecycle,
+  hasFreshJobActivity,
   JOB_ACTIVITY_POLICY,
   retryDelayMs,
 } from "./jobActivityPolicy";
@@ -159,4 +160,167 @@ it("records whether active evidence came from HTTP or an alternative source", ()
       bestSource: best,
     }),
   ).toBe("alternative_source_active");
+});
+
+const aiSource = {
+  activityStatus: "unknown" as const,
+  lastSeenAt: now,
+  normalizedUrl: "https://example.com/jobs/123",
+  verificationEvidence: "Authentication or bot challenge",
+  aiAssessedAt: now,
+  aiAssessment: {
+    status: "open" as const,
+    evidenceType: "application_available" as const,
+    evidenceUrl: "https://example.com/jobs/123",
+    evidenceText: "The exact job listing offers an Apply button.",
+  },
+};
+
+it.each(["open", "closed", "unknown"] as const)(
+  "server open overrides AI %s",
+  (status) => {
+    expect(
+      deriveJobLifecycle({
+        sources: [
+          {
+            ...aiSource,
+            activityStatus: "verified_active",
+            activeEvidenceType: "active_application_flow",
+            lastVerifiedAt: now,
+            aiAssessment: { ...aiSource.aiAssessment, status },
+          },
+        ],
+        lastSeenAt: now,
+        now,
+      }).status,
+    ).toBe("verified_active");
+  },
+);
+
+it.each(["open", "closed", "unknown"] as const)(
+  "server closed overrides AI %s",
+  (status) => {
+    expect(
+      deriveJobLifecycle({
+        sources: [
+          {
+            ...aiSource,
+            activityStatus: "inactive",
+            aiAssessment: { ...aiSource.aiAssessment, status },
+          },
+        ],
+        lastSeenAt: now,
+        now,
+      }).status,
+    ).toBe("closed");
+  },
+);
+
+it.each(["open", "closed", "unknown"] as const)(
+  "resolves AI %s with an inconclusive server check",
+  (status) => {
+    const source = {
+      ...aiSource,
+      aiAssessment: { ...aiSource.aiAssessment, status },
+    };
+    expect(
+      deriveJobLifecycle({ sources: [source], lastSeenAt: now, now }).status,
+    ).toBe(status === "open" ? "probably_active" : "unknown");
+  },
+);
+
+it.each([
+  "Generic destination page",
+  "job_identity_not_confirmed",
+  "job_identity_replaced",
+  "Unsafe final URL",
+  "HTTP 404",
+  "Unsupported response type",
+])("rejects AI fallback when server reports %s", (verificationEvidence) => {
+  expect(
+    deriveJobLifecycle({
+      sources: [{ ...aiSource, verificationEvidence }],
+      lastSeenAt: now,
+      now,
+    }).status,
+  ).toBe("unknown");
+});
+
+it("expires AI evidence without extending it through repeated sightings", () => {
+  expect(
+    deriveJobLifecycle({
+      sources: [
+        {
+          ...aiSource,
+          aiAssessedAt: now - JOB_ACTIVITY_POLICY.aiEvidenceTtlMs - 1,
+        },
+      ],
+      lastSeenAt: now,
+      now,
+    }).status,
+  ).toBe("unknown");
+});
+
+it("requires exact listing evidence and a recent real date", () => {
+  const source = {
+    ...aiSource,
+    aiAssessment: {
+      ...aiSource.aiAssessment,
+      evidenceType: "recent_posting" as const,
+    },
+  };
+  const lifecycle = (extra: Partial<typeof source> & { aiPostedAt?: string }) =>
+    deriveJobLifecycle({
+      sources: [{ ...source, ...extra }],
+      lastSeenAt: now,
+      now,
+    }).status;
+  expect(lifecycle({})).toBe("unknown");
+  expect(
+    lifecycle({ aiPostedAt: new Date(now - 86400000).toISOString() }),
+  ).toBe("probably_active");
+  expect(
+    lifecycle({ aiPostedAt: new Date(now + 86400000).toISOString() }),
+  ).toBe("unknown");
+  expect(
+    lifecycle({ aiPostedAt: new Date(now - 31 * 86400000).toISOString() }),
+  ).toBe("unknown");
+  expect(
+    lifecycle({
+      aiAssessment: {
+        ...source.aiAssessment,
+        evidenceUrl: "https://example.com/careers",
+      },
+    }),
+  ).toBe("unknown");
+});
+
+it("never uses AI evidence past the application deadline", () => {
+  expect(
+    deriveJobLifecycle({
+      sources: [aiSource],
+      lastSeenAt: now,
+      now,
+      applicationDeadline: new Date(now - 1).toISOString(),
+    }).status,
+  ).toBe("expired");
+});
+
+it("does not let an inconclusive HTTP attempt extend AI display freshness", () => {
+  expect(
+    hasFreshJobActivity(
+      {
+        activityReason: "ai_open_server_unknown",
+        aiActivityEvidenceAt: now - JOB_ACTIVITY_POLICY.aiEvidenceTtlMs - 1,
+        lastVerifiedAt: now,
+      },
+      now,
+    ),
+  ).toBe(false);
+  expect(
+    hasFreshJobActivity(
+      { activityReason: "ai_open_server_unknown", aiActivityEvidenceAt: now },
+      now,
+    ),
+  ).toBe(true);
 });

@@ -305,6 +305,22 @@ describe("job result cards", () => {
     ).toBeVisible();
   });
 
+  it("distinguishes a probable listing without a server verification from a verified one", () => {
+    hooks.jobs = [
+      job({ activityConfidence: "probable", lastVerifiedAt: null }),
+    ];
+    const { unmount } = renderPanel();
+    expect(screen.getByText("Probably open")).toBeVisible();
+    expect(screen.getByRole("link", { name: "View job" })).toHaveAttribute(
+      "href",
+      hooks.jobs[0].sourceUrl,
+    );
+    unmount();
+    hooks.jobs = [job({ activityConfidence: "verified" })];
+    renderPanel();
+    expect(screen.queryByText("Probably open")).not.toBeInTheDocument();
+  });
+
   it("labels a sub-58 eligible job as a partial match without hiding it", () => {
     hooks.jobs = [
       job({

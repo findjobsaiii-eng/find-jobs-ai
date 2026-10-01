@@ -1,4 +1,5 @@
 export const JOB_ACTIVITY_POLICY = {
+  aiEvidenceTtlMs: 3 * 24 * 60 * 60 * 1_000,
   activeVerificationTtlMs: 3 * 24 * 60 * 60 * 1_000,
   probablyActiveGraceMs: 14 * 24 * 60 * 60 * 1_000,
   staleAfterMs: 45 * 24 * 60 * 60 * 1_000,
@@ -21,6 +22,16 @@ type SourceState = {
   verificationMethod?: string;
   verificationEvidence?: string;
   activeEvidenceType?: string;
+  closureReason?: string;
+  normalizedUrl?: string;
+  aiAssessedAt?: number;
+  aiPostedAt?: string;
+  aiAssessment?: {
+    status: "open" | "closed" | "unknown";
+    evidenceType: "application_available" | "recent_posting" | "none";
+    evidenceUrl: string | null;
+    evidenceText: string | null;
+  };
 };
 
 export function retryDelayMs(failureCount: number) {
@@ -78,6 +89,9 @@ export function deriveJobLifecycle(args: {
       reason: "active_source_awaiting_recheck",
     };
   }
+  if (args.sources.some((source) => hasFreshAiOpenEvidence(source, args.now))) {
+    return { status: "probably_active", reason: "ai_open_server_unknown" };
+  }
   if (
     args.sources.length > 0 &&
     args.sources.every((source) => source.activityStatus === "inactive")
@@ -90,6 +104,7 @@ export function deriveJobLifecycle(args: {
       status: structuredExpiry ? "expired" : "closed",
       reason:
         structuredExpiry?.verificationEvidence ??
+        args.sources.find((source) => source.closureReason)?.closureReason ??
         args.sources.find((source) => source.verificationEvidence)
           ?.verificationEvidence ??
         "all_sources_confirmed_inactive",
@@ -131,7 +146,9 @@ export function activityReasonForLifecycle(args: {
     return args.bestSource?.activeEvidenceType ?? "active_evidence_missing";
   }
   if (args.lifecycle.status === "probably_active") {
-    return "http_verified_within_grace";
+    return args.lifecycle.reason === "ai_open_server_unknown"
+      ? "ai_open_server_unknown"
+      : "http_verified_within_grace";
   }
   if (
     args.lifecycle.status === "unknown" &&
@@ -157,8 +174,49 @@ export function activityReasonForLifecycle(args: {
   return args.lifecycle.reason;
 }
 
-// Discovery currently uses web-search suggestions, not a trusted provider status API.
-// Repeated sightings alone must never extend a successful verification indefinitely.
+// Server evidence and AI evidence keep independent timestamps and provenance.
+export function hasFreshAiOpenEvidence(source: SourceState, now = Date.now()) {
+  const assessment = source.aiAssessment;
+  if (
+    !assessment ||
+    assessment.status !== "open" ||
+    !assessment.evidenceText?.trim() ||
+    !source.normalizedUrl ||
+    assessment.evidenceUrl !== source.normalizedUrl ||
+    source.aiAssessedAt === undefined ||
+    source.aiAssessedAt > now ||
+    source.aiAssessedAt < now - JOB_ACTIVITY_POLICY.aiEvidenceTtlMs ||
+    (source.activityStatus !== "unknown" &&
+      source.activityStatus !== "verification_failed")
+  )
+    return false;
+  // Only inconclusive access failures or a recognized listing qualify. Unsafe URLs,
+  // generic pages, missing/replaced identities, and broken links remain excluded.
+  const reason = source.verificationEvidence ?? "";
+  const safeUnknown =
+    reason === "Authentication or bot challenge" ||
+    reason === "undated_listing_http_only" ||
+    reason === "old_listing_http_only" ||
+    /^Temporary HTTP (?:429|5\d\d)$/u.test(reason) ||
+    /^HTTP (?:401|403)$/u.test(reason) ||
+    /^Verification failed: (?:request_timeout|request_failed|connect |read |socket hang up|getaddrinfo |Client network socket disconnected)/u.test(
+      reason,
+    );
+  if (!safeUnknown) return false;
+  if (assessment.evidenceType === "application_available") return true;
+  if (
+    assessment.evidenceType !== "recent_posting" ||
+    reason === "old_listing_http_only"
+  )
+    return false;
+  const postedAt = parsedDeadline(source.aiPostedAt);
+  return (
+    postedAt !== null &&
+    postedAt <= now &&
+    postedAt >= now - 30 * 24 * 60 * 60 * 1_000
+  );
+}
+
 export function isFreshActiveSource(source: SourceState, now = Date.now()) {
   return (
     source.activityStatus === "verified_active" &&
@@ -168,16 +226,31 @@ export function isFreshActiveSource(source: SourceState, now = Date.now()) {
   );
 }
 
+export function isDisplayEligibleSource(source: SourceState, now = Date.now()) {
+  return (
+    isFreshActiveSource(source, now) || hasFreshAiOpenEvidence(source, now)
+  );
+}
+
 export function hasFreshJobActivity(
   job: {
     lastVerifiedAt?: number;
+    aiActivityEvidenceAt?: number;
+    activityReason?: string;
     applicationDeadline?: string | null;
   },
   now = Date.now(),
 ) {
   const deadline = parsedDeadline(job.applicationDeadline);
+  if (deadline !== null && deadline < now) return false;
+  if (job.activityReason === "ai_open_server_unknown") {
+    return (
+      job.aiActivityEvidenceAt !== undefined &&
+      job.aiActivityEvidenceAt <= now &&
+      job.aiActivityEvidenceAt >= now - JOB_ACTIVITY_POLICY.aiEvidenceTtlMs
+    );
+  }
   return (
-    (deadline === null || deadline >= now) &&
     job.lastVerifiedAt !== undefined &&
     job.lastVerifiedAt >= now - JOB_ACTIVITY_POLICY.probablyActiveGraceMs
   );

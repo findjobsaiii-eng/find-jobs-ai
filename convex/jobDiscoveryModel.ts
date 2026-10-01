@@ -13,60 +13,60 @@ const nullableShortText = z.string().max(300).nullable();
 const nullableLongText = z.string().max(2_500).nullable();
 const shortList = z.array(z.string().max(200)).max(12);
 
-export const openAIJobSchema = z
-  .object({
-    title: z.string().max(200),
-    companyName: z.string().max(200),
-    sourceUrl: z.string().max(2_048),
-    sourceName: nullableShortText,
-    sourceType: z.enum(["employer", "ats", "job_board", "other"]),
-    descriptionText: nullableLongText,
-    requirementsText: nullableLongText,
-    responsibilities: shortList,
-    requiredSkills: shortList,
-    preferredSkills: shortList,
-    requiredExperienceYearsMin: z.number().int().min(0).max(80).nullable(),
-    requiredExperienceYearsMax: z.number().int().min(0).max(80).nullable(),
-    educationRequirements: shortList,
-    languages: z.array(z.string().max(100)).max(10),
-    country: nullableShortText,
-    city: nullableShortText,
-    locationText: nullableShortText,
-    workArrangement: z.enum(["onsite", "hybrid", "remote", "unknown"]),
-    employmentType: z.enum([
-      "full-time",
-      "part-time",
-      "contract",
-      "temporary",
-      "internship",
-      "unknown",
-    ]),
-    salaryMin: z.number().nonnegative().max(100_000_000).nullable(),
-    salaryMax: z.number().nonnegative().max(100_000_000).nullable(),
-    salaryCurrency: z.string().max(10).nullable(),
-    salaryPeriod: z.enum(["hour", "day", "month", "year"]).nullable(),
-    postedAt: z.string().max(50).nullable(),
-    applicationDeadline: z.string().max(50).nullable(),
-    workAuthorizationRequirements: nullableShortText,
-    sourceEvidence: z
-      .array(
-        z
-          .object({
-            url: z.string().max(2_048),
-            title: nullableShortText,
-            excerpt: z.string().max(500).nullable(),
-          })
-          .strict(),
-      )
-      .max(4),
-  })
-  .strict();
+export const openAIJobSchema = z.strictObject({
+  title: z.string().max(200),
+  companyName: z.string().max(200),
+  sourceUrl: z.string().max(2_048),
+  sourceName: nullableShortText,
+  aiAssessment: z.strictObject({
+    status: z.enum(["open", "closed", "unknown"]),
+    evidenceType: z.enum(["application_available", "recent_posting", "none"]),
+    evidenceUrl: z.string().max(2_048).nullable(),
+    evidenceText: z.string().max(300).nullable(),
+  }),
+  sourceType: z.enum(["employer", "ats", "job_board", "other"]),
+  descriptionText: nullableLongText,
+  requirementsText: nullableLongText,
+  responsibilities: shortList,
+  requiredSkills: shortList,
+  preferredSkills: shortList,
+  requiredExperienceYearsMin: z.number().int().min(0).max(80).nullable(),
+  requiredExperienceYearsMax: z.number().int().min(0).max(80).nullable(),
+  educationRequirements: shortList,
+  languages: z.array(z.string().max(100)).max(10),
+  country: nullableShortText,
+  city: nullableShortText,
+  locationText: nullableShortText,
+  workArrangement: z.enum(["onsite", "hybrid", "remote", "unknown"]),
+  employmentType: z.enum([
+    "full-time",
+    "part-time",
+    "contract",
+    "temporary",
+    "internship",
+    "unknown",
+  ]),
+  salaryMin: z.number().nonnegative().max(100_000_000).nullable(),
+  salaryMax: z.number().nonnegative().max(100_000_000).nullable(),
+  salaryCurrency: z.string().max(10).nullable(),
+  salaryPeriod: z.enum(["hour", "day", "month", "year"]).nullable(),
+  postedAt: z.string().max(50).nullable(),
+  applicationDeadline: z.string().max(50).nullable(),
+  workAuthorizationRequirements: nullableShortText,
+  sourceEvidence: z
+    .array(
+      z.strictObject({
+        url: z.string().max(2_048),
+        title: nullableShortText,
+        excerpt: z.string().max(500).nullable(),
+      }),
+    )
+    .max(4),
+});
 
-export const openAIJobBatchSchema = z
-  .object({
-    jobs: z.array(openAIJobSchema).max(JOB_DISCOVERY_LIMITS.maxJobsPerQuery),
-  })
-  .strict();
+export const openAIJobBatchSchema = z.strictObject({
+  jobs: z.array(openAIJobSchema).max(JOB_DISCOVERY_LIMITS.maxJobsPerQuery),
+});
 
 export type OpenAIJob = z.infer<typeof openAIJobSchema>;
 
@@ -523,6 +523,19 @@ export function normalizeJob(
       300,
     ),
     sourceEvidence: sourceEvidence.slice(0, 10),
+    aiAssessment:
+      normalizePublicUrl(parsed.data.aiAssessment.evidenceUrl ?? "") ===
+        sourceUrl && parsed.data.aiAssessment.evidenceText?.trim()
+        ? { ...parsed.data.aiAssessment, evidenceUrl: sourceUrl }
+        : {
+            status:
+              parsed.data.aiAssessment.status === "closed"
+                ? "closed"
+                : "unknown",
+            evidenceType: "none",
+            evidenceUrl: null,
+            evidenceText: null,
+          },
   };
   const experience = resolveExperienceRequirement(normalizedBase);
   const normalized: OpenAIJob = {

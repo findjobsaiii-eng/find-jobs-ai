@@ -393,7 +393,9 @@
       "partial": "חלקית",
       "possible": "אפשרית",
       "reject": "נדחתה"
-    }
+    },
+    "probablyOpen": "כנראה פתוחה",
+    "probablyOpenDescription": "מידע עדכני מצביע על כך שהמשרה פתוחה, אך השרת לא הצליח לאשר זאת לאחרונה."
   },
   "jobReview": {
     "action": "סקירה מעמיקה",

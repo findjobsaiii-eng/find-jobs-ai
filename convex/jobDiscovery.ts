@@ -1,4 +1,5 @@
 import {
+  aiActivityAssessment,
   applicationStatus,
   applicationTimelineEvent,
   jobFeedItem,
@@ -20,7 +21,7 @@ import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
 import {
   activityReasonForLifecycle,
   deriveJobLifecycle,
-  isFreshActiveSource,
+  isDisplayEligibleSource,
   isActiveFeedLifecycle,
   JOB_ACTIVITY_POLICY,
   retryDelayMs,
@@ -214,6 +215,7 @@ const jobInputValidator = v.object({
   applicationDeadline: v.union(v.string(), v.null()),
   workAuthorizationRequirements: v.union(v.string(), v.null()),
   sourceEvidence: v.array(evidenceValidator),
+  aiAssessment: aiActivityAssessment,
 });
 const verifiedJobInputValidator = v.object({
   job: jobInputValidator,
@@ -1095,6 +1097,8 @@ async function upsertSource(
     normalizedUrl: string;
     verification: VerificationInput;
     duplicateReason: string | null;
+    aiAssessment: JobInput["aiAssessment"];
+    aiPostedAt: string | null;
     now: number;
   },
 ) {
@@ -1116,6 +1120,9 @@ async function upsertSource(
   const existingSource = existing ?? byProviderKey;
   const temporaryFailure =
     args.verification.activityStatus === "verification_failed";
+  const preserveClosure =
+    existingSource?.activityStatus === "inactive" &&
+    args.verification.activityStatus === "unknown";
   const failureCount = temporaryFailure
     ? (existingSource?.verificationFailureCount ?? 0) + 1
     : 0;
@@ -1132,6 +1139,9 @@ async function upsertSource(
     externalJobId: args.verification.externalJobId ?? undefined,
     providerKey,
     lastSeenAt: args.now,
+    aiAssessment: args.aiAssessment,
+    aiAssessedAt: args.now,
+    aiPostedAt: args.aiPostedAt ?? undefined,
     lastVerificationAttemptAt: args.verification.verifiedAt,
     lastVerificationHttpStatus: args.verification.httpStatus,
     nextVerificationAt: temporaryFailure
@@ -1143,10 +1153,13 @@ async function upsertSource(
       ? existingSource?.lastVerifiedAt
       : args.verification.verifiedAt,
     activityStatus: temporaryFailure
-      ? existingSource?.activeEvidenceType !== undefined
+      ? existingSource?.activityStatus === "inactive" ||
+        existingSource?.activeEvidenceType !== undefined
         ? existingSource.activityStatus
         : "unknown"
-      : args.verification.activityStatus,
+      : preserveClosure
+        ? "inactive"
+        : args.verification.activityStatus,
     verificationMethod: args.verification.verificationMethod,
     verificationEvidence: args.verification.verificationEvidence,
     activeEvidenceType: temporaryFailure
@@ -1185,16 +1198,18 @@ async function upsertSource(
     rawSourceText: temporaryFailure
       ? existingSource?.rawSourceText
       : args.verification.rawSourceText,
-    closedAt: temporaryFailure
-      ? existingSource?.closedAt
-      : args.verification.activityStatus === "inactive"
-        ? args.verification.verifiedAt
-        : undefined,
-    closureReason: temporaryFailure
-      ? existingSource?.closureReason
-      : args.verification.activityStatus === "inactive"
-        ? args.verification.verificationEvidence
-        : undefined,
+    closedAt:
+      temporaryFailure || preserveClosure
+        ? existingSource?.closedAt
+        : args.verification.activityStatus === "inactive"
+          ? args.verification.verifiedAt
+          : undefined,
+    closureReason:
+      temporaryFailure || preserveClosure
+        ? existingSource?.closureReason
+        : args.verification.activityStatus === "inactive"
+          ? args.verification.verificationEvidence
+          : undefined,
     duplicateReason: args.duplicateReason ?? undefined,
     canonicalJobId: args.duplicateReason ? args.jobId : undefined,
   } as const;
@@ -1231,7 +1246,7 @@ async function upsertDiscoveredSource(
       lastSeenAt: args.now,
       // Rediscovery makes an inconclusive or closed source worth checking
       // again, without treating the sighting itself as active evidence.
-      ...(!isFreshActiveSource(existing, args.now)
+      ...(!isDisplayEligibleSource(existing, args.now)
         ? { nextVerificationAt: args.now }
         : {}),
     });
@@ -1266,9 +1281,13 @@ async function refreshBestSource(
     .withIndex("by_jobId", (q) => q.eq("jobId", jobId))
     .take(50);
   const activeSources = allSources.filter((source) =>
-    isFreshActiveSource(source, now),
+    isDisplayEligibleSource(source, now),
   );
   activeSources.sort((a, b) => {
+    if (a.activityStatus !== b.activityStatus) {
+      if (a.activityStatus === "verified_active") return -1;
+      if (b.activityStatus === "verified_active") return 1;
+    }
     const left = sourcePriority(a);
     const right = sourcePriority(b);
     return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
@@ -1284,6 +1303,10 @@ async function refreshBestSource(
     bestSourceId: best?._id,
     ...(best ? { sourceUrl: best.finalUrl ?? best.normalizedUrl } : {}),
     lastVerifiedAt: best?.lastVerifiedAt,
+    aiActivityEvidenceAt:
+      lifecycle.reason === "ai_open_server_unknown"
+        ? best?.aiAssessedAt
+        : undefined,
     lifecycleStatus: lifecycle.status,
     activityStatus: isActiveFeedLifecycle(lifecycle.status)
       ? "active"
@@ -1415,8 +1438,9 @@ export const completeSearch = internalMutation({
       const selectedPosting = centralJob
         ? selectOriginalPostingDate(centralJob, incomingPosting)
         : incomingPosting;
+      const { aiAssessment, ...jobDetails } = job;
       const storedJob = {
-        ...job,
+        ...jobDetails,
         postedAt: selectedPosting.postedAt ?? null,
         datePostedProvenance: selectedPosting.datePostedProvenance,
       };
@@ -1472,6 +1496,8 @@ export const completeSearch = internalMutation({
         normalizedUrl: job.normalizedSourceUrl,
         verification,
         duplicateReason: canonical.reason,
+        aiAssessment,
+        aiPostedAt: discoveredPostedAt,
         now,
       });
       const storedSource = await ctx.db.get("jobSources", sourceId);
@@ -1731,9 +1757,7 @@ async function feedItem(
   if (
     !source ||
     !isUserFacingJobSource(source) ||
-    !isFreshActiveSource(source) ||
-    !source.finalUrl ||
-    !source.lastVerifiedAt
+    !isDisplayEligibleSource(source)
   )
     return null;
   return {
@@ -1749,9 +1773,9 @@ async function feedItem(
     freshnessBucket: freshness.bucket,
     unavailable: false,
     sourceUrl:
-      normalizePublicUrl(source.applicationUrl ?? source.finalUrl) ??
-      source.applicationUrl ??
-      source.finalUrl,
+      normalizePublicUrl(
+        source.applicationUrl ?? source.finalUrl ?? source.normalizedUrl,
+      ) ?? source.normalizedUrl,
     sourceName: source.sourceName ?? source.domain ?? null,
     sourceTier: source.sourceTier,
     locationText: job.locationText,
@@ -1762,7 +1786,11 @@ async function feedItem(
     salaryCurrency: job.salaryCurrency,
     salaryPeriod: job.salaryPeriod,
     discoveredAt: job.firstDiscoveredAt,
-    lastVerifiedAt: source.lastVerifiedAt,
+    lastVerifiedAt: source.lastVerifiedAt ?? null,
+    activityConfidence:
+      job.lifecycleStatus === "probably_active"
+        ? ("probable" as const)
+        : ("verified" as const),
     relevanceScore: quality.relevanceScore,
     matchQuality: quality.matchQuality,
     scoreComponents: quality.scoreComponents,
@@ -2086,9 +2114,8 @@ export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
     const activityEligible = Boolean(
       isDisplayEligibleJob(job) &&
       source &&
-      isFreshActiveSource(source) &&
-      source.finalUrl &&
-      source.lastVerifiedAt,
+      isDisplayEligibleSource(source) &&
+      source.normalizedUrl,
     );
     return {
       job,
@@ -2445,7 +2472,7 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
         bestSource &&
         isUserFacingJobSource(bestSource) &&
         isDisplayEligibleJob(job) &&
-        isFreshActiveSource(bestSource),
+        isDisplayEligibleSource(bestSource),
       );
     };
     const evaluatedRunJobs = runJobs.map((job) => {
