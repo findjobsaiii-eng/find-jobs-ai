@@ -1,6 +1,10 @@
 import { isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
 import type { Metadata } from "next";
 import { HomeRoute } from "@/features/dashboard/app-routes";
+import {
+  websiteStructuredData,
+  webApplicationStructuredData,
+} from "./site-metadata";
 
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -21,6 +25,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const view = tab === "in-progress" ? "inProgress" : "suggestions";
 
   return (
-    <HomeRoute view={view} initiallyAuthenticated={initiallyAuthenticated} />
+    <>
+      {!initiallyAuthenticated && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              websiteStructuredData,
+              webApplicationStructuredData,
+            ]).replace(/</g, "\\u003c"),
+          }}
+        />
+      )}
+      <HomeRoute view={view} initiallyAuthenticated={initiallyAuthenticated} />
+    </>
   );
 }

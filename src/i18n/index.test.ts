@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 describe("interface language defaults", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState(null, "", "/");
     vi.resetModules();
   });
 
@@ -24,10 +25,19 @@ describe("interface language defaults", () => {
     window.localStorage.setItem("i18nextLng", "en");
     const { default: i18n, initializeI18n } = await import("./index");
 
+    expect(i18n.isInitialized).toBe(true);
+    expect(i18n.resolvedLanguage).toBe("he");
     await initializeI18n();
 
     expect(i18n.resolvedLanguage).toBe("en");
     expect(document.documentElement).toHaveAttribute("lang", "en");
     expect(document.documentElement).toHaveAttribute("dir", "ltr");
+  });
+  it("preserves server metadata titles when syncing language", async () => {
+    window.history.replaceState(null, "", "/he/privacy");
+    document.title = "Privacy page title";
+    const { initializeI18n } = await import("./index");
+    await initializeI18n();
+    expect(document.title).toBe("Privacy page title");
   });
 });

@@ -18,28 +18,35 @@ function syncDocumentLanguage(language: string) {
 
   document.documentElement.lang = resolvedLanguage;
   document.documentElement.dir = resolvedLanguage === "he" ? "rtl" : "ltr";
-  document.title = i18n.t("meta.title");
 }
 
+// Hebrew is ready synchronously for server rendering and the first hydration.
+// Apply the saved browser preference only after hydration.
+void i18n.use(initReactI18next).init({
+  resources,
+  lng: "he",
+  fallbackLng: "he",
+  supportedLngs: ["en", "he"],
+  initAsync: false,
+  interpolation: { escapeValue: false },
+});
+
+const detector = new LanguageDetector(undefined, {
+  order: ["localStorage"],
+  caches: ["localStorage"],
+});
+i18n.on("languageChanged", (language) => {
+  detector.cacheUserLanguage(language);
+  syncDocumentLanguage(language);
+});
+
 export async function initializeI18n() {
-  if (!i18n.isInitialized) {
-    await i18n
-      .use(LanguageDetector)
-      .use(initReactI18next)
-      .init({
-        resources,
-        fallbackLng: "he",
-        supportedLngs: ["en", "he"],
-        detection: {
-          order: ["localStorage"],
-          caches: ["localStorage"],
-        },
-        interpolation: { escapeValue: false },
-      });
-
-    i18n.on("languageChanged", syncDocumentLanguage);
-  }
-
+  if (typeof window === "undefined") return;
+  const detected = detector.detect();
+  const languages = Array.isArray(detected) ? detected : [detected];
+  const language =
+    languages.find((value) => value === "he" || value === "en") ?? "he";
+  if (i18n.resolvedLanguage !== language) await i18n.changeLanguage(language);
   syncDocumentLanguage(i18n.resolvedLanguage ?? i18n.language);
 }
 

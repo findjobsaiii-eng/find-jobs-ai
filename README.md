@@ -444,3 +444,21 @@ shows the sign-in prompt; after Google sign-in, the requested page is revealed.
 This client-side presentation gate complements the owner checks in Convex, which
 remain the authorization boundary. Unsaved profile edits require confirmation
 before topic navigation.
+
+## Search visibility in Israel
+
+Public SEO defaults to Hebrew: titles, descriptions, Open Graph/Twitter metadata,
+and the social-preview image. The homepage sends Hebrew landing content in its
+initial server HTML; a saved English preference applies after hydration. Google
+receives homepage `WebSite` structured data with ג׳וב מיטר as the preferred site
+name and ג׳ובמיטר, ג'וב מיטר, ג'ובמיטר, Job Miter and Jobmiter as alternate names.
+The title and visible introduction also identify the Hebrew and English brand.
+Legal routes retain their own language, canonical URL and social metadata.
+Private routes remain excluded from indexing.
+
+After publishing, verify `jobmiter.com` in Google Search Console, submit
+`https://jobmiter.com/sitemap.xml`, and request indexing of the homepage. Google
+controls indexing, displayed snippets and rankings; these changes do not prove
+that branded queries already return the site. The OG renderer uses a bundled
+Noto Sans Hebrew TTF from `notofonts/noto-fonts`, under the adjacent OFL license,
+so image generation does not fetch fonts from an external service.

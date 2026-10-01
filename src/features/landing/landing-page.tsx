@@ -197,7 +197,7 @@ export function LandingPage() {
           className="landing-rays absolute inset-y-0 start-1/2 -z-10 w-screen -translate-x-1/2 rtl:translate-x-1/2"
         />
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="relative z-10 max-w-2xl"

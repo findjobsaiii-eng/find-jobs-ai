@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import manifest from "./manifest";
 import {
   SITE_NAME,
+  SITE_HEBREW_NAME,
+  SITE_TITLE,
+  SITE_DESCRIPTION,
+  websiteStructuredData,
   SITE_URL,
   siteMetadata,
   webApplicationStructuredData,
@@ -14,7 +18,7 @@ describe("JOBMITER production metadata", () => {
     expect(siteMetadata.metadataBase?.toString()).toBe("https://jobmiter.com/");
     expect(siteMetadata.applicationName).toBe("JOBMITER");
     expect(siteMetadata.openGraph).toMatchObject({
-      siteName: "JOBMITER",
+      siteName: SITE_HEBREW_NAME,
       url: "https://jobmiter.com",
       type: "website",
     });
@@ -42,9 +46,36 @@ describe("JOBMITER production metadata", () => {
     });
     expect(webApplicationStructuredData).toMatchObject({
       "@type": "WebApplication",
-      name: "JOBMITER",
+      name: SITE_HEBREW_NAME,
       url: "https://jobmiter.com",
       applicationCategory: "BusinessApplication",
     });
+  });
+  it("keeps canonical, social previews and site identity consistent for Hebrew search", () => {
+    expect(siteMetadata.title).toMatchObject({ default: SITE_TITLE });
+    expect(siteMetadata.openGraph).toMatchObject({
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+      locale: "he_IL",
+    });
+    expect(siteMetadata.twitter).toMatchObject({
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+    });
+    expect(websiteStructuredData).toMatchObject({
+      "@type": "WebSite",
+      name: SITE_HEBREW_NAME,
+      url: SITE_URL,
+      inLanguage: "he-IL",
+    });
+    expect(websiteStructuredData.alternateName).toEqual(
+      expect.arrayContaining([
+        "ג'וב מיטר",
+        "ג'ובמיטר",
+        "Job Miter",
+        "jobmiter",
+      ]),
+    );
+    expect(manifest()).toMatchObject({ lang: "he", dir: "rtl" });
   });
 });

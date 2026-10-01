@@ -14,6 +14,11 @@ Updated: 2026-09-23. This is a decision list, not a legal compliance certificate
 - [ ] Name the responsible person for security incidents, set escalation contacts and response timelines, and test the incident process.
 - [ ] Review and rehearse `docs/INCIDENT_RESPONSE.md`; it is currently a draft, not evidence of incident response capability.
 
+## Search visibility
+
+- [ ] After deploying the Hebrew SEO changes, verify `jobmiter.com` in Google Search Console, submit `https://jobmiter.com/sitemap.xml`, and request homepage indexing.
+- [ ] Inspect Google's rendered homepage and confirm its Hebrew content, canonical URL and WebSite structured data. Track branded searches for ג'וב מיטר, ג'ובמיטר, Job Miter and Jobmiter; rankings are not yet verified.
+
 ## Technical release gates still to verify
 
 - [ ] Confirm the production Vercel project uses `jobmiter.com`, the correct production Convex URL and site URL, and stable Google OAuth callback. Do not use a preview deployment URL for production OAuth.

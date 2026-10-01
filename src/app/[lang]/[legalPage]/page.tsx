@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { legalPages, legalVersion } from "@/i18n/locales/legal";
-import { SITE_URL } from "@/app/site-metadata";
+import { SITE_URL, siteMetadata } from "@/app/site-metadata";
+import he from "@/i18n/locales/he.json";
+import en from "@/i18n/locales/en.json";
 import { LegalLanguageSync } from "@/features/privacy/legal-language-sync";
 
 const slugs = [
@@ -35,9 +37,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang, legalPage } = await params;
   const page = getPage(lang, legalPage);
   if (!page) return {};
+  const brand = lang === "he" ? he.seo.name : en.seo.name;
+  const title = `${page.content.title} | ${brand}`;
+  const url = `${SITE_URL}/${lang}/${legalPage}`;
   return {
-    title: page.content.title,
+    title: { absolute: title },
     description: page.content.introduction,
+    openGraph: {
+      ...siteMetadata.openGraph,
+      title,
+      description: page.content.introduction,
+      url,
+      locale: lang === "he" ? "he_IL" : "en_US",
+      alternateLocale: lang === "he" ? "en_US" : "he_IL",
+    },
+    twitter: {
+      ...siteMetadata.twitter,
+      title,
+      description: page.content.introduction,
+    },
     alternates: {
       canonical: `${SITE_URL}/${lang}/${legalPage}`,
       languages: {

@@ -76,6 +76,7 @@ export function HomeRoute({
   return (
     <AuthBoundary
       unauthenticated={<LandingPage />}
+      publicWhileLoading
       initiallyAuthenticated={initiallyAuthenticated}
     >
       <ProfileGate loading={loading}>

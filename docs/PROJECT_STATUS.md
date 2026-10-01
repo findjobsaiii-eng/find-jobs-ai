@@ -266,3 +266,20 @@ Implemented: source provenance distinguishes successful HTTP/structured verifica
 Implemented: legal and support pages remain linked from the global footer, sign-in shows only compact terms and privacy links, and optional analytics uses one small accept/reject banner that can be reopened from the footer. The blocking legal acceptance screen, resume-upload disclosure block, and unused marketing checkbox were removed. Resume upload no longer depends on a separate consent record. Existing consent data and schema remain intact to avoid a destructive production migration.
 
 Implemented: development CSP includes React's required `unsafe-eval` source only when `NODE_ENV=development`; production omits it. The permissions policy allows same-origin geolocation so the **Near me** action can request browser permission while camera and microphone remain disabled.
+
+## Hebrew search visibility
+
+Implemented: Hebrew-first public titles/descriptions and social metadata;
+homepage WebSite identity with Hebrew/English brand aliases; server-rendered
+Hebrew landing content with saved English preferences applied after hydration;
+page-specific legal metadata; local Hebrew font for the social-preview image.
+Unknown: Google Search Console verification, sitemap submission, Google indexing,
+and ranking for branded queries. These require production checks after release.
+
+Validation: `npm run check`, all 314 tests, and `npx next build --webpack` passed.
+The locally built homepage HTML contained its Hebrew content, canonical and
+WebSite/WebApplication markup; Hebrew and English legal routes returned their
+own titles/canonicals/locales. Browser checks covered both reading directions,
+saved English preference restoration and route-specific legal titles. The Hebrew
+social-preview image was visually checked. Default Turbopack builds were blocked
+by this execution environment's local-port restriction.

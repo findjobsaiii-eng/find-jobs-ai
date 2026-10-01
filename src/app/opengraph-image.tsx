@@ -1,14 +1,24 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { SITE_TITLE } from "./site-metadata";
+import he from "@/i18n/locales/he.json";
 
 const logoData = await readFile(
   join(process.cwd(), "public/brand/logo.png"),
   "base64",
 );
 const logoSrc = `data:image/png;base64,${logoData}`;
+const hebrewFont = await readFile(
+  join(process.cwd(), "public/fonts/NotoSansHebrew-Regular.ttf"),
+);
 
-export const alt = "JOBMITER — AI Job Search, Simplified";
+// Satori places these unpointed, Hebrew-only lines left-to-right. Supply visual
+// glyph order here; keep translation resources in normal Hebrew reading order.
+const imageTitle = Array.from(he.seo.imageTitle).reverse().join("");
+const imageSubtitle = Array.from(he.seo.imageSubtitle).reverse().join("");
+
+export const alt = SITE_TITLE;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -26,7 +36,7 @@ export default function OpenGraphImage() {
         color: "#F8FAFC",
         background:
           "linear-gradient(135deg, #07182E 0%, #0B1F3B 62%, #12325B 100%)",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "Noto Sans Hebrew",
       }}
     >
       <div
@@ -76,10 +86,11 @@ export default function OpenGraphImage() {
             width: 760,
             fontSize: 48,
             lineHeight: 1.18,
-            fontWeight: 600,
+            fontWeight: 400,
+            textAlign: "right",
           }}
         >
-          AI Job Search, Simplified.
+          {imageTitle}
         </div>
         <div
           style={{
@@ -99,10 +110,20 @@ export default function OpenGraphImage() {
               background: "#14B8A6",
             }}
           />
-          Less searching. More focus.
+          {imageSubtitle}
         </div>
       </div>
     </div>,
-    size,
+    {
+      ...size,
+      fonts: [
+        {
+          name: "Noto Sans Hebrew",
+          data: hebrewFont,
+          weight: 400,
+          style: "normal",
+        },
+      ],
+    },
   );
 }

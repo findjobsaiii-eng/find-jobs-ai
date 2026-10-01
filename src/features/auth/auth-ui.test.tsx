@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -291,4 +292,49 @@ describe("authentication UI", () => {
       screen.getByRole("button", { name: "המשך עם Google" }),
     ).toBeInTheDocument();
   });
+});
+
+describe("public homepage server rendering", () => {
+  it.each(["initializing", "idle"] as const)(
+    "renders public HTML while auth is %s",
+    (callbackStatus) => {
+      const html = renderToStaticMarkup(
+        <AuthGate
+          isAuthenticated={false}
+          isLoading={true}
+          callbackStatus={callbackStatus}
+          publicWhileLoading
+          onDismissCallbackError={vi.fn()}
+          unauthenticated={
+            <main>
+              <h1>Public content</h1>
+            </main>
+          }
+        >
+          <p>Private content</p>
+        </AuthGate>,
+      );
+      expect(html).toContain("<h1>Public content</h1>");
+      expect(html).not.toContain("Private content");
+    },
+  );
+  it.each(["exchanging", "awaiting-session", "error"] as const)(
+    "preserves OAuth handling when the callback is %s",
+    (callbackStatus) => {
+      const html = renderToStaticMarkup(
+        <AuthGate
+          isAuthenticated={false}
+          isLoading={true}
+          callbackStatus={callbackStatus}
+          publicWhileLoading
+          onDismissCallbackError={vi.fn()}
+          unauthenticated={<p>Public content</p>}
+        >
+          <p>Private content</p>
+        </AuthGate>,
+      );
+      expect(html).not.toContain("Public content");
+      expect(html).not.toContain("Private content");
+    },
+  );
 });

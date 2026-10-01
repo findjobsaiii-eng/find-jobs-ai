@@ -749,3 +749,24 @@ Completed shared queries are reused even when no visible jobs were produced.
 Failures release the shared query claim for another user's own daily slot, but
 do not grant the failing user another slot. Existing bounded provider request
 retries and development-only manual searches remain separate from daily slots.
+
+### D-037: Hebrew-first SEO and crawlable public rendering
+
+Status: Accepted
+
+The Israeli audience is the primary search audience. Public homepage titles,
+descriptions and social previews use Hebrew, with Jobmiter included alongside
+ג׳וב מיטר. Homepage WebSite structured data lists legitimate alternate brand
+spellings without stuffing titles with every variant. Legal pages retain their
+own language and canonical/social metadata; authenticated pages remain noindex.
+
+Translation resources initialize synchronously in Hebrew for server rendering
+and hydration. Auth boundaries restore a saved language after their route
+hydrates; legal pages synchronize their explicit URL language. Avoid restoring
+browser language from a root-provider effect, which can race streamed page
+hydration. Language synchronization preserves route-specific document titles.
+
+Google Search Console verification, sitemap submission and production indexing
+remain release tasks; no ranking outcome is assumed. The social image renders
+with a locally bundled OFL Hebrew font. Its Hebrew-only text requires visual
+glyph ordering because the current Satori renderer does not apply Hebrew bidi.

@@ -1,7 +1,4 @@
 {
-  "meta": {
-    "title": "JOBMITER"
-  },
   "brand": {
     "name": "JOBMITER"
   },
@@ -60,7 +57,7 @@
     "eyebrow": "Free during beta",
     "titleStart": "Every job.",
     "titleAccent": "One place.",
-    "description": "Stop jumping between job boards. JOBMITER scans the web, uses AI to find the roles that fit you best, and keeps your entire search organized in one place.",
+    "description": "Jobmiter (Job Miter) scans the web and uses AI to find jobs in Israel that match your experience, bringing your job search together in one place.",
     "signIn": "Start for free",
     "privacy": "Your resume stays private and in your control.",
     "quickStart": "30-second setup · up to 70% less time spent searching.",
@@ -1057,5 +1054,12 @@
       "hidden": "Hidden from this user",
       "notFound": "The user or job no longer exists."
     }
+  },
+  "seo": {
+    "name": "Jobmiter",
+    "title": "Jobmiter — AI job search in Israel",
+    "description": "Jobmiter (Job Miter) helps you find jobs in Israel with AI. Upload your resume, discover roles that match your experience, and organize your job search. Free during beta.",
+    "imageTitle": "Smarter job search in Israel",
+    "imageSubtitle": "Jobs that match your experience"
   }
 }

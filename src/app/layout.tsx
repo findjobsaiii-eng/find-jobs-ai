@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import { AppProviders } from "./app-providers";
-import {
-  siteMetadata,
-  siteViewport,
-  webApplicationStructuredData,
-} from "./site-metadata";
+import { siteMetadata, siteViewport } from "./site-metadata";
 import "./globals.css";
 
 export const metadata = siteMetadata;
@@ -22,12 +18,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           >
             דלג לתוכן / Skip to content
           </a>
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify(webApplicationStructuredData),
-            }}
-          />
           <AppProviders convexUrl={process.env.NEXT_PUBLIC_CONVEX_URL}>
             {children}
           </AppProviders>
