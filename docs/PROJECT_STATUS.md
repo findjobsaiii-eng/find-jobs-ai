@@ -456,3 +456,29 @@ sign-in. Production was unchanged.
       irrelevant feed examples, unfamiliar-term proposals and cleanup usage.
       Pay particular attention to different locations sharing the same national
       role search and to qualified users excluded by unresolved terminology.
+
+## Production rollout (2026-10-02)
+
+Released application commit `414af76` to main. Convex functions and schema deployed
+successfully to production `famous-badger-815`; catalog seeding inserted seven
+reference items and updated 110, with 19 education concepts and 173 skill aliases
+verified afterwards. Deterministic rematching ran without AI calls; all 196
+matching tasks in the inspected scheduler window succeeded. Vercel deployment
+`dpl_7pW7MwK3maVuTV7KAxzFc376z1A5` reached Ready and serves jobmiter.com.
+The live /api/health endpoint returned HTTP 200 with status ok.
+
+Two existing production schema blockers were resolved before release. Six of 12
+daily search-attempt records contained obsolete `nextAttemptAt`; a backed-up
+single-table import removed only that field, with all document identities,
+creation timestamps and remaining history verified unchanged. Four obsolete
+deep-review cache entries used the old strengths/gaps format. After explicit
+owner approval, these were backed up privately under /private/tmp and cleared;
+CVs, profiles and application history were not cleared. Users regenerate those
+reports through the normal review action. No transitional schema fields or
+legacy readers were added.
+
+Validation: npm run check, all 408 tests and npm run build -- --webpack passed
+before release. Actual production search accuracy and the first live monthly
+vocabulary cleanup remain observation items; no paid cleanup call was triggered
+for deployment. Fully automatic vocabulary approval and stronger-model escalation
+remain the next deferred improvements above.
