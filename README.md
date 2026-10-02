@@ -209,6 +209,7 @@ Editable profile data is normalized and bounded on the server:
 | Professional summary         | Optional, up to 1,200 characters                                     |
 | Years of experience          | Whole number from 0–60                                               |
 | Skills                       | 1–30 validated catalog references                                    |
+| Experience areas             | Up to 20 labels, each 2–160 characters                               |
 | Preferred location           | One Google Place with normalized city/region/country and coordinates |
 | Location radius              | 5–200 km in 5 km increments                                          |
 | Work arrangements            | One or more of onsite, hybrid, and remote                            |
@@ -225,6 +226,16 @@ an authenticated user can add a normalized custom value that is visible only to
 that user. Private custom values are capped, URLs and control characters are
 rejected, and exact duplicates are reused. This keeps the MVP useful without
 publishing unreviewed input or creating a manual moderation queue.
+
+Experience areas use the same searchable chip picker in onboarding and profile.
+The `experienceDomain` catalog starts with 14 bilingual suggestions; users can
+add private suggestions. CV-extracted areas prefill the picker. Once edited,
+`candidateProfiles.experienceDomains` is authoritative for matching, including
+an intentionally empty list. Replacement CVs and CV switching preserve those
+choices. The original CV facts and durations remain separate: adding an area
+does not invent years of experience. This feature adds no AI calls. Experience
+areas are not yet included in monthly AI vocabulary curation; automatic
+maintenance across all dropdown catalogs remains planned.
 
 The onboarding UI searches Google Places for one primary Israeli city or region,
 then asks for a search radius. A selected result stores its Place ID, formatted

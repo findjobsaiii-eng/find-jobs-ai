@@ -389,7 +389,10 @@ export const getCatalogForExtraction = internalQuery({
     );
     return groups
       .flat()
-      .filter((item) => item.active)
+      .filter(
+        (item): item is Doc<"catalogItems"> & { kind: "jobTitle" | "skill" } =>
+          item.active && (item.kind === "jobTitle" || item.kind === "skill"),
+      )
       .map((item) => ({
         kind: item.kind,
         labelEn: item.labelEn ?? null,

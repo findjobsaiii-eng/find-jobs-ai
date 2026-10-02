@@ -1,5 +1,5 @@
 export type CatalogSeedItem = {
-  kind: "jobTitle" | "skill";
+  kind: "jobTitle" | "skill" | "experienceDomain";
   slug: string;
   labelEn: string;
   labelHe: string;
@@ -436,7 +436,33 @@ const skills: Omit<CatalogSeedItem, "kind">[] = [
   priority: 100 - index,
 }));
 
+const experienceDomains: Omit<CatalogSeedItem, "kind">[] = [
+  ["software-development", "Software Development", "פיתוח תוכנה"],
+  ["customer-service", "Customer Service", "שירות לקוחות"],
+  ["insurance", "Insurance", "ביטוח"],
+  ["sales", "Sales", "מכירות"],
+  ["marketing", "Marketing", "שיווק"],
+  ["data-analytics", "Data Analytics", "ניתוח נתונים"],
+  ["finance-accounting", "Finance and Accounting", "כספים וחשבונאות"],
+  ["human-resources", "Human Resources", "משאבי אנוש"],
+  ["logistics", "Logistics", "לוגיסטיקה"],
+  ["product-management", "Product Management", "ניהול מוצר"],
+  ["design", "Design", "עיצוב"],
+  ["healthcare", "Healthcare", "בריאות"],
+  ["education-teaching", "Education and Teaching", "חינוך והוראה"],
+  ["cybersecurity", "Cybersecurity", "אבטחת מידע"],
+].map(([slug, labelEn, labelHe], index) => ({
+  slug: "experience-domain:" + slug,
+  labelEn,
+  labelHe,
+  priority: 100 - index,
+}));
+
 export const CATALOG_SEED: CatalogSeedItem[] = [
   ...jobTitles.map((item) => ({ ...item, kind: "jobTitle" as const })),
   ...skills.map((item) => ({ ...item, kind: "skill" as const })),
+  ...experienceDomains.map((item) => ({
+    ...item,
+    kind: "experienceDomain" as const,
+  })),
 ];

@@ -7,6 +7,7 @@ const PROFILE_FIELD_STEPS: Record<ProfileField, number> = {
   professionalSummary: 2,
   yearsOfExperience: 2,
   skills: 2,
+  experienceDomains: 2,
   qualifications: 2,
   preferredLocations: 3,
   locationRadiusKm: 3,

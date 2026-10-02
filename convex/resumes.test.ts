@@ -775,3 +775,73 @@ describe("onboarding resume education prefill", () => {
     ).toBe(false);
   });
 });
+
+it.each([{ areas: ["Insurance"] }, { areas: [] }])(
+  "keeps corrected experience areas %j through CV replacement and switching",
+  async ({ areas }) => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    const user = asUser(t, first.userId);
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(first.resumeId, first.userId),
+    );
+    const initial = await user.query(api.resumes.getCurrent);
+    await user.mutation(api.resumes.finishReview, {
+      targetJobTitleIds: initial!.targetRoles.map((role) => role.id),
+    });
+    await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: { experienceDomains: areas },
+      onboardingStep: 4,
+      complete: false,
+    });
+    const search = await t.query(
+      internal.jobDiscovery.getCurrentSearchProfile,
+      { userId: first.userId },
+    );
+    expect(search.professionalDomains).toEqual(areas);
+    expect(search.experienceByDomain).toEqual([
+      { domain: "e-commerce", months: 60 },
+    ]);
+    const upload = async (replacementForId?: Id<"resumeDocuments">) => {
+      const storageId = await t.run((ctx) =>
+        ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+      );
+      return user.mutation(api.resumes.createFromUpload, {
+        storageId,
+        fileName: "new.pdf",
+        mimeType: "application/pdf",
+        size: 7,
+        ...(replacementForId
+          ? { replacementForId }
+          : { activateOnSuccess: false }),
+      });
+    };
+    const replacement = await upload(first.resumeId);
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(replacement, first.userId),
+      domains: ["Software Development"],
+    });
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.experienceDomains,
+    ).toEqual(areas);
+    const other = await upload();
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(other, first.userId),
+      domains: ["Customer Service"],
+    });
+    await user.mutation(api.resumes.setActive, { resumeId: other });
+    expect(
+      (
+        await t.query(internal.jobDiscovery.getCurrentSearchProfile, {
+          userId: first.userId,
+        })
+      ).professionalDomains,
+    ).toEqual(areas);
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.cvCareerProfile?.domains,
+    ).toEqual(["Customer Service"]);
+  },
+);

@@ -49,6 +49,15 @@ export type CurrentProfile = FunctionReturnType<
 export type CatalogOption = FunctionReturnType<
   typeof api.referenceData.searchCatalog
 >[number];
+export function catalogLabel(option: CatalogOption, language: string): string {
+  return (
+    (language === "he" ? option.labelHe : option.labelEn) ??
+    option.labelEn ??
+    option.labelHe ??
+    ""
+  );
+}
+
 type SaveProfileArgs = FunctionArgs<typeof api.candidateProfiles.saveCurrent>;
 
 export type SelectedPlace = {
@@ -92,6 +101,7 @@ export type ProfileDraft = {
   professionalSummary: string;
   yearsOfExperience: string;
   skills: CatalogOption[];
+  experienceDomains: string[];
   preferredLocations: SelectedPlace[];
   locationRadiusKm: number;
   workArrangements: WorkArrangement[];
@@ -147,6 +157,8 @@ export function createProfileDraft(data: CurrentProfile): ProfileDraft {
         ? "0"
         : String(profile.yearsOfExperience),
     skills: data.selections.skills,
+    experienceDomains:
+      profile?.experienceDomains ?? profile?.cvCareerProfile?.domains ?? [],
     preferredLocations: profile?.primaryLocation
       ? [
           {
@@ -197,6 +209,7 @@ export function profileDraftToValues(
     yearsOfExperience:
       draft.yearsOfExperience === "" ? null : Number(draft.yearsOfExperience),
     skillIds: draft.skills.map((item) => item.id),
+    experienceDomains: draft.experienceDomains,
     preferredPlaceIds: draft.preferredLocations.map((item) => item.placeId),
     locationRadiusKm: draft.locationRadiusKm,
     primaryLocation:
@@ -279,6 +292,13 @@ export function validateProfileStep(
     }
   }
   if (step === 2) {
+    if (
+      draft.experienceDomains.length > 20 ||
+      draft.experienceDomains.some(
+        (label) => label.trim().length < 2 || label.length > 160,
+      )
+    )
+      errors.experienceDomains = "onboarding.errors.experienceDomains";
     if (
       draft.qualifications.education.length > 10 ||
       draft.qualifications.education.some(

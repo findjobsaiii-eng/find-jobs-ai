@@ -161,3 +161,26 @@ it("does not mark untouched CV defaults as user confirmations when only educatio
     profileDraftChanges({ ...original, yearsOfExperience: "3" }, original),
   ).toEqual({ yearsOfExperience: 3 });
 });
+
+it("prefills CV experience areas and keeps explicit empty or corrected selections authoritative", () => {
+  const data = profileData();
+  data.profile!.cvCareerProfile = {
+    domains: ["Software development and insurance customer service"],
+  } as NonNullable<CurrentProfile["profile"]>["cvCareerProfile"];
+  const original = createProfileDraft(data);
+  expect(original.experienceDomains).toEqual([
+    "Software development and insurance customer service",
+  ]);
+  const corrected = {
+    ...original,
+    experienceDomains: ["Customer Service", "Insurance"],
+  };
+  expect(profileDraftChanges(corrected, original)).toEqual({
+    experienceDomains: ["Customer Service", "Insurance"],
+  });
+  data.profile!.experienceDomains = [];
+  expect(createProfileDraft(data).experienceDomains).toEqual([]);
+  expect(
+    profileDraftChanges({ ...original, experienceDomains: [] }, original),
+  ).toEqual({ experienceDomains: [] });
+});

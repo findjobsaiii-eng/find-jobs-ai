@@ -5,9 +5,9 @@ import { Check, LoaderCircle, Lock, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
-import type { CatalogOption } from "./profile-types";
+import { catalogLabel, type CatalogOption } from "./profile-types";
 
-type PickerOption = {
+export type PickerOption = {
   id: string;
   label: string;
   isCustom: boolean;
@@ -92,7 +92,7 @@ function PickerItemIcon({
   );
 }
 
-function SharedPicker({
+export function SharedPicker({
   label,
   hint,
   placeholder,
@@ -153,8 +153,14 @@ function SharedPicker({
         filter={null}
         itemToStringLabel={(item) => item.label}
         isItemEqualToValue={(item, value) => item.id === value.id}
-        onInputValueChange={setSearch}
-        onValueChange={(nextValues) => {
+        onInputValueChange={(next, details) => {
+          if (details.reason === "input-change") setSearch(next);
+        }}
+        onValueChange={(nextValues, details) => {
+          if (details.reason === "escape-key") {
+            details.cancel();
+            return;
+          }
           const create = nextValues.find((item) => item.create);
           if (create && onCreate) {
             void onCreate(create.label);
@@ -282,15 +288,6 @@ function SharedPicker({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function catalogLabel(option: CatalogOption, language: string): string {
-  return (
-    (language === "he" ? option.labelHe : option.labelEn) ??
-    option.labelEn ??
-    option.labelHe ??
-    ""
   );
 }
 

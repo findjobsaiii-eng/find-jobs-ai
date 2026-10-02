@@ -111,6 +111,7 @@ const editableFieldsValidator = v.object({
   minimumMonthlySalaryIls: v.optional(v.union(v.number(), v.null())),
   languages: v.optional(v.array(languageValidator)),
   qualifications: v.optional(candidateQualificationsValidator),
+  experienceDomains: v.optional(v.array(v.string())),
 });
 
 type EditableProfile = Pick<
@@ -128,6 +129,7 @@ type EditableProfile = Pick<
   | "minimumMonthlySalaryIls"
   | "languages"
   | "qualifications"
+  | "experienceDomains"
 >;
 type EditableProfilePatch = Partial<EditableProfile>;
 type EditableProfileInput = {
@@ -154,6 +156,7 @@ type EditableProfileInput = {
   minimumMonthlySalaryIls?: number | null;
   languages?: EditableProfile["languages"];
   qualifications?: EditableProfile["qualifications"];
+  experienceDomains?: string[];
 };
 
 type ProfileField =
@@ -168,7 +171,8 @@ type ProfileField =
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
   | "languages"
-  | "qualifications";
+  | "qualifications"
+  | "experienceDomains";
 
 function validationError(field: ProfileField, reason: string): never {
   throw new ConvexError({ code: "VALIDATION_ERROR", field, reason });
@@ -210,6 +214,20 @@ function normalizeEditableFields(
   values: EditableProfileInput,
 ): EditableProfilePatch {
   const normalized: EditableProfilePatch = {};
+  if (values.experienceDomains !== undefined) {
+    if (values.experienceDomains.length > 20)
+      validationError("experienceDomains", "list_size");
+    const seen = new Set<string>();
+    normalized.experienceDomains = values.experienceDomains.flatMap((raw) => {
+      const label = normalizeText(raw, "experienceDomains", 160);
+      if (label.length < 2 || /https?:|@|[\p{Cc}\p{Cf}]/iu.test(label))
+        validationError("experienceDomains", "invalid_option");
+      const key = label.toLowerCase();
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [label];
+    });
+  }
   if (values.qualifications !== undefined)
     normalized.qualifications = normalizeCandidateQualifications(
       values.qualifications,
@@ -562,7 +580,7 @@ export async function loadProfileView(
   for (const item of visibleCatalog) {
     const selection = toCatalogSelection(item);
     if (item.kind === "jobTitle") targetJobTitles.push(selection);
-    else skills.push(selection);
+    else if (item.kind === "skill") skills.push(selection);
   }
   return {
     identity: {

@@ -937,3 +937,16 @@ be merged by an AI suggestion. Approved aliases affect existing private labels
 without publishing private catalog items, and trigger ordinary match
 reconciliation. Account deletion removes user-linked occurrences and decrements
 counts. Mandatory degree level and completion checks remain independent.
+
+### D-045: Editable experience areas with CV evidence kept separate
+
+Status: Accepted.
+
+Experience areas use `catalogItems.kind = experienceDomain` for bilingual public
+suggestions and owner-private custom additions. The profile stores effective
+labels in `experienceDomains`; before manual edits, the CV-derived domains
+prefill the picker and drive matching. An explicit empty list is authoritative.
+Manual selections survive replacement CVs and switching the active CV. CV
+experience durations remain separate and cannot be inferred from selected
+areas. Saving areas triggers ordinary deterministic match reconciliation, with
+no new AI request. Monthly vocabulary curation does not yet include this catalog.

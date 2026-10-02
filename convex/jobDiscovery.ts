@@ -638,7 +638,8 @@ export async function loadSearchProfile(
     normalizedPastRoles: profile.cvCareerProfile?.normalizedPastRoles ?? [],
     currentRole: profile.cvCareerProfile?.currentTitle,
     seniority: profile.seniority,
-    professionalDomains: profile.cvCareerProfile?.domains ?? [],
+    professionalDomains:
+      profile.experienceDomains ?? profile.cvCareerProfile?.domains ?? [],
     experienceByDomain: profile.cvCareerProfile?.experienceByDomain ?? [],
   };
 }

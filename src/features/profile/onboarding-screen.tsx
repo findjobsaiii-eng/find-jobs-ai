@@ -1,3 +1,4 @@
+import { ExperienceDomainsPicker } from "./experience-domains-picker";
 import { QualificationsFields } from "./qualifications-fields";
 import {
   useEffect,
@@ -243,6 +244,15 @@ export function StepTwo({ draft, setDraft, errors }: StepProps) {
         onChange={(skills) => setDraft((current) => ({ ...current, skills }))}
         maxItems={PROFILE_LIMITS.skills.max}
         error={errors.skills && t(errors.skills)}
+      />
+      <ExperienceDomainsPicker
+        values={draft.experienceDomains}
+        onChange={(experienceDomains) =>
+          setDraft((current) => ({ ...current, experienceDomains }))
+        }
+        error={
+          errors.experienceDomains ? t(errors.experienceDomains) : undefined
+        }
       />
       <QualificationsFields
         value={draft.qualifications}

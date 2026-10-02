@@ -592,7 +592,8 @@
       "workArrangement": "Where are you willing to work from?",
       "employmentTypes": "What kind of employment are you looking for?",
       "salary": "What's the minimum monthly salary that works for you?",
-      "proficiency": "How well do you know this language?"
+      "proficiency": "How well do you know this language?",
+      "experienceDomains": "Experience areas"
     },
     "hints": {
       "targetJobTitles": "Search and choose 1–5 roles. If one is missing, you can add it.",
@@ -605,7 +606,8 @@
       "skill": "e.g. TypeScript",
       "location": "e.g. Tel Aviv",
       "salary": "e.g. 15,000",
-      "proficiency": "Select a level"
+      "proficiency": "Select a level",
+      "experienceDomain": "Search or add an experience area"
     },
     "experience": {
       "decrease": "Decrease years of experience",
@@ -681,7 +683,8 @@
       "reviewFields": "Some profile details need attention. Review the highlighted field.",
       "authentication": "Your session has expired. Sign in again and retry.",
       "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",
-      "save": "We couldn't save your profile. Check your connection and try again."
+      "save": "We couldn't save your profile. Check your connection and try again.",
+      "experienceDomains": "Choose up to 20 experience areas, with names between 2 and 160 characters."
     }
   },
   "applications": {

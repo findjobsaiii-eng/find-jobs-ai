@@ -213,6 +213,7 @@ const profileOverrideField = v.union(
   v.literal("languages"),
   v.literal("seniority"),
   v.literal("qualifications"),
+  v.literal("experienceDomains"),
 );
 
 const normalizedProfileLocation = v.object({
@@ -383,7 +384,11 @@ const schema = defineSchema({
     attempts: v.number(),
   }).index("by_userId", ["userId"]),
   catalogItems: defineTable({
-    kind: v.union(v.literal("jobTitle"), v.literal("skill")),
+    kind: v.union(
+      v.literal("jobTitle"),
+      v.literal("skill"),
+      v.literal("experienceDomain"),
+    ),
     labelEn: v.optional(v.string()),
     labelHe: v.optional(v.string()),
     normalizedKey: v.string(),
@@ -510,6 +515,7 @@ const schema = defineSchema({
     employmentTypes: v.optional(v.array(employmentType)),
     minimumMonthlySalaryIls: v.optional(v.number()),
     qualifications: v.optional(candidateQualificationsValidator),
+    experienceDomains: v.optional(v.array(v.string())),
     languages: v.optional(
       v.array(
         v.object({

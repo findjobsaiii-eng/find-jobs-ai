@@ -12,7 +12,11 @@ import {
   upsertSkillCatalogItem,
 } from "./skillIdentity";
 
-const catalogKindValidator = v.union(v.literal("jobTitle"), v.literal("skill"));
+const catalogKindValidator = v.union(
+  v.literal("jobTitle"),
+  v.literal("skill"),
+  v.literal("experienceDomain"),
+);
 
 const catalogOptionValidator = v.object({
   id: v.id("catalogItems"),
@@ -24,6 +28,7 @@ const catalogOptionValidator = v.object({
 const CUSTOM_LIMITS = {
   jobTitle: { maxItems: 10, minLength: 2, maxLength: 80 },
   skill: { maxItems: 50, minLength: 1, maxLength: 50 },
+  experienceDomain: { maxItems: 50, minLength: 2, maxLength: 160 },
 } as const;
 
 function normalizeWhitespace(value: string) {
@@ -34,9 +39,9 @@ function normalizedKey(value: string) {
   return normalizeWhitespace(value).toLocaleLowerCase("en-US");
 }
 
-function normalizeSearch(value: string) {
+function normalizeSearch(value: string, max = 80) {
   const normalized = normalizeWhitespace(value);
-  if (normalized.length > 80) {
+  if (normalized.length > max) {
     throw new ConvexError({
       code: "VALIDATION_ERROR",
       field: "search",
@@ -74,7 +79,10 @@ export const searchCatalog = query({
   returns: v.array(catalogOptionValidator),
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    const search = normalizeSearch(args.search);
+    const search = normalizeSearch(
+      args.search,
+      args.kind === "experienceDomain" ? 160 : 80,
+    );
 
     const publicItems = search
       ? await ctx.db
@@ -148,11 +156,17 @@ export const addCustomCatalogItem = mutation({
       label.length < limits.minLength ||
       label.length > limits.maxLength ||
       /https?:\/\/|www\./iu.test(label) ||
-      /[\p{Cc}\p{Cf}]/u.test(label)
+      /[\p{Cc}\p{Cf}]/u.test(label) ||
+      (args.kind === "experienceDomain" && /@/u.test(label))
     ) {
       throw new ConvexError({
         code: "VALIDATION_ERROR",
-        field: args.kind === "jobTitle" ? "targetJobTitles" : "skills",
+        field:
+          args.kind === "jobTitle"
+            ? "targetJobTitles"
+            : args.kind === "skill"
+              ? "skills"
+              : "experienceDomains",
         reason: "custom_item",
       });
     }

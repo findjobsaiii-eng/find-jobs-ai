@@ -40,6 +40,18 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented in development: editable experience areas in onboarding/profile,
+  using the shared searchable chip picker, 14 bilingual catalog suggestions and
+  owner-private custom additions. CV areas prefill the field; manual corrections
+  and an empty selection survive replacement/switching CVs and drive matching
+  without changing recorded experience durations or adding AI calls. Production
+  deployment of this follow-up is pending. Automatic experience-area vocabulary
+  curation is not implemented.
+  Validation: `npm run check`, `npm test` (416 tests), and
+  `npm run build -- --webpack` passed; Hebrew/English responsive component
+  previews verified selection, creation and keyboard behavior. React Doctor
+  reported no errors and one maintainability warning in the shared picker.
+
 - A Next.js App Router application with a neutral root layout, a separate public
   landing experience, a protected route-group layout, Convex providers, and Motion.
 - Optional PostHog page views, a reviewed semantic event allowlist, opaque

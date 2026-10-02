@@ -123,3 +123,70 @@ describe("skill dictionary onboarding", () => {
     ).rejects.toThrow();
   });
 });
+
+it("offers bilingual experience-area suggestions and keeps custom areas private and deduplicated", async () => {
+  const { t, user, userId } = await setup();
+  const found = await user.query(api.referenceData.searchCatalog, {
+    kind: "experienceDomain",
+    search: "ביטוח",
+  });
+  expect(found.some((item) => item.labelEn === "Insurance")).toBe(true);
+  const known = await user.mutation(api.referenceData.addCustomCatalogItem, {
+    kind: "experienceDomain",
+    label: "Insurance",
+    locale: "en",
+  });
+  expect(known.isCustom).toBe(false);
+  const own = await user.mutation(api.referenceData.addCustomCatalogItem, {
+    kind: "experienceDomain",
+    label: "Marine insurance operations",
+    locale: "en",
+  });
+  const same = await user.mutation(api.referenceData.addCustomCatalogItem, {
+    kind: "experienceDomain",
+    label: " Marine   insurance operations ",
+    locale: "en",
+  });
+  expect(same.id).toBe(own.id);
+  const otherId = await t.run((ctx) =>
+    ctx.db.insert("users", { email: "other@example.com" }),
+  );
+  const other = t.withIdentity({
+    subject: `${otherId}|test`,
+    issuer: "https://test.example",
+    tokenIdentifier: `https://test.example|${otherId}`,
+  });
+  expect(
+    await other.query(api.referenceData.searchCatalog, {
+      kind: "experienceDomain",
+      search: "Marine insurance operations",
+    }),
+  ).not.toContainEqual(own);
+  await expect(
+    user.mutation(api.referenceData.addCustomCatalogItem, {
+      kind: "experienceDomain",
+      label: "private@example.com",
+      locale: "en",
+    }),
+  ).rejects.toThrow();
+  await user.mutation(api.candidateProfiles.saveCurrent, {
+    values: { experienceDomains: [" Insurance ", "insurance"] },
+    onboardingStep: 1,
+    complete: false,
+  });
+  expect(
+    (await user.query(api.candidateProfiles.getCurrent)).profile
+      ?.experienceDomains,
+  ).toEqual(["Insurance"]);
+  await expect(
+    user.mutation(api.candidateProfiles.saveCurrent, {
+      values: { experienceDomains: ["x".repeat(161)] },
+      onboardingStep: 1,
+      complete: false,
+    }),
+  ).rejects.toThrow();
+  expect(
+    (await other.query(api.candidateProfiles.getCurrent)).profile,
+  ).toBeNull();
+  expect(userId).not.toBe(otherId);
+});
