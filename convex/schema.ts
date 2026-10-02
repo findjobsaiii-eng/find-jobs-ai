@@ -261,6 +261,14 @@ export const reviewResumeOptions = v.array(
   v.object({ id: v.id("resumeDocuments"), name: v.string() }),
 );
 
+export const reviewSalaryEstimate = v.object({
+  min: v.number(),
+  max: v.number(),
+  currency: v.literal("ILS"),
+  period: v.literal("month"),
+  basis: v.string(),
+});
+
 export const deepReviewView = v.object({
   status: deepReviewStatus,
   language: v.union(v.literal("en"), v.literal("he")),
@@ -286,6 +294,7 @@ export const deepReviewView = v.object({
   directApplicationUrl: v.optional(v.union(v.string(), v.null())),
   applicationNote: v.optional(v.string()),
   interviewFocus: v.optional(v.array(v.string())),
+  salaryEstimate: v.optional(v.union(reviewSalaryEstimate, v.null())),
   updatedAt: v.number(),
   errorCode: v.optional(v.string()),
 });
@@ -1107,6 +1116,7 @@ const schema = defineSchema({
     directApplicationUrl: v.optional(v.union(v.string(), v.null())),
     applicationNote: v.optional(v.string()),
     interviewFocus: v.optional(v.array(v.string())),
+    salaryEstimate: v.optional(v.union(reviewSalaryEstimate, v.null())),
     requestedAt: v.number(),
     completedAt: v.optional(v.number()),
     updatedAt: v.number(),

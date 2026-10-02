@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
-import { reviewRequirements } from "./schema";
+import { reviewRequirements, reviewSalaryEstimate } from "./schema";
 import { recordProductEvent } from "./productAnalytics";
 import { loadSearchProfile } from "./jobDiscovery";
 import { evaluateJobQuality } from "./jobQuality";
@@ -254,6 +254,7 @@ export const complete = internalMutation({
     directApplicationUrl: v.union(v.string(), v.null()),
     applicationNote: v.string(),
     interviewFocus: v.array(v.string()),
+    salaryEstimate: v.union(reviewSalaryEstimate, v.null()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

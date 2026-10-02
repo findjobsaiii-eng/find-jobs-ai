@@ -1888,6 +1888,7 @@ function deepReviewView(
     directApplicationUrl: review.directApplicationUrl,
     applicationNote: review.applicationNote,
     interviewFocus: review.interviewFocus,
+    salaryEstimate: review.salaryEstimate,
     updatedAt: review.updatedAt,
     errorCode: review.errorCode,
   };

@@ -7,7 +7,10 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, env } from "./_generated/server";
 import { normalizePublicUrl } from "./jobDiscoveryModel";
-import { deepReviewResponseSchema } from "./jobReviewModel";
+import {
+  deepReviewResponseSchema,
+  usableSalaryEstimate,
+} from "./jobReviewModel";
 import { verifyJobSource } from "./jobSourceVerification";
 import { openAiResponseUsage } from "./aiUsageModel";
 
@@ -146,6 +149,7 @@ export const reviewJob = action({
               "Never invent candidate experience or qualifications. matching contains the authoritative server score and requirement checks. Explain its conclusions; do not reassess, upgrade unknown evidence to met, or override a confirmed gap. Return requirementExplanations for at most twelve checks that benefit from resume-specific evidence or concrete truthful advice. Each index refers to matching.requirements; write one short evidence sentence and one nextStep or null. Missing evidence does not prove the candidate lacks a skill. Explicit candidate profile corrections take priority over resume claims.",
               "This is a quick decision aid. Write a summary of at most two short sentences. Do not repeat requirements, resume edits, or application advice in the summary. Keep resumeRationale to one sentence, prioritize at most four truthful resume edits, and give short interview prompts. applicationNote is at most one sentence explaining the preferred route; do not include Markdown, citations, URLs or a narrative of your research in any prose field.",
               "Choose the strongest existing resume by resumeKey and recommend concrete truthful edits for this role.",
+              "When job.salaryMin and job.salaryMax do not contain published salary, provide a rough salaryEstimate for this Israeli job: a plausible range of gross monthly base pay in ILS (excluding bonuses/equity), with one short basis sentence. Use the JOB's role, required experience/seniority, location, industry and employment type, not the candidate's desired salary or seniority. This is a guess, never employer-confirmed pay. Use your existing knowledge; do not make extra web searches for salary. Return null when salary is published, the job is outside Israel, or its context is too unclear to make a useful estimate. Do not turn hourly/part-time work into full-time monthly pay; return null if hours are unknown. The estimate must not influence the match score or requirement checks.",
               "Use web search to find the employer's official website and, when possible, the employer or official ATS application page for this exact role.",
               "Prefer an employer-owned careers page or official ATS over recruiters, staffing agencies, aggregators, and job boards.",
               "Return null for URLs that cannot be verified through web search. Do not fabricate URLs.",
@@ -225,6 +229,10 @@ export const reviewJob = action({
         ),
         applicationNote: parsed.applicationNote,
         interviewFocus: parsed.interviewFocus,
+        salaryEstimate: usableSalaryEstimate(
+          context.job,
+          parsed.salaryEstimate,
+        ),
       });
       return null;
     } catch (error) {

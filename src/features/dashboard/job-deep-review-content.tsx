@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { FunctionReturnType } from "convex/server";
 import {
   ArrowUpRight,
@@ -14,6 +14,7 @@ import {
   Send,
   ShieldCheck,
   Target,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { requirementLabel } from "./requirement-label";
+import { salaryRangeScale } from "./salary-range-scale";
 
 type FeedJob = FunctionReturnType<
   typeof api.jobDiscovery.listCurrentUserJobs
@@ -34,6 +36,10 @@ export type ReviewJobFacts = Pick<
   | "employmentType"
   | "activityConfidence"
   | "sourceUrl"
+  | "salaryMin"
+  | "salaryMax"
+  | "salaryCurrency"
+  | "salaryPeriod"
 >;
 
 const statusVisuals = {
@@ -79,6 +85,8 @@ export function DeepReviewContent({
           <JobFactTags facts={facts} unavailable={unavailable} />
         </div>
       </div>
+
+      <SalaryRange facts={facts} estimate={review.salaryEstimate} />
 
       {requirements.length ? (
         <ReviewSection icon={ShieldCheck} title={t("jobReview.requirements")}>
@@ -300,6 +308,124 @@ export function DeepReviewContent({
         </ReviewSection>
       ) : null}
     </div>
+  );
+}
+
+function SalaryRange({
+  facts,
+  estimate,
+}: {
+  facts: ReviewJobFacts;
+  estimate: DeepReview["salaryEstimate"];
+}) {
+  const { t, i18n } = useTranslation();
+  const formatter = useMemo(
+    () => new Intl.NumberFormat(i18n.language),
+    [i18n.language],
+  );
+  const validAmount = (amount: number | null) =>
+    amount !== null && Number.isFinite(amount) && amount > 0 ? amount : null;
+  const publishedMin = validAmount(facts.salaryMin);
+  const publishedMax = validAmount(facts.salaryMax);
+  const isEstimate =
+    publishedMin === null &&
+    publishedMax === null &&
+    estimate != null &&
+    estimate.min > 0 &&
+    estimate.max >= estimate.min;
+  const min = isEstimate ? estimate.min : publishedMin;
+  const max = isEstimate ? estimate.max : publishedMax;
+  const known =
+    (min !== null || max !== null) &&
+    !(min !== null && max !== null && min > max);
+  const currency = isEstimate
+    ? estimate.currency
+    : facts.salaryCurrency?.toUpperCase();
+  const format = (amount: number) => {
+    const number = formatter.format(amount);
+    return currency === "ILS"
+      ? `₪${number}`
+      : `${number}${currency ? ` ${currency}` : ""}`;
+  };
+  const period = isEstimate ? estimate.period : facts.salaryPeriod;
+  const scale = salaryRangeScale(min, max, currency, period);
+  const periodLabel = t(
+    `jobReview.salary.${period === "month" || period === "year" || period === "hour" || period === "day" ? period : "periodUnknown"}`,
+  );
+  const range = known
+    ? min !== null && max !== null
+      ? min === max
+        ? format(min)
+        : `${format(min)} – ${format(max)}`
+      : t(min !== null ? "jobReview.salary.from" : "jobReview.salary.upTo", {
+          amount: format((min ?? max)!),
+        })
+    : t("jobReview.salary.unknown");
+  return (
+    <section
+      aria-label={t("jobReview.salary.heading")}
+      className="bg-primary/5 rounded-xl p-4 sm:p-5"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="flex items-center gap-2 text-sm font-semibold">
+          <Wallet aria-hidden="true" className="text-primary size-4" />
+          {t("jobReview.salary.heading")}
+        </h4>
+        {known ? (
+          <span className="text-primary bg-primary/10 rounded-full px-2 py-1 text-[11px]">
+            {t(
+              isEstimate
+                ? "jobReview.salary.estimated"
+                : "jobReview.salary.listed",
+            )}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 text-xl font-semibold tabular-nums">
+        <bdi>{range}</bdi>
+      </p>
+      {known ? (
+        <>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {isEstimate ? t("jobReview.salary.grossMonth") : periodLabel}
+            {!currency ? ` · ${t("jobReview.salary.currencyUnknown")}` : ""}
+          </p>
+          {scale ? (
+            <div aria-hidden="true" className="mt-3 px-1.5 py-2" dir="ltr">
+              <div className="bg-primary/15 relative h-1.5 rounded-full">
+                <span
+                  className="bg-primary/65 absolute inset-y-0 rounded-full"
+                  style={{
+                    left: `${scale.start}%`,
+                    width: `${scale.end - scale.start}%`,
+                  }}
+                />
+                <span
+                  className="bg-primary ring-background/80 absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2"
+                  style={{ left: `${scale.start}%` }}
+                />
+                {scale.end !== scale.start ? (
+                  <span
+                    className="bg-primary ring-background/80 absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2"
+                    style={{ left: `${scale.end}%` }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {isEstimate ? (
+            <div className="text-muted-foreground mt-3 space-y-1 text-xs leading-relaxed">
+              <p>{t("jobReview.salary.estimateDisclaimer")}</p>
+              <p>{estimate.basis}</p>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-muted-foreground mt-1 text-xs">
+          {t("jobReview.salary.noEstimate")}
+        </p>
+      )}
+    </section>
   );
 }
 

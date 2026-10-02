@@ -29,6 +29,30 @@ export const deepReviewResponseSchema = z.strictObject({
   directApplicationUrl: z.string().trim().max(2_000).nullable(),
   applicationNote: detailText,
   interviewFocus: z.array(detailText).max(5),
+  salaryEstimate: z
+    .strictObject({
+      min: z.number().int().min(1000).max(200000),
+      max: z.number().int().min(1000).max(200000),
+      currency: z.literal("ILS"),
+      period: z.literal("month"),
+      basis: detailText,
+    })
+    .nullable(),
 });
 
 export type DeepReviewResponse = z.infer<typeof deepReviewResponseSchema>;
+
+export function usableSalaryEstimate(
+  job: { salaryMin: number | null; salaryMax: number | null },
+  estimate: DeepReviewResponse["salaryEstimate"],
+) {
+  if (
+    [job.salaryMin, job.salaryMax].some(
+      (amount) => amount !== null && Number.isFinite(amount) && amount > 0,
+    ) ||
+    !estimate ||
+    estimate.min > estimate.max
+  )
+    return null;
+  return estimate;
+}

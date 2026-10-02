@@ -465,6 +465,25 @@
       "contract": "Contract",
       "temporary": "Temporary",
       "internship": "Internship"
+    },
+    "salary": {
+      "heading": "Salary range",
+      "listed": "Published in listing",
+      "unknown": "Salary not published",
+      "noEstimate": "No reliable estimate yet.",
+      "month": "Per month",
+      "year": "Per year",
+      "hour": "Per hour",
+      "periodUnknown": "Pay period not specified",
+      "currencyUnknown": "Currency not specified",
+      "minUnknown": "Minimum not specified",
+      "maxUnknown": "Maximum not specified",
+      "from": "From {{amount}}",
+      "upTo": "Up to {{amount}}",
+      "estimated": "AI estimate · guessed",
+      "grossMonth": "Gross monthly base pay",
+      "estimateDisclaimer": "A rough guess, not confirmed by the employer.",
+      "day": "Per day"
     }
   },
   "resume": {

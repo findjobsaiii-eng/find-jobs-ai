@@ -252,6 +252,20 @@ shared aliases.
 
 ### Daily job discovery
 
+Deep review displays the listing's salary bounds as a visual range, preserving
+currency and pay period.
+The visual band uses a ₪10,000–₪50,000 track for monthly ILS ranges within those
+bounds, otherwise a padded local scale. Track bounds are not printed; the actual
+salary values appear once. Single known bounds remain textual rather than
+inventing a second endpoint. When salary is unpublished, the existing deep-review
+AI request can supply a rough gross monthly base-pay range in ILS, clearly marked
+as an AI guess with a short basis. Published salary always takes precedence;
+unusable estimates remain unknown. Estimates are stored only on the review,
+never as employer salary, and do not affect filtering or matching scores. No
+additional AI request or salary-specific web search is added. Cached reviews
+gain an estimate when refreshed normally. A shared salary-table estimation and
+seniority-aware filtering mechanism remains planned in `docs/PROJECT_STATUS.md`.
+
 Paid users with completed profiles receive a daily discovery attempt without
 opening the app. Ten deterministic user cohorts run hourly from 08:00 through
 17:00 Israel time. A newly completed paid profile is queued immediately if it

@@ -40,6 +40,23 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented locally: deep-review salary range card with published pay taking
+  precedence over clearly labeled AI guesses. The existing review request may
+  estimate gross monthly base pay for an Israeli role with no published salary;
+  insufficient context remains unknown. Estimates are stored separately on the
+  review and never used for filtering/scoring or written as employer salary.
+  No separate AI request or salary-specific web search is added. Production
+  deployment is pending; shared salary-table estimation remains a TODO below.
+  Verified: `npm run check`, `npm test` (422 tests),
+  `npm run build -- --webpack`, and `npx convex dev --once` on
+  `glorious-mallard-885`; Hebrew desktop and English mobile estimate previews.
+  No paid AI request was made during verification.
+  Salary visual refinement: bounded monthly ILS salaries inside ₪10k–₪50k use
+  that common track; other ranges receive local padding, exact pay shows a point,
+  and single-sided pay remains textual. Only the actual salary numbers appear.
+  Desktop/mobile previews verified the band. `npm run check` passed; all 425
+  tests passed on rerun after one unrelated OAuth visibility test initially
+  failed (that test also passed independently).
 - Implemented in development: editable experience areas in onboarding/profile,
   using the shared searchable chip picker, 14 bilingual catalog suggestions and
   owner-private custom additions. CV areas prefill the field; manual corrections
@@ -452,6 +469,14 @@ sign-in. Production was unchanged.
 
 ### Next step after observing the current matching/catalog behavior
 
+- [ ] Plan a salary-table mechanism to estimate job pay by role, seniority,
+      relevant experience, location and employment type. Prefer reliable salary
+      data and cached, periodically updated estimates over per-job AI calls.
+      Keep published salaries separate from estimates, record source/freshness
+      and confidence, normalize currency/pay period before comparison, and
+      decide how reliable estimates should exclude clearly underpaid roles for
+      senior candidates. Missing/uncertain estimates must remain explicit;
+      define false-exclusion safeguards before enabling filtering.
 - [ ] Extract richer matching evidence from CVs: experience duration per skill,
       recency of use, and supporting employment/project examples. Keep unknown
       values explicit and avoid adding onboarding questions unless necessary.

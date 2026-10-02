@@ -469,6 +469,25 @@
       "contract": "חוזה",
       "temporary": "משרה זמנית",
       "internship": "התמחות"
+    },
+    "salary": {
+      "heading": "טווח שכר",
+      "listed": "פורסם במשרה",
+      "unknown": "השכר לא פורסם",
+      "noEstimate": "עדיין אין הערכת שכר מבוססת.",
+      "month": "לחודש",
+      "year": "לשנה",
+      "hour": "לשעה",
+      "periodUnknown": "תקופת השכר לא צוינה",
+      "currencyUnknown": "המטבע לא צוין",
+      "minUnknown": "מינימום לא צוין",
+      "maxUnknown": "מקסימום לא צוין",
+      "from": "החל מ־{{amount}}",
+      "upTo": "עד {{amount}}",
+      "estimated": "הערכת AI · משוער",
+      "grossMonth": "שכר בסיס חודשי ברוטו",
+      "estimateDisclaimer": "הערכה משוערת, לא שכר שאושר על ידי המעסיק.",
+      "day": "ליום"
     }
   },
   "resume": {

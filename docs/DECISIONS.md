@@ -950,3 +950,24 @@ Manual selections survive replacement CVs and switching the active CV. CV
 experience durations remain separate and cannot be inferred from selected
 areas. Saving areas triggers ordinary deterministic match reconciliation, with
 no new AI request. Monthly vocabulary curation does not yet include this catalog.
+
+### D-046: Informational salary guesses in the existing deep review
+
+Status: Accepted.
+
+The existing deep-review response may include a nullable gross monthly base-pay
+estimate in ILS for an Israeli job with unpublished salary. The prompt uses job
+requirements and context, not the candidate's desired salary, and permits null
+when context or working hours are insufficient. Published pay takes precedence;
+inverted estimates are discarded. The UI explicitly labels guesses, shows their
+short basis, and keeps unknowns visible. Estimates live on `jobDeepReviews`, not
+the employer salary fields. They do not affect matching or filtering. No extra
+AI request or salary-specific web search is introduced; existing cached reviews
+can gain an estimate on ordinary refresh. A reusable salary table and reliable
+estimate-based filtering remain deferred.
+
+Salary bands use a common ₪10,000–₪50,000 visual scale only for monthly ILS
+ranges contained within it. Other bounded ranges use a local scale padded by
+30% of their width on each side (with a minimum padding for narrow/exact pay).
+The scale is visual context, not a filter or market benchmark. Only actual band
+values are printed; one-sided salaries remain textual.

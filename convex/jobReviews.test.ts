@@ -249,6 +249,13 @@ describe("deep job reviews", () => {
       directApplicationUrl: "https://careers.example.com/frontend",
       applicationNote: "Apply through the employer careers page.",
       interviewFocus: ["Prepare a React architecture example."],
+      salaryEstimate: {
+        min: 18000,
+        max: 25000,
+        currency: "ILS",
+        period: "month",
+        basis: "Frontend role in Tel Aviv.",
+      },
     });
 
     const feed = await asUser(t, userId).query(
@@ -262,6 +269,13 @@ describe("deep job reviews", () => {
       resumeId,
       resumeName: "Frontend CV",
       resumeOptions: [{ id: resumeId, name: "Frontend CV" }],
+      salaryEstimate: {
+        min: 18000,
+        max: 25000,
+        currency: "ILS",
+        period: "month",
+        basis: "Frontend role in Tel Aviv.",
+      },
       requirements: [
         expect.objectContaining({ status: "met" }),
         expect.objectContaining({ status: "unknown" }),

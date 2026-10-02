@@ -50,6 +50,10 @@ const facts: ReviewJobFacts = {
   workArrangement: "hybrid",
   employmentType: "full-time",
   activityConfidence: "probable",
+  salaryMin: null,
+  salaryMax: null,
+  salaryCurrency: null,
+  salaryPeriod: null,
 };
 
 beforeEach(async () => {
@@ -58,6 +62,86 @@ beforeEach(async () => {
 });
 
 describe("visual review decisions", () => {
+  it("labels guesses and prefers published pay over an existing estimate", () => {
+    const estimatedReview = {
+      ...review,
+      salaryEstimate: {
+        min: 18000,
+        max: 25000,
+        currency: "ILS" as const,
+        period: "month" as const,
+        basis: "Based on a mid-level frontend role.",
+      },
+    };
+    const view = render(
+      <DeepReviewContent
+        review={estimatedReview}
+        facts={facts}
+        unavailable={false}
+      />,
+    );
+    expect(screen.getByText("AI estimate · guessed")).toBeVisible();
+    expect(screen.getByText("₪18,000 – ₪25,000")).toBeVisible();
+    view.rerender(
+      <DeepReviewContent
+        review={estimatedReview}
+        facts={{
+          ...facts,
+          salaryMin: 20000,
+          salaryMax: 30000,
+          salaryCurrency: "ILS",
+          salaryPeriod: "month",
+        }}
+        unavailable={false}
+      />,
+    );
+    expect(screen.queryByText("AI estimate · guessed")).not.toBeInTheDocument();
+    expect(screen.getByText("₪20,000 – ₪30,000")).toBeVisible();
+  });
+  it("shows the published salary range and its original period", () => {
+    render(
+      <DeepReviewContent
+        review={review}
+        facts={{
+          ...facts,
+          salaryMin: 15000,
+          salaryMax: 20000,
+          salaryCurrency: "ILS",
+          salaryPeriod: "month",
+        }}
+        unavailable={false}
+      />,
+    );
+    const salary = screen.getByRole("region", { name: "Salary range" });
+    expect(within(salary).getByText("₪15,000 – ₪20,000")).toBeVisible();
+    expect(within(salary).getByText("Per month")).toBeVisible();
+  });
+  it("does not invent salary when missing or contradictory", () => {
+    render(
+      <DeepReviewContent
+        review={review}
+        facts={{ ...facts, salaryMin: 20000, salaryMax: 10000 }}
+        unavailable={false}
+      />,
+    );
+    expect(screen.getByText("Salary not published")).toBeVisible();
+  });
+  it("shows a maximum-only salary without inventing a lower bound", () => {
+    render(
+      <DeepReviewContent
+        review={review}
+        facts={{
+          ...facts,
+          salaryMax: 120,
+          salaryCurrency: "ILS",
+          salaryPeriod: "hour",
+        }}
+        unavailable={false}
+      />,
+    );
+    expect(screen.getByText("Up to ₪120")).toBeVisible();
+    expect(screen.getByText("Per hour")).toBeVisible();
+  });
   it("highlights the recommended resume by ID when names are identical", () => {
     render(
       <DeepReviewContent review={review} facts={facts} unavailable={false} />,
