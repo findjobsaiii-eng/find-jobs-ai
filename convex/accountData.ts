@@ -273,6 +273,30 @@ export const deleteBatch = internalMutation({
         for (const row of rows) await ctx.db.delete("userActivity", row._id);
         break;
       }
+      case 21: {
+        const rows = await ctx.db
+          .query("catalogTermOccurrences")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        for (const row of rows) {
+          const candidate = await ctx.db.get(
+            "catalogTermCandidates",
+            row.candidateId,
+          );
+          await ctx.db.delete("catalogTermOccurrences", row._id);
+          if (candidate) {
+            const occurrenceCount = Math.max(0, candidate.occurrenceCount - 1);
+            if (!occurrenceCount && candidate.status !== "approved")
+              await ctx.db.delete("catalogTermCandidates", candidate._id);
+            else
+              await ctx.db.patch("catalogTermCandidates", candidate._id, {
+                occurrenceCount,
+              });
+          }
+        }
+        break;
+      }
       default: {
         await ctx.db.delete("users", userId);
         await ctx.db.delete("accountDeletionJobs", jobId);

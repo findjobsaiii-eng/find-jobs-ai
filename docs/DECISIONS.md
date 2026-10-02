@@ -798,7 +798,8 @@ the decision table; the feed labels probable jobs in both supported languages.
 
 Status: Accepted
 
-The deep-review model returns a bounded checklist of requirements with explicit
+The matcher supplies the checklist (see D-040), and the deep-review model adds
+bounded explanations to requirements with explicit
 `met`, `gap`, or `unknown` status, importance, concise evidence, and an optional
 next step. `gap` means a known shortfall; missing evidence produces `unknown`.
 The old separate strengths/gaps format is removed rather than inferred into a
@@ -821,3 +822,118 @@ The old development report cache is disposable and regenerated under the
 pre-production data policy. Application snapshots and resume documents are not
 cleared. Production rollout requires an explicit deployment decision and clearing
 any incompatible cached reports first.
+
+### D-040: Shared skill identities, factual eligibility, and bounded near-match fallback
+
+Status: Accepted
+
+Canonical bilingual skill keys replace fuzzy substring skill equivalence. The
+curated alias index resolves onboarding entries; unfamiliar entries stay private
+and preserve exact meaning. Existing extraction calls normalize conventional
+names. No additional AI, embedding, or external decision API is used for matching.
+Semantic resolution of arbitrary unknown synonyms remains a future measured
+extension, not an asserted current capability.
+
+Education facts distinguish completed/in-progress credentials and unknown/explicit
+no-degree status. Optional profile editing preserves manual corrections through
+CV changes. Changed fields alone become manual overrides. Dated role intervals
+are overlap-safe and clipped to the present; absent dates yield unknown experience.
+
+The matcher assigns met/gap/unknown to requirements. Confirmed mandatory education,
+experience or language conflicts exclude jobs. Degree-or-experience alternatives,
+student eligibility, preferred requirements, and specific field ambiguity are
+handled conservatively. Known professional license/certification clauses require
+explicit mandatory wording; unfamiliar credentials are not guessed. Unconfirmed
+mandatory facts cannot produce a strong match. Related but distinct professions
+and technologies do not qualify by generic words alone.
+
+Strong matches precede partial matches. Five or more strong matches suppress
+partials; fewer than five are topped up only with credible partials to at most
+five. Feed, notifications and admin use a shared live indexed selector. There is
+an existing 50-strong-result cap and a 500-row scan budget per quality partition;
+background reconciliation cleans derived stale matches. Application history stays
+independent of the suggestions policy.
+
+Deep reviews use the same server score/status/importance. AI supplies a summary,
+localized evidence and advice by check index, never a competing fit score or
+status decision. Cached conclusions that differ from current matching are marked
+stale without automatically generating a paid review. Before promoting scoring thresholds, evaluate owner-approved
+real examples; current thresholds remain heuristics. Production rollout is not
+implied by development verification.
+
+### D-041: Authoritative education entries and a shared profile/onboarding editor
+
+Status: Accepted; supersedes D-040's missing-education policy and collapsed editor.
+
+The user-visible model is the education list, with explicit Studying/Completed
+status for each entry. No separate completed-degree declaration, optional badge,
+or disclosure section appears. An empty list is treated as no education; known
+degree-level/field conflicts exclude mandatory-degree jobs. Unknown requirement
+wording remains conservative. CV extraction still uses the existing provider call
+and shows entries in the same onboarding step as experience and skills. An unclear
+CV completion status requires a user choice before confirmation; it is not a third
+visible status. The internal degree-status summary is derived from the list.
+
+Education field aliases are resolved from both field and credential text.
+מדמח/מדמ״ח/CS/Computer Science share a field identity; generic tech and unrelated
+degrees are not equivalent. Explicit type and completion remain independent checks.
+No additional AI or embedding call is made. Soft divided rows, standard bordered
+inputs/dropdowns, shared radio-choice controls and compact remove buttons follow the language editor's
+visual style, with responsive Hebrew/English layouts.
+
+### D-042: One education name and a selected status by default
+
+Status: Accepted; supersedes D-041's required manual completion selection.
+
+The education editor has one name input alongside qualification type and status.
+New entries and unspecified CV completion default to Completed. Known CV students
+remain Studying. The visible name includes CV study-field information when the
+credential alone is insufficient. Editing it clears the previous field metadata,
+preventing hidden stale data from influencing matching. Education aliases still
+resolve the single name; no additional AI call is made. Backend extraction may
+retain uncertain evidence internally, but the review draft always submits a
+selected Completed/Studying status.
+
+### D-043: Fresh resume education during unfinished onboarding
+
+Status: Accepted; refines education override preservation in D-042.
+
+An activating resume upload starts a fresh education review until onboarding is
+completed. Clear the earlier education override at upload time, so a later edit
+made during extraction is still protected. Completed profiles retain confirmed
+education across replacement and switching; inactive library uploads retain it
+too. The first CV also activates when a manual draft exists without an active CV.
+The onboarding form resets its draft only when the active CV/source version
+changes, avoiding stale manual values without discarding edits on ordinary saves.
+Support may explicitly restore cached education for an unfinished pending review
+with a matching profile revision; no additional AI call or automatic backfill is
+introduced.
+
+### D-044: Database identities with bounded monthly vocabulary curation
+
+Status: Accepted; supersedes the code-only education alias catalog in D-041.
+
+Runtime matching uses database skill aliases and education/credential concepts.
+Bootstrap code initializes those catalogs; repeated seeding preserves learned
+aliases. The single qualification name becomes an accessible searchable combobox
+with free-text/custom entry. Subject identity does not imply degree level or
+completion. Unfamiliar terms are collected from effective profiles, CV facts and
+compact job subjects, with one occurrence per user or canonical job. Popularity
+only enables consideration; it never certifies equivalence.
+
+A monthly internal cron processes at most 30 terms with at least 3 independent
+sources in one AI request. No eligible terms means no paid call. The month is
+claimed transactionally before calling the provider; retries are disabled, and a
+failed or interrupted run cannot issue another request that month. No embeddings
+or runtime AI matching are added. Only vocabulary/counts and bounded generic
+catalog labels are sent, never raw CV text or source/user IDs. Runs record token
+usage separately in the admin Catalog section.
+
+Safe unambiguous proposals at confidence 0.98+ can be applied automatically;
+uncertain suggestions go to authorized admin review. Confidence is a provider
+assessment, not a guarantee of semantic correctness. Alias conflicts and
+capacity errors roll back the whole proposal. Existing known identities cannot
+be merged by an AI suggestion. Approved aliases affect existing private labels
+without publishing private catalog items, and trigger ordinary match
+reconciliation. Account deletion removes user-linked occurrences and decrements
+counts. Mandatory degree level and completion checks remain independent.

@@ -1,3 +1,4 @@
+import { observeReferenceTerms } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -10,6 +11,11 @@ import {
   query,
 } from "./_generated/server";
 import schema from "./schema";
+import {
+  candidateQualificationsValidator,
+  normalizeCandidateQualifications,
+} from "./candidateQualifications";
+import { upsertSkillCatalogItem } from "./skillIdentity";
 import { recordProductEvent } from "./productAnalytics";
 
 const SUPPORTED_TYPES = new Set([
@@ -150,6 +156,23 @@ export const createFromUpload = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const willActivate =
+      !profile?.activeResumeId ||
+      args.activateOnSuccess === true ||
+      replacement?._id === profile.activeResumeId;
+    if (profile && !profile.onboardingCompleted && willActivate) {
+      // A new onboarding CV starts a fresh education draft. Clear the old
+      // override at upload time so edits made during processing still win.
+      await ctx.db.patch("candidateProfiles", profile._id, {
+        manualOverrideFields: (profile.manualOverrideFields ?? []).filter(
+          (field) => field !== "qualifications",
+        ),
+      });
+    }
     await recordProductEvent(ctx, {
       userId,
       event: "resume_uploaded",
@@ -408,6 +431,7 @@ async function upsertCatalog(
   kind: "jobTitle" | "skill",
   label: string,
 ) {
+  if (kind === "skill") return upsertSkillCatalogItem(ctx, userId, label);
   const clean = label
     .normalize("NFKC")
     .trim()
@@ -487,11 +511,13 @@ export const completeProcessing = internalMutation({
     skills: v.array(v.string()),
     normalizedLocation: locationValidator,
     totalExperienceMonths: v.number(),
+    experienceEvidence: v.union(v.literal("known"), v.literal("unknown")),
     normalizedPastRoles: v.array(v.string()),
     domains: v.array(v.string()),
     experienceByDomain: v.array(
       v.object({ domain: v.string(), months: v.number() }),
     ),
+    qualifications: candidateQualificationsValidator,
     languages: v.array(
       v.object({
         languageCode: v.string(),
@@ -546,7 +572,7 @@ export const completeProcessing = internalMutation({
       ? await ctx.db.get("resumeDocuments", resume.replacementForId)
       : null;
     const shouldActivate =
-      !existing ||
+      !existing?.activeResumeId ||
       resume.activateOnSuccess === true ||
       replacement?._id === existing.activeResumeId ||
       Boolean(replacement && !existing.activeResumeId);
@@ -583,6 +609,21 @@ export const completeProcessing = internalMutation({
       }
     }
     const now = Date.now();
+    const qualifications = normalizeCandidateQualifications(
+      args.qualifications,
+    );
+    await observeReferenceTerms(
+      ctx,
+      { key: `user:${args.userId}`, userId: args.userId },
+      [
+        ...args.skills.map((term) => ({ kind: "skill" as const, term })),
+        ...qualifications.education.flatMap((item) =>
+          [item.field, item.credential]
+            .filter((term): term is string => Boolean(term))
+            .map((term) => ({ kind: "education" as const, term })),
+        ),
+      ],
+    );
     const usable = Boolean(args.normalizedLocation);
     const derived = {
       ...(!overrides.has("targetJobTitles") ? { targetJobTitleIds } : {}),
@@ -639,6 +680,7 @@ export const completeProcessing = internalMutation({
         ? { languages: args.languages }
         : {}),
       ...(!overrides.has("seniority") ? { seniority: args.seniority } : {}),
+      ...(!overrides.has("qualifications") ? { qualifications } : {}),
       cvCareerProfile: {
         resumeId: resume._id,
         ...(args.currentTitle ? { currentTitle: args.currentTitle } : {}),
@@ -647,6 +689,7 @@ export const completeProcessing = internalMutation({
         domains: args.domains.slice(0, 20),
         coreSkills: args.skills.slice(0, 30),
         totalExperienceMonths: args.totalExperienceMonths,
+        experienceEvidence: args.experienceEvidence,
         experienceByDomain: args.experienceByDomain.slice(0, 20),
         updatedAt: now,
       },
@@ -693,11 +736,13 @@ export const completeProcessing = internalMutation({
       skillIds,
       normalizedLocation: args.normalizedLocation ?? undefined,
       totalExperienceMonths: args.totalExperienceMonths,
+      extractedExperienceEvidence: args.experienceEvidence,
       coreSkills: args.skills.slice(0, 30),
       normalizedPastRoles: args.normalizedPastRoles.slice(0, 30),
       domains: args.domains.slice(0, 20),
       experienceByDomain: args.experienceByDomain.slice(0, 20),
       extractedLanguages: args.languages,
+      extractedQualifications: qualifications,
       confidence: args.confidence,
       activateOnSuccess: undefined,
       replacementForId: undefined,
@@ -709,6 +754,41 @@ export const completeProcessing = internalMutation({
       await ctx.db.delete("resumeDocuments", replacement._id);
     }
     return null;
+  },
+});
+
+// Explicit support repair for an unfinished review; never reruns paid extraction.
+export const restoreOnboardingEducation = internalMutation({
+  args: { userId: v.id("users"), expectedProfileUpdatedAt: v.number() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+    if (
+      !profile?.activeResumeId ||
+      profile.onboardingCompleted ||
+      !profile.cvReviewPending ||
+      profile.updatedAt !== args.expectedProfileUpdatedAt
+    )
+      return false;
+    const resume = await ctx.db.get("resumeDocuments", profile.activeResumeId);
+    if (
+      resume?.userId !== args.userId ||
+      !resume.extractedQualifications ||
+      !["ready", "needs_confirmation"].includes(resume.status)
+    )
+      return false;
+    await ctx.db.patch("candidateProfiles", profile._id, {
+      qualifications: resume.extractedQualifications,
+      manualOverrideFields: (profile.manualOverrideFields ?? []).filter(
+        (field) => field !== "qualifications",
+      ),
+      profileSourceVersion: (profile.profileSourceVersion ?? 0) + 1,
+      updatedAt: Date.now(),
+    });
+    return true;
   },
 });
 
@@ -803,6 +883,9 @@ function activeResumePatch(
     ...(!overrides.has("seniority") && resume.seniority
       ? { seniority: resume.seniority }
       : {}),
+    ...(!overrides.has("qualifications")
+      ? { qualifications: resume.extractedQualifications }
+      : {}),
     activeResumeId: resume._id,
     cvCareerProfile: {
       resumeId: resume._id,
@@ -812,6 +895,7 @@ function activeResumePatch(
       domains: career.domains.slice(0, 20),
       coreSkills: resume.coreSkills ?? [],
       totalExperienceMonths: resume.totalExperienceMonths ?? 0,
+      experienceEvidence: resume.extractedExperienceEvidence,
       experienceByDomain: career.experienceByDomain.slice(0, 20),
       updatedAt: now,
     },

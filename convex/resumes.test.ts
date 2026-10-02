@@ -97,9 +97,11 @@ function completion(
     skills: ["Shopify", "WooCommerce", "HTML", "CSS"],
     normalizedLocation: location,
     totalExperienceMonths: 60,
+    experienceEvidence: "known" as const,
     normalizedPastRoles: ["Website Manager", "E-commerce Manager"],
     domains: ["E-commerce"],
     experienceByDomain: [{ domain: "e-commerce", months: 60 }],
+    qualifications: { academicDegreeStatus: "unknown" as const, education: [] },
     languages: [],
     confidence: {
       currentTitle: "high",
@@ -517,5 +519,259 @@ describe("CV-derived effective profiles", () => {
     expect(
       (await user.query(api.candidateProfiles.getCurrent)).profile,
     ).toBeNull();
+  });
+});
+
+describe("qualification source changes", () => {
+  it.each(["none", "completed"] as const)(
+    "keeps user-confirmed %s degree status through replacement and resume switching",
+    async (academicDegreeStatus) => {
+      const t = convexTest(schema, modules);
+      const first = await seedUserAndResume(t);
+      const user = asUser(t, first.userId);
+      const qualifications = {
+        academicDegreeStatus,
+        education:
+          academicDegreeStatus === "completed"
+            ? [
+                {
+                  level: "bachelor" as const,
+                  status: "completed" as const,
+                  field: "Computer Science",
+                  credential: "B.Sc.",
+                },
+              ]
+            : [],
+      };
+      await user.mutation(api.candidateProfiles.saveCurrent, {
+        values: { qualifications },
+        onboardingStep: 1,
+        complete: false,
+      });
+      await t.mutation(
+        internal.resumes.completeProcessing,
+        completion(first.resumeId, first.userId),
+      );
+      expect(
+        (await user.query(api.candidateProfiles.getCurrent)).profile
+          ?.qualifications,
+      ).toEqual(qualifications);
+      const reviewed = await user.query(api.resumes.getCurrent);
+      await user.mutation(api.resumes.finishReview, {
+        targetJobTitleIds: reviewed!.targetRoles.map((role) => role.id),
+      });
+      const upload = async (replacementForId?: Id<"resumeDocuments">) => {
+        const storageId = await t.run((ctx) =>
+          ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+        );
+        return await user.mutation(api.resumes.createFromUpload, {
+          storageId,
+          fileName: "another.pdf",
+          mimeType: "application/pdf",
+          size: 7,
+          ...(replacementForId
+            ? { replacementForId }
+            : { activateOnSuccess: false }),
+        });
+      };
+      const replacementId = await upload(first.resumeId);
+      await t.mutation(
+        internal.resumes.completeProcessing,
+        completion(replacementId, first.userId),
+      );
+      expect(
+        (await user.query(api.candidateProfiles.getCurrent)).profile
+          ?.qualifications,
+      ).toEqual(qualifications);
+      const anotherId = await upload();
+      await t.mutation(
+        internal.resumes.completeProcessing,
+        completion(anotherId, first.userId),
+      );
+      await user.mutation(api.resumes.setActive, { resumeId: anotherId });
+      expect(
+        (await user.query(api.candidateProfiles.getCurrent)).profile
+          ?.qualifications,
+      ).toEqual(qualifications);
+    },
+  );
+  it("replaces unconfirmed resume education when changing the active resume", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(first.resumeId, first.userId),
+      qualifications: {
+        academicDegreeStatus: "completed",
+        education: [
+          {
+            level: "bachelor",
+            status: "completed",
+            field: "Physics",
+            credential: "B.Sc.",
+          },
+        ],
+      },
+    });
+    const user = asUser(t, first.userId);
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+    );
+    const secondId = await user.mutation(api.resumes.createFromUpload, {
+      storageId,
+      fileName: "another.pdf",
+      mimeType: "application/pdf",
+      size: 7,
+      activateOnSuccess: false,
+    });
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(secondId, first.userId),
+    );
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.qualifications?.academicDegreeStatus,
+    ).toBe("completed");
+    await user.mutation(api.resumes.setActive, { resumeId: secondId });
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.qualifications,
+    ).toEqual({ academicDegreeStatus: "none", education: [] });
+  });
+});
+
+describe("onboarding resume education prefill", () => {
+  const extractedQualifications = {
+    academicDegreeStatus: "none" as const,
+    education: [
+      {
+        level: "diploma" as const,
+        status: "in_progress" as const,
+        field: "Software Engineering",
+        credential: "Practical Engineer",
+      },
+    ],
+  };
+
+  it.each([false, true])(
+    "replaces an old education draft on upload (replacement=%s)",
+    async (replacement) => {
+      const t = convexTest(schema, modules);
+      const first = await seedUserAndResume(t);
+      const user = asUser(t, first.userId);
+      if (replacement)
+        await t.mutation(
+          internal.resumes.completeProcessing,
+          completion(first.resumeId, first.userId),
+        );
+      await user.mutation(api.candidateProfiles.saveCurrent, {
+        values: {
+          qualifications: { academicDegreeStatus: "none", education: [] },
+        },
+        onboardingStep: 2,
+        complete: false,
+      });
+      const storageId = await t.run((ctx) =>
+        ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+      );
+      const resumeId = await user.mutation(api.resumes.createFromUpload, {
+        storageId,
+        fileName: "new.pdf",
+        mimeType: "application/pdf",
+        size: 7,
+        ...(replacement ? { replacementForId: first.resumeId } : {}),
+      });
+      await t.mutation(internal.resumes.completeProcessing, {
+        ...completion(resumeId, first.userId),
+        qualifications: extractedQualifications,
+      });
+      const profile = (await user.query(api.candidateProfiles.getCurrent))
+        .profile;
+      expect(profile?.activeResumeId).toBe(resumeId);
+      expect(profile?.qualifications).toEqual(extractedQualifications);
+      expect(profile?.manualOverrideFields).not.toContain("qualifications");
+    },
+  );
+
+  it("keeps education edited after upload while extraction is processing", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    const user = asUser(t, first.userId);
+    await t.mutation(
+      internal.resumes.completeProcessing,
+      completion(first.resumeId, first.userId),
+    );
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+    );
+    const resumeId = await user.mutation(api.resumes.createFromUpload, {
+      storageId,
+      fileName: "new.pdf",
+      mimeType: "application/pdf",
+      size: 7,
+      replacementForId: first.resumeId,
+    });
+    await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: {
+        qualifications: { academicDegreeStatus: "none", education: [] },
+      },
+      onboardingStep: 2,
+      complete: false,
+    });
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(resumeId, first.userId),
+      qualifications: extractedQualifications,
+    });
+    expect(
+      (await user.query(api.candidateProfiles.getCurrent)).profile
+        ?.qualifications,
+    ).toEqual({ academicDegreeStatus: "none", education: [] });
+  });
+
+  it("restores only a pending review at the expected revision using cached extraction", async () => {
+    const t = convexTest(schema, modules);
+    const first = await seedUserAndResume(t);
+    const user = asUser(t, first.userId);
+    await t.mutation(internal.resumes.completeProcessing, {
+      ...completion(first.resumeId, first.userId),
+      qualifications: extractedQualifications,
+    });
+    await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: {
+        qualifications: { academicDegreeStatus: "none", education: [] },
+      },
+      onboardingStep: 2,
+      complete: false,
+    });
+    const profile = (await user.query(api.candidateProfiles.getCurrent))
+      .profile!;
+    expect(
+      await t.mutation(internal.resumes.restoreOnboardingEducation, {
+        userId: first.userId,
+        expectedProfileUpdatedAt: profile.updatedAt - 1,
+      }),
+    ).toBe(false);
+    expect(
+      await t.mutation(internal.resumes.restoreOnboardingEducation, {
+        userId: first.userId,
+        expectedProfileUpdatedAt: profile.updatedAt,
+      }),
+    ).toBe(true);
+    const restored = (await user.query(api.candidateProfiles.getCurrent))
+      .profile!;
+    expect(restored.qualifications).toEqual(extractedQualifications);
+    expect(restored.profileSourceVersion).toBe(
+      profile.profileSourceVersion! + 1,
+    );
+    await user.mutation(api.resumes.finishReview, {
+      targetJobTitleIds: restored.targetJobTitleIds!,
+    });
+    const completed = (await user.query(api.candidateProfiles.getCurrent))
+      .profile!;
+    expect(
+      await t.mutation(internal.resumes.restoreOnboardingEducation, {
+        userId: first.userId,
+        expectedProfileUpdatedAt: completed.updatedAt,
+      }),
+    ).toBe(false);
   });
 });

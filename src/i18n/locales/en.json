@@ -309,7 +309,8 @@
       "domain": "Matches your experience in {{domain}}",
       "location": "Within your selected location range",
       "partialContext": "Relevant professional overlap, with some requirements less closely aligned",
-      "possibleContext": "A plausible professional opportunity with a weaker profile overlap"
+      "possibleContext": "A plausible professional opportunity with a weaker profile overlap",
+      "needsConfirmation": "Check your fit: {{requirements}}"
     },
     "matchQuality": {
       "strong": "High match",
@@ -337,7 +338,7 @@
         "skills": "Matched skills: {{skills}}",
         "domain": "Matched domain: {{domain}}"
       },
-      "eligibilityNote": "Closed jobs and jobs that conflict with required location, professional field, salary, language, or work authorization are removed before ranking.",
+      "eligibilityNote": "Confirmed mandatory qualification conflicts are excluded. Unconfirmed requirements can appear only among near-matches when there are fewer than five strong matches.",
       "breakdownUnavailable": "The detailed breakdown is unavailable for this saved result."
     },
     "noLongerActive": "This job is no longer active",
@@ -859,7 +860,8 @@
       "tokenUsage": "Token usage",
       "jobs": "Jobs",
       "inspector": "Visibility inspector",
-      "console": "Admin console"
+      "console": "Admin console",
+      "catalog": "Catalog"
     },
     "tokenUsage": {
       "description": "OpenAI API calls made by this app on the selected day. USD values are estimates at published standard rates, not your invoice. Other projects, Codex, Convex, and Vercel are outside this view. Calls that fail before a response may be missing. Earlier searches use saved run totals; older deep reviews and CV analyses were not recorded.",
@@ -1089,6 +1091,23 @@
       "visible": "Visible to this user",
       "hidden": "Hidden from this user",
       "notFound": "The user or job no longer exists."
+    },
+    "catalog": {
+      "review": "Suggestions to review",
+      "empty": "No suggestions need review.",
+      "occurrences": "{{count}} independent occurrences",
+      "approve": "Approve",
+      "reject": "Reject",
+      "conflict": "This suggestion conflicts with an existing mapping. It was not applied.",
+      "pending": "Unfamiliar terms",
+      "schedule": "Monthly cleanup considers up to 30 terms with at least 3 independent occurrences.",
+      "runs": "Monthly cleanup",
+      "runSummary": "{{approved}} approved · {{review}} to review · {{tokens}} tokens",
+      "status": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      }
     }
   },
   "seo": {
@@ -1097,5 +1116,63 @@
     "description": "Jobmiter (Job Miter) helps you find jobs in Israel with AI. Upload your resume, discover roles that match your experience, and organize your job search. Free during beta.",
     "imageTitle": "Smarter job search in Israel",
     "imageSubtitle": "Jobs that match your experience"
+  },
+  "qualifications": {
+    "title": "Education & qualifications",
+    "entry": "Qualification {{number}}",
+    "level": "Qualification type",
+    "completion": "Completion",
+    "credential": "Degree or qualification name",
+    "removeEntry": "Remove qualification {{number}}",
+    "remove": "Remove",
+    "add": "Add education or qualification",
+    "invalid": "Check your education details.",
+    "levels": {
+      "secondary": "Secondary education",
+      "certificate": "Certificate or course",
+      "diploma": "Professional diploma / practical engineer",
+      "associate": "Associate degree",
+      "bachelor": "Bachelor’s degree",
+      "master": "Master’s degree",
+      "doctorate": "Doctorate",
+      "other": "Other / unspecified"
+    },
+    "statuses": {
+      "completed": "Completed",
+      "in_progress": "Studying"
+    },
+    "credentialPlaceholder": "e.g. Computer Science, B.Sc. or AWS certification",
+    "browse": "Browse education and qualifications",
+    "enterName": "Enter a degree or qualification name"
+  },
+  "jobMatching": {
+    "evidence": {
+      "educationUnknown": "The education requirement or your qualification needs clarification.",
+      "educationMet": "Your qualifications meet this education requirement.",
+      "educationAlternativeUnknown": "The listing accepts an alternative qualification, but we cannot confirm that you meet it.",
+      "educationGap": "Your listed education does not meet this requirement.",
+      "educationLevelUnknown": "The required education level or field is unclear.",
+      "skillUnknown": "This skill is not confirmed in your profile. That does not mean you lack it.",
+      "skillMet": "This skill is listed in your profile.",
+      "languageMet": "Your language and stated proficiency meet this requirement.",
+      "languageGap": "Your confirmed language proficiency does not meet this requirement.",
+      "languageUnknown": "Your language proficiency or the required level is unclear.",
+      "experienceUnknown": "Your relevant experience has not been confirmed.",
+      "experienceMet": "Your experience meets the stated minimum.",
+      "experienceGap": "Your confirmed experience is below the stated minimum.",
+      "educationInProgressMet": "Your current studies meet the listing’s student requirement.",
+      "educationAlternativeMet": "Your confirmed relevant experience meets the listing’s education alternative.",
+      "educationAlternativeGap": "Your confirmed education and relevant experience do not meet either accepted option."
+    },
+    "nextStep": {
+      "education": "Confirm your education in your profile.",
+      "educationAlternative": "Check the alternative qualification with the employer.",
+      "skill": "Add this skill to your profile only if you have it.",
+      "language": "Confirm your language proficiency in your profile.",
+      "experience": "Confirm your experience relevant to this role."
+    },
+    "requirements": {
+      "experience": "At least {{years}} years of relevant experience"
+    }
   }
 }

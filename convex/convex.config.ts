@@ -9,6 +9,7 @@ export default defineApp({
     JWT_PRIVATE_KEY: v.string(),
     OPENAI_API_KEY: v.string(),
     OPENAI_JOB_SEARCH_MODEL: v.string(),
+    OPENAI_CATALOG_MODEL: v.optional(v.string()),
     OPENAI_JOB_REVIEW_MODEL: v.optional(v.string()),
     JOB_SEARCH_ENABLED: v.string(),
     JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT: v.string(),

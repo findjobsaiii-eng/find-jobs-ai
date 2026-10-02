@@ -4,15 +4,11 @@ const shortText = z.string().trim().min(1).max(180);
 const detailText = z.string().trim().min(1).max(240);
 
 export const deepReviewResponseSchema = z.strictObject({
-  matchPercentage: z.number().int().min(0).max(100),
-  verdict: z.enum(["strong", "good", "stretch", "low"]),
   summary: z.string().trim().min(1).max(360),
-  requirements: z
+  requirementExplanations: z
     .array(
       z.strictObject({
-        requirement: shortText,
-        status: z.enum(["met", "gap", "unknown"]),
-        importance: z.enum(["must_have", "important", "minor"]),
+        index: z.number().int().min(0).max(60),
         evidence: detailText,
         nextStep: detailText.nullable(),
       }),

@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { resolveJobGeography } from "./jobGeography";
+import {
+  EDUCATION_LEVELS,
+  EDUCATION_STATUSES,
+  normalizeCandidateQualifications,
+} from "./candidateQualifications";
 
 const confidence = z.enum(["high", "medium", "low"]);
 const nullableText = z.string().nullable();
@@ -40,6 +45,8 @@ export const resumeExtractionSchema = z.object({
       institution: z.string(),
       field: nullableText,
       credential: nullableText,
+      level: z.enum(EDUCATION_LEVELS),
+      status: z.enum(EDUCATION_STATUSES),
       startDate: nullableText,
       endDate: nullableText,
     }),
@@ -137,11 +144,18 @@ export function normalizeResumeExtraction(
   now = new Date(),
 ) {
   const currentMonth = now.getUTCFullYear() * 12 + now.getUTCMonth();
-  const roles = input.roles.slice(0, 30).map((role) => {
+  const employmentInterval = (
+    role: ResumeExtraction["roles"][number],
+  ): [number, number] | null => {
     const start = monthIndex(role.startDate);
-    const end = role.current ? currentMonth : monthIndex(role.endDate);
-    const durationMonths =
-      start !== null && end !== null && end >= start ? end - start + 1 : null;
+    const statedEnd = role.current ? currentMonth : monthIndex(role.endDate);
+    if (start === null || statedEnd === null) return null;
+    const end = Math.min(currentMonth, statedEnd);
+    return end >= start ? [start, end] : null;
+  };
+  const roles = input.roles.slice(0, 30).map((role) => {
+    const interval = employmentInterval(role);
+    const durationMonths = interval ? interval[1] - interval[0] + 1 : null;
     return {
       ...role,
       jobTitle: normalizeLabel(role.jobTitle).slice(0, 200),
@@ -155,22 +169,18 @@ export function normalizeResumeExtraction(
     };
   });
   const intervals = roles.flatMap((role) => {
-    const start = monthIndex(role.startDate);
-    const end = role.current ? currentMonth : monthIndex(role.endDate);
-    return start !== null && end !== null && end >= start
-      ? ([[start, end]] as Array<[number, number]>)
-      : [];
+    const interval = employmentInterval(role);
+    return interval ? [interval] : [];
   });
   const domainIntervals = new Map<string, Array<[number, number]>>();
   for (const role of roles) {
     if (!role.domain) continue;
-    const start = monthIndex(role.startDate);
-    const end = role.current ? currentMonth : monthIndex(role.endDate);
-    if (start === null || end === null || end < start) continue;
+    const interval = employmentInterval(role);
+    if (!interval) continue;
     const domainKey = key(role.domain);
     domainIntervals.set(domainKey, [
       ...(domainIntervals.get(domainKey) ?? []),
-      [start, end],
+      interval,
     ]);
   }
   const skillGroups = Object.fromEntries(
@@ -209,8 +219,20 @@ export function normalizeResumeExtraction(
         country: input.location.country,
       })
     : undefined;
+  const qualifications = normalizeCandidateQualifications({
+    academicDegreeStatus: "none",
+    education: input.education
+      .slice(0, 10)
+      .map(({ level, status, field, credential }) => ({
+        level,
+        status,
+        field,
+        credential,
+      })),
+  });
   return {
     ...input,
+    qualifications,
     currentTitle: input.currentTitle
       ? normalizeLabel(input.currentTitle)
       : null,
@@ -228,6 +250,13 @@ export function normalizeResumeExtraction(
     allSkills,
     targetRoles,
     totalExperienceMonths: mergedMonths(intervals),
+    experienceEvidence:
+      roles.length > 0 &&
+      roles.every(
+        (role) => role.durationMonths !== null && role.dateConfidence !== "low",
+      )
+        ? ("known" as const)
+        : ("unknown" as const),
     experienceByDomain: [...domainIntervals.entries()].map(
       ([domain, domainRanges]) => ({
         domain,

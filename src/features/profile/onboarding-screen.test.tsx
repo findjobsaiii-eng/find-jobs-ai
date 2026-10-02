@@ -80,6 +80,61 @@ describe("candidate profile onboarding", () => {
     ).toHaveValue("Google Candidate");
   });
 
+  it("shows extracted education in onboarding and saves the corrected status", async () => {
+    const user = userEvent.setup();
+    hooks.saveProfile.mockResolvedValue({});
+    const data = {
+      ...emptyProfile,
+      profile: {
+        onboardingStep: 2,
+        yearsOfExperience: 2,
+        qualifications: {
+          academicDegreeStatus: "none",
+          education: [
+            {
+              level: "bachelor",
+              status: "in_progress",
+              field: "tech",
+              credential: "מדמח",
+            },
+          ],
+        },
+      },
+      selections: {
+        targetJobTitles: [],
+        skills: [
+          {
+            id: "catalogItems:skill",
+            labelEn: "React",
+            labelHe: "React",
+            isCustom: false,
+          },
+        ],
+      },
+    } as unknown as CurrentProfile;
+    render(<OnboardingScreen initialData={data} resumeReview />);
+    expect(screen.getByLabelText("Degree or qualification name")).toHaveValue(
+      "מדמח",
+    );
+    expect(screen.getByRole("radio", { name: "Studying" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Completed" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(hooks.saveProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: expect.objectContaining({
+          qualifications: expect.objectContaining({
+            education: [
+              expect.objectContaining({
+                status: "completed",
+                credential: "מדמח",
+              }),
+            ],
+          }),
+        }),
+      }),
+    );
+  });
+
   it("shows the account menu during onboarding without a profile link", async () => {
     const user = userEvent.setup();
     render(<OnboardingScreen initialData={emptyProfile} />);

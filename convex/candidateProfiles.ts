@@ -1,3 +1,4 @@
+import { observeReferenceTerms } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -5,6 +6,10 @@ import { internal } from "./_generated/api";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
+import {
+  candidateQualificationsValidator,
+  normalizeCandidateQualifications,
+} from "./candidateQualifications";
 import { recordProductEvent } from "./productAnalytics";
 
 const WORK_ARRANGEMENTS = ["onsite", "hybrid", "remote"] as const;
@@ -105,6 +110,7 @@ const editableFieldsValidator = v.object({
   employmentTypes: v.optional(v.array(employmentTypeValidator)),
   minimumMonthlySalaryIls: v.optional(v.union(v.number(), v.null())),
   languages: v.optional(v.array(languageValidator)),
+  qualifications: v.optional(candidateQualificationsValidator),
 });
 
 type EditableProfile = Pick<
@@ -121,6 +127,7 @@ type EditableProfile = Pick<
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
   | "languages"
+  | "qualifications"
 >;
 type EditableProfilePatch = Partial<EditableProfile>;
 type EditableProfileInput = {
@@ -146,6 +153,7 @@ type EditableProfileInput = {
   employmentTypes?: EditableProfile["employmentTypes"];
   minimumMonthlySalaryIls?: number | null;
   languages?: EditableProfile["languages"];
+  qualifications?: EditableProfile["qualifications"];
 };
 
 type ProfileField =
@@ -159,7 +167,8 @@ type ProfileField =
   | "workArrangements"
   | "employmentTypes"
   | "minimumMonthlySalaryIls"
-  | "languages";
+  | "languages"
+  | "qualifications";
 
 function validationError(field: ProfileField, reason: string): never {
   throw new ConvexError({ code: "VALIDATION_ERROR", field, reason });
@@ -201,6 +210,11 @@ function normalizeEditableFields(
   values: EditableProfileInput,
 ): EditableProfilePatch {
   const normalized: EditableProfilePatch = {};
+  if (values.qualifications !== undefined)
+    normalized.qualifications = normalizeCandidateQualifications(
+      values.qualifications,
+      true,
+    );
   if (values.preferredDisplayName !== undefined) {
     normalized.preferredDisplayName =
       values.preferredDisplayName === null
@@ -422,6 +436,8 @@ async function assertReferences(
 }
 
 function assertComplete(profile: EditableProfilePatch) {
+  if (profile.qualifications)
+    normalizeCandidateQualifications(profile.qualifications, true);
   if (
     !profile.preferredDisplayName ||
     profile.preferredDisplayName.length <
@@ -634,6 +650,26 @@ export const saveCurrent = mutation({
     await assertReferences(ctx, userId, merged);
     if (args.complete) assertComplete(merged);
 
+    const skillItems = await Promise.all(
+      (normalized.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
+    );
+    await observeReferenceTerms(ctx, { key: `user:${userId}`, userId }, [
+      ...skillItems.flatMap((item) =>
+        item
+          ? [
+              {
+                kind: "skill" as const,
+                term: item.labelEn ?? item.labelHe ?? "",
+              },
+            ]
+          : [],
+      ),
+      ...(normalized.qualifications?.education ?? []).flatMap((item) =>
+        [item.field, item.credential]
+          .filter((term): term is string => Boolean(term))
+          .map((term) => ({ kind: "education" as const, term })),
+      ),
+    ]);
     const now = Date.now();
     const identityFields = {
       userId,
@@ -683,6 +719,7 @@ export const saveCurrent = mutation({
     const id = await ctx.db.insert("candidateProfiles", {
       ...identityFields,
       ...normalized,
+      manualOverrideFields: [...overrides],
       onboardingStep: args.complete ? 4 : args.onboardingStep,
       onboardingCompleted: args.complete,
       createdAt: now,

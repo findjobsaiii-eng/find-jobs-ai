@@ -64,6 +64,388 @@ function job(
 }
 
 describe("deterministic CV-backed relevance", () => {
+  it("requires evidence for explicit professional licenses without treating absent evidence as failure", () => {
+    const licensed = job({ requirementsText: "רישיון נהיגה חובה" });
+    const unknown = evaluateJobQuality(licensed, profile);
+    expect(unknown.outcome).toBe("eligible");
+    expect(unknown.matchQuality).toBe("partial");
+    expect(
+      unknown.requirementAssessments.find(
+        (item) => item.requirement === "Driver's license",
+      )?.status,
+    ).toBe("unknown");
+    const completed = evaluateJobQuality(licensed, {
+      ...profile,
+      qualifications: {
+        academicDegreeStatus: "none",
+        education: [
+          {
+            level: "certificate",
+            status: "completed",
+            field: null,
+            credential: "רישיון נהיגה",
+          },
+        ],
+      },
+    });
+    expect(completed.matchQuality).toBe("strong");
+    const preferred = evaluateJobQuality(
+      job({ requirementsText: "PMP certification preferred" }),
+      profile,
+    );
+    expect(preferred.matchQuality).toBe("strong");
+    const technical = evaluateJobQuality(
+      job({ requirementsText: "SSL certificates required for secure hosting" }),
+      profile,
+    );
+    expect(
+      technical.requirementAssessments.some(
+        (item) => item.requirement === "SSL certificates",
+      ),
+    ).toBe(false);
+  });
+  it("matches bilingual skill aliases without confusing related technologies", () => {
+    const aliases = evaluateJobQuality(
+      job({ requiredSkills: ["כושר התבטאות", "React.js"] }),
+      { ...profile, skills: ["כושר ביטוי", "ReactJS"] },
+    );
+    expect(
+      aliases.requirementAssessments
+        .filter((item) => item.importance === "must_have")
+        .every((item) => item.status === "met"),
+    ).toBe(true);
+    const different = evaluateJobQuality(
+      job({ requiredSkills: ["Java", "React Native"] }),
+      { ...profile, skills: ["JavaScript", "React"] },
+    );
+    expect(different.matchQuality).not.toBe("strong");
+    expect(
+      different.requirementAssessments
+        .filter((item) => item.importance === "must_have")
+        .slice(0, 2)
+        .map((item) => item.status),
+    ).toEqual(["unknown", "unknown"]);
+  });
+
+  it("keeps an unlisted required skill unknown even when the total score is high", () => {
+    const result = evaluateJobQuality(
+      job({ requiredSkills: ["Shopify", "Unknown ERP Platform"] }),
+      profile,
+    );
+    expect(result.outcome).toBe("eligible");
+    expect(result.matchQuality).toBe("partial");
+    expect(
+      result.requirementAssessments.find(
+        (item) => item.requirement === "Unknown ERP Platform",
+      )?.status,
+    ).toBe("unknown");
+  });
+
+  it("excludes mandatory degrees when the complete profile education list is empty", () => {
+    const degreeJob = job({
+      educationRequirements: ["Bachelor's degree required"],
+    });
+    const noDegree = evaluateJobQuality(degreeJob, {
+      ...profile,
+      qualifications: { academicDegreeStatus: "none", education: [] },
+    });
+    expect(noDegree.exclusionReasons).toContain("education_conflict");
+    expect(noDegree.outcome).toBe("excluded");
+    const unknown = evaluateJobQuality(degreeJob, profile);
+    expect(unknown.exclusionReasons).toContain("education_conflict");
+    expect(unknown.outcome).toBe("excluded");
+  });
+
+  it.each(["מדמח", 'מדמ"ח', "מדמ״ח", "Computer Science", "CS"])(
+    "recognizes the credential %s even with a broad study field",
+    (credential) => {
+      const education = {
+        level: "bachelor" as const,
+        status: "completed" as const,
+        field: "tech",
+        credential,
+      };
+      const requirements = job({
+        educationRequirements: ["Computer Science degree required"],
+      });
+      const result = evaluateJobQuality(requirements, {
+        ...profile,
+        qualifications: {
+          academicDegreeStatus: "none",
+          education: [education],
+        },
+      });
+      expect(result.outcome).toBe("eligible");
+      expect(
+        result.requirementAssessments.find((item) =>
+          item.requirement.includes("degree"),
+        )?.status,
+      ).toBe("met");
+      expect(
+        evaluateJobQuality(requirements, {
+          ...profile,
+          qualifications: {
+            academicDegreeStatus: "completed",
+            education: [{ ...education, level: "diploma" }],
+          },
+        }).exclusionReasons,
+      ).toContain("education_conflict");
+      expect(
+        evaluateJobQuality(requirements, {
+          ...profile,
+          qualifications: {
+            academicDegreeStatus: "completed",
+            education: [{ ...education, status: "in_progress" }],
+          },
+        }).exclusionReasons,
+      ).toContain("education_conflict");
+    },
+  );
+
+  it("keeps broad and ambiguous education fields unconfirmed", () => {
+    const result = evaluateJobQuality(
+      job({ educationRequirements: ["Computer Science degree required"] }),
+      {
+        ...profile,
+        qualifications: {
+          academicDegreeStatus: "completed",
+          education: [
+            {
+              level: "bachelor",
+              status: "completed",
+              field: "tech",
+              credential: "B.Sc.",
+            },
+          ],
+        },
+      },
+    );
+    expect(result.matchQuality).toBe("partial");
+    expect(
+      result.requirementAssessments.find((item) =>
+        item.requirement.includes("degree"),
+      )?.status,
+    ).toBe("unknown");
+  });
+
+  it("excludes a known wrong degree field without guessing extra unlisted degrees", () => {
+    const result = evaluateJobQuality(
+      job({
+        educationRequirements: [
+          "Bachelor's degree in Computer Science required",
+        ],
+      }),
+      {
+        ...profile,
+        qualifications: {
+          academicDegreeStatus: "completed",
+          education: [
+            {
+              level: "bachelor",
+              status: "completed",
+              field: "Accounting",
+              credential: "B.A.",
+            },
+          ],
+        },
+      },
+    );
+    expect(result.exclusionReasons).toContain("education_conflict");
+  });
+
+  it("does not substitute an in-progress degree for a completed mandatory degree", () => {
+    const result = evaluateJobQuality(
+      job({ educationRequirements: ["B.Sc. in Computer Science required"] }),
+      {
+        ...profile,
+        qualifications: {
+          academicDegreeStatus: "none",
+          education: [
+            {
+              level: "bachelor",
+              status: "in_progress",
+              field: "Computer Science",
+              credential: "B.Sc.",
+            },
+          ],
+        },
+      },
+    );
+    expect(result.exclusionReasons).toContain("education_conflict");
+  });
+
+  it("accepts an in-progress degree only when the listing explicitly welcomes students in that field", () => {
+    const student = {
+      ...profile,
+      qualifications: {
+        academicDegreeStatus: "none" as const,
+        education: [
+          {
+            level: "bachelor" as const,
+            status: "in_progress" as const,
+            field: "Computer Science",
+            credential: "B.Sc.",
+          },
+        ],
+      },
+    };
+    const result = evaluateJobQuality(
+      job({
+        educationRequirements: ["B.Sc. in Computer Science, students accepted"],
+      }),
+      student,
+    );
+    expect(result.outcome).toBe("eligible");
+    expect(result.matchQuality).toBe("strong");
+    const wrongField = evaluateJobQuality(
+      job({
+        educationRequirements: [
+          "B.Sc. in Electrical Engineering, students accepted",
+        ],
+      }),
+      student,
+    );
+    expect(wrongField.matchQuality).not.toBe("strong");
+  });
+
+  it("does not accept an unrelated engineering profession based on the word engineer", () => {
+    const result = evaluateJobQuality(
+      job({
+        title: "Mechanical Engineer",
+        requiredSkills: [],
+        descriptionText: "Design industrial machine components",
+      }),
+      {
+        ...profile,
+        targetJobTitles: ["Frontend Engineer"],
+        currentRole: "Frontend Engineer",
+        normalizedPastRoles: [],
+        professionalDomains: ["Software development"],
+      },
+    );
+    expect(result.outcome).toBe("excluded");
+    expect(result.exclusionReasons).toContain("professional_mismatch");
+  });
+
+  it("accepts a completed degree with matching field and treats preferred degrees as ranking evidence", () => {
+    const completed = evaluateJobQuality(
+      job({
+        educationRequirements: [
+          "Bachelor's degree in Computer Science required",
+        ],
+      }),
+      {
+        ...profile,
+        qualifications: {
+          academicDegreeStatus: "completed",
+          education: [
+            {
+              level: "bachelor",
+              status: "completed",
+              field: "מדעי המחשב",
+              credential: "B.Sc.",
+            },
+          ],
+        },
+      },
+    );
+    expect(
+      completed.requirementAssessments.find((item) =>
+        item.requirement.includes("degree"),
+      )?.status,
+    ).toBe("met");
+    expect(completed.matchQuality).toBe("strong");
+    const preferred = evaluateJobQuality(
+      job({ educationRequirements: ["Bachelor's degree preferred"] }),
+      {
+        ...profile,
+        qualifications: { academicDegreeStatus: "none", education: [] },
+      },
+    );
+    expect(preferred.outcome).toBe("eligible");
+    expect(preferred.matchQuality).toBe("strong");
+  });
+
+  it("preserves degree-or-experience alternatives without inventing an equivalence threshold", () => {
+    const result = evaluateJobQuality(
+      job({
+        educationRequirements: [
+          "Bachelor's degree or equivalent professional experience",
+        ],
+      }),
+      {
+        ...profile,
+        qualifications: { academicDegreeStatus: "none", education: [] },
+      },
+    );
+    expect(result.outcome).toBe("eligible");
+    expect(result.exclusionReasons).not.toContain("education_conflict");
+    expect(result.matchQuality).toBe("partial");
+    const explicit = evaluateJobQuality(
+      job({
+        educationRequirements: [
+          "Bachelor's degree or 3 years of equivalent professional experience",
+        ],
+      }),
+      {
+        ...profile,
+        qualifications: { academicDegreeStatus: "none", education: [] },
+      },
+    );
+    expect(explicit.outcome).toBe("eligible");
+    expect(explicit.matchQuality).toBe("strong");
+  });
+
+  it("enforces confirmed language proficiency but keeps missing proficiency unknown", () => {
+    const fluent = job({ languages: ["Fluent English required"] });
+    const basic = evaluateJobQuality(fluent, {
+      ...profile,
+      languages: [{ languageCode: "en", proficiency: "basic" }],
+    });
+    expect(basic.exclusionReasons).toContain("language_conflict");
+    const unknown = evaluateJobQuality(fluent, profile);
+    expect(unknown.outcome).toBe("eligible");
+    expect(unknown.matchQuality).toBe("partial");
+  });
+
+  it("uses relevant domain experience rather than total career years", () => {
+    const result = evaluateJobQuality(job({ requiredExperienceYearsMin: 3 }), {
+      ...profile,
+      yearsOfExperience: 12,
+      experienceByDomain: [
+        { domain: "E-commerce", months: 12 },
+        { domain: "Accounting", months: 120 },
+      ],
+    });
+    expect(result.exclusionReasons).toContain("experience_conflict");
+    const unknown = evaluateJobQuality(job(), {
+      ...profile,
+      experienceByDomain: [{ domain: "Accounting", months: 120 }],
+    });
+    expect(unknown.outcome).toBe("eligible");
+    expect(unknown.matchQuality).toBe("partial");
+    const undated = evaluateJobQuality(job(), {
+      ...profile,
+      yearsOfExperience: 0,
+      experienceEvidence: "unknown",
+    });
+    expect(undated.outcome).toBe("eligible");
+    expect(undated.matchQuality).toBe("partial");
+  });
+
+  it("does not exclude candidates for experience described only as preferred", () => {
+    const result = evaluateJobQuality(
+      job({
+        requirementsText: "3 years of relevant experience preferred",
+        requiredExperienceYearsMin: null,
+        requiredExperienceYearsMax: null,
+      }),
+      { ...profile, yearsOfExperience: 0 },
+    );
+    expect(result.exclusionReasons).not.toContain("experience_conflict");
+    expect(result.outcome).toBe("eligible");
+  });
+
   it("ranks a strong target-role match above the relevance threshold", () => {
     const result = evaluateJobQuality(job(), profile);
     expect(result.outcome).toBe("eligible");

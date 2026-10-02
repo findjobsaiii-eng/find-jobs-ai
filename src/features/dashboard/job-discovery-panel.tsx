@@ -22,6 +22,7 @@ import * as m from "motion/react-m";
 import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
 import { JobMatchScore } from "./job-match-score";
+import { requirementLabel } from "./requirement-label";
 import { ApplicationTimeline } from "./application-timeline";
 import { ApplicationTrackingActions } from "./application-tracking-actions";
 import {
@@ -350,10 +351,29 @@ export function JobDiscoveryPanel({
                             : job.relevanceScore >= 45
                               ? "partial"
                               : "possible");
+                        const unconfirmedRequirements = (
+                          job.requirementAssessments ?? []
+                        )
+                          .filter(
+                            (item) =>
+                              item.importance === "must_have" &&
+                              item.status === "unknown",
+                          )
+                          .slice(0, 3)
+                          .map((item) => requirementLabel(t, item.requirement));
                         const explanations = [
                           ...(view === "suggestions" &&
                           matchQuality !== "strong"
-                            ? [t(`jobDiscovery.match.${matchQuality}Context`)]
+                            ? [
+                                unconfirmedRequirements.length
+                                  ? t("jobDiscovery.match.needsConfirmation", {
+                                      requirements:
+                                        unconfirmedRequirements.join(" · "),
+                                    })
+                                  : t(
+                                      `jobDiscovery.match.${matchQuality}Context`,
+                                    ),
+                              ]
                             : []),
                           ...(highlights?.skills.length
                             ? [

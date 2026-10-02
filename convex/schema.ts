@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { candidateQualificationsValidator } from "./candidateQualifications";
 
 const workArrangement = v.union(
   v.literal("onsite"),
@@ -211,6 +212,7 @@ const profileOverrideField = v.union(
   v.literal("minimumMonthlySalaryIls"),
   v.literal("languages"),
   v.literal("seniority"),
+  v.literal("qualifications"),
 );
 
 const normalizedProfileLocation = v.object({
@@ -320,6 +322,7 @@ export const jobFeedItem = v.object({
   ),
   relevanceScore: v.number(),
   matchQuality: v.optional(matchQuality),
+  requirementAssessments: v.optional(reviewRequirements),
   scoreComponents: v.optional(relevanceComponents),
   matchReasons: v.array(v.string()),
   matchHighlights: v.optional(
@@ -386,6 +389,7 @@ const schema = defineSchema({
     normalizedKey: v.string(),
     normalizedLabels: v.array(v.string()),
     aliases: v.optional(v.array(v.string())),
+    conceptKey: v.optional(v.string()),
     searchText: v.string(),
     visibility: v.union(v.literal("public"), v.literal("private")),
     ownerUserId: v.optional(v.id("users")),
@@ -412,6 +416,83 @@ const schema = defineSchema({
       searchField: "searchText",
       filterFields: ["kind", "visibility", "ownerUserId", "active"],
     }),
+  catalogSkillAliases: defineTable({
+    normalizedTerm: v.string(),
+    conceptKey: v.string(),
+    catalogItemId: v.id("catalogItems"),
+  })
+    .index("by_normalizedTerm", ["normalizedTerm"])
+    .index("by_conceptKey", ["conceptKey"]),
+  educationConcepts: defineTable({
+    key: v.string(),
+    kind: v.union(v.literal("field"), v.literal("qualification")),
+    labelEn: v.string(),
+    labelHe: v.string(),
+    aliases: v.array(v.string()),
+    searchText: v.string(),
+    source: v.union(v.literal("seed"), v.literal("curation")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_kind", ["kind"])
+    .searchIndex("search_education", {
+      searchField: "searchText",
+      filterFields: ["kind"],
+    }),
+  catalogTermCandidates: defineTable({
+    kind: v.union(v.literal("skill"), v.literal("education")),
+    term: v.string(),
+    normalizedTerm: v.string(),
+    occurrenceCount: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("review"),
+      v.literal("approved"),
+      v.literal("rejected"),
+    ),
+    proposal: v.optional(
+      v.object({
+        kind: v.union(
+          v.literal("skill"),
+          v.literal("field"),
+          v.literal("qualification"),
+        ),
+        canonicalEn: v.string(),
+        canonicalHe: v.string(),
+        confidence: v.number(),
+        reason: v.string(),
+      }),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_kind_and_normalizedTerm", ["kind", "normalizedTerm"])
+    .index("by_status_and_occurrenceCount", ["status", "occurrenceCount"]),
+  catalogTermOccurrences: defineTable({
+    candidateId: v.id("catalogTermCandidates"),
+    sourceKey: v.string(),
+    userId: v.optional(v.id("users")),
+  })
+    .index("by_candidateId_and_sourceKey", ["candidateId", "sourceKey"])
+    .index("by_userId", ["userId"]),
+  catalogCurationRuns: defineTable({
+    period: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    candidateIds: v.array(v.id("catalogTermCandidates")),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    model: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    approved: v.optional(v.number()),
+    review: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }).index("by_period", ["period"]),
   candidateProfiles: defineTable({
     userId: v.id("users"),
     email: v.string(),
@@ -428,6 +509,7 @@ const schema = defineSchema({
     workArrangements: v.optional(v.array(workArrangement)),
     employmentTypes: v.optional(v.array(employmentType)),
     minimumMonthlySalaryIls: v.optional(v.number()),
+    qualifications: v.optional(candidateQualificationsValidator),
     languages: v.optional(
       v.array(
         v.object({
@@ -464,6 +546,9 @@ const schema = defineSchema({
         domains: v.array(v.string()),
         coreSkills: v.array(v.string()),
         totalExperienceMonths: v.number(),
+        experienceEvidence: v.optional(
+          v.union(v.literal("known"), v.literal("unknown")),
+        ),
         experienceByDomain: v.array(
           v.object({ domain: v.string(), months: v.number() }),
         ),
@@ -509,12 +594,16 @@ const schema = defineSchema({
     skillIds: v.optional(v.array(v.id("catalogItems"))),
     normalizedLocation: v.optional(normalizedProfileLocation),
     totalExperienceMonths: v.optional(v.number()),
+    extractedExperienceEvidence: v.optional(
+      v.union(v.literal("known"), v.literal("unknown")),
+    ),
     coreSkills: v.optional(v.array(v.string())),
     normalizedPastRoles: v.optional(v.array(v.string())),
     domains: v.optional(v.array(v.string())),
     experienceByDomain: v.optional(
       v.array(v.object({ domain: v.string(), months: v.number() })),
     ),
+    extractedQualifications: v.optional(candidateQualificationsValidator),
     extractedLanguages: v.optional(
       v.array(
         v.object({
@@ -944,6 +1033,7 @@ const schema = defineSchema({
     freshnessEligible: v.optional(v.boolean()),
     relevanceScore: v.number(),
     matchQuality: v.optional(matchQuality),
+    requirementAssessments: v.optional(reviewRequirements),
     scoreComponents: relevanceComponents,
     matchReasons: v.array(v.string()),
     resultSource,
@@ -960,6 +1050,13 @@ const schema = defineSchema({
       "userId",
       "profileRevision",
       "displayEligible",
+      "relevanceScore",
+    ])
+    .index("by_user_revision_eligible_quality_score", [
+      "userId",
+      "profileRevision",
+      "displayEligible",
+      "matchQuality",
       "relevanceScore",
     ])
     .index("by_searchRunId", ["searchRunId"]),

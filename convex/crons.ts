@@ -15,4 +15,11 @@ crons.interval(
   internal.jobActivityActions.verifyDueSources,
   {},
 );
+// One bounded vocabulary cleanup on the first of each month (UTC).
+crons.cron(
+  "monthly career vocabulary cleanup",
+  "20 2 1 * *",
+  internal.referenceIdentityActions.curateMonthly,
+  {},
+);
 export default crons;

@@ -1,3 +1,4 @@
+import { QualificationsFields } from "./qualifications-fields";
 import {
   useEffect,
   useId,
@@ -242,6 +243,17 @@ export function StepTwo({ draft, setDraft, errors }: StepProps) {
         onChange={(skills) => setDraft((current) => ({ ...current, skills }))}
         maxItems={PROFILE_LIMITS.skills.max}
         error={errors.skills && t(errors.skills)}
+      />
+      <QualificationsFields
+        value={draft.qualifications}
+        error={errors.qualifications ? t(errors.qualifications) : undefined}
+        onChange={(qualifications) =>
+          setDraft((current) => ({
+            ...current,
+            qualifications,
+            qualificationsEdited: true,
+          }))
+        }
       />
     </div>
   );

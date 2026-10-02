@@ -7,6 +7,7 @@ const PROFILE_FIELD_STEPS: Record<ProfileField, number> = {
   professionalSummary: 2,
   yearsOfExperience: 2,
   skills: 2,
+  qualifications: 2,
   preferredLocations: 3,
   locationRadiusKm: 3,
   workArrangements: 3,
@@ -40,7 +41,10 @@ export function getProfileServerError(error: unknown) {
     data.field in PROFILE_FIELD_STEPS
   ) {
     return {
-      key: "onboarding.errors.reviewFields",
+      key:
+        data.field === "qualifications"
+          ? "qualifications.invalid"
+          : "onboarding.errors.reviewFields",
       field: data.field as ProfileField,
     } as const;
   }

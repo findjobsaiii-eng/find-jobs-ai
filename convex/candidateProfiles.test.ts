@@ -257,3 +257,79 @@ describe("candidate profiles", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("candidate qualifications", () => {
+  it("lets users confirm education without requiring it for onboarding", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t, "education@example.com", "Candidate");
+    const otherUserId = await createUser(t, "other@example.com", "Other");
+    const user = asUser(t, userId);
+    const saved = await user.mutation(api.candidateProfiles.saveCurrent, {
+      values: {
+        qualifications: {
+          academicDegreeStatus: "none",
+          education: [
+            {
+              level: "diploma",
+              status: "completed",
+              field: "  Software   Engineering ",
+              credential: "Practical engineer",
+            },
+          ],
+        },
+      },
+      onboardingStep: 1,
+      complete: false,
+    });
+    expect(saved.qualifications).toMatchObject({
+      academicDegreeStatus: "none",
+      education: [{ field: "Software Engineering" }],
+    });
+    expect(saved.manualOverrideFields).toContain("qualifications");
+    expect(
+      (await asUser(t, otherUserId).query(api.candidateProfiles.getCurrent))
+        .profile,
+    ).toBeNull();
+  });
+  it("rejects unconfirmed completion and oversized qualifications", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t, "education@example.com", "Candidate");
+    const user = asUser(t, userId);
+    await expect(
+      user.mutation(api.candidateProfiles.saveCurrent, {
+        values: {
+          qualifications: {
+            academicDegreeStatus: "none",
+            education: [
+              {
+                level: "bachelor",
+                status: "unknown",
+                field: null,
+                credential: null,
+              },
+            ],
+          },
+        },
+        onboardingStep: 1,
+        complete: false,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      user.mutation(api.candidateProfiles.saveCurrent, {
+        values: {
+          qualifications: {
+            academicDegreeStatus: "unknown",
+            education: Array.from({ length: 11 }, () => ({
+              level: "other" as const,
+              status: "unknown" as const,
+              field: null,
+              credential: null,
+            })),
+          },
+        },
+        onboardingStep: 1,
+        complete: false,
+      }),
+    ).rejects.toThrow();
+  });
+});

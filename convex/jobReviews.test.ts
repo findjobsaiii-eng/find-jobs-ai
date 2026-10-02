@@ -161,6 +161,7 @@ async function setupReviewContext(t: TestConvex<typeof schema>) {
       jobId,
       profileRevision,
       displayEligible: true,
+      matchQuality: "partial",
       outcome: "eligible",
       exclusionReasons: [],
       relevanceScore: 90,
@@ -198,6 +199,17 @@ describe("deep job reviews", () => {
       { id: resumeId, key: "resume_1", name: "Frontend CV", isActive: true },
     ]);
     expect(context.job.sourceUrl).toBe("https://careers.example.com/frontend");
+
+    expect(context.matching.verdict).toBe("stretch");
+    expect(context.matching.requirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirement: "React", status: "met" }),
+        expect.objectContaining({
+          requirement: "TypeScript",
+          status: "unknown",
+        }),
+      ]),
+    );
 
     await t.mutation(internal.jobReviews.complete, {
       userId,
@@ -245,7 +257,7 @@ describe("deep job reviews", () => {
     );
     expect(feed.jobs[0].deepReview).toMatchObject({
       status: "completed",
-      stale: false,
+      stale: true,
       matchPercentage: 88,
       resumeId,
       resumeName: "Frontend CV",
@@ -255,6 +267,23 @@ describe("deep job reviews", () => {
         expect.objectContaining({ status: "unknown" }),
       ],
     });
+    // Cached conclusions from a previous matching policy must be marked stale.
+    // Fresh server conclusions remain current even with resume-specific prose.
+    await t.run((ctx) =>
+      ctx.db.patch("jobDeepReviews", context.reviewId, {
+        matchPercentage: context.matching.matchPercentage,
+        verdict: context.matching.verdict,
+        requirements: context.matching.requirements.map((requirement) => ({
+          ...requirement,
+          evidence: "A short resume-specific explanation.",
+        })),
+      }),
+    );
+    const refreshed = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(refreshed.jobs[0].deepReview?.stale).toBe(false);
   });
 
   it("does not let an older concurrent request overwrite a newer review", async () => {

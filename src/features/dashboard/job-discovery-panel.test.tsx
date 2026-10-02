@@ -608,6 +608,7 @@ describe("job result cards", () => {
       screen.getByRole("link", { name: "Apply directly" }),
     ).toHaveAttribute("href", "https://careers.acme.example/roles/123");
     const region = screen.getByRole("region", { name: "AI deep review" });
+    await waitFor(() => expect(region).toBeVisible());
     const evidence = screen.getByText(
       "Python is not shown in the selected resume.",
     );

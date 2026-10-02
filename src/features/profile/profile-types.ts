@@ -1,5 +1,6 @@
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
+import type { CandidateQualifications } from "../../../convex/candidateQualifications";
 
 export const WORK_ARRANGEMENTS = ["onsite", "hybrid", "remote"] as const;
 export const EMPLOYMENT_TYPES = ["full-time", "part-time", "contract"] as const;
@@ -97,9 +98,11 @@ export type ProfileDraft = {
   employmentTypes: EmploymentType[];
   minimumMonthlySalaryIls: string;
   languages: DraftLanguage[];
+  qualifications: CandidateQualifications;
+  qualificationsEdited: boolean;
 };
 
-export type ProfileField = keyof ProfileDraft;
+export type ProfileField = Exclude<keyof ProfileDraft, "qualificationsEdited">;
 export type ProfileErrors = Partial<Record<ProfileField, string>>;
 
 export function isSupportedLocationRadius(radius: number) {
@@ -113,11 +116,28 @@ export function isSupportedLocationRadius(radius: number) {
 
 export function createProfileDraft(data: CurrentProfile): ProfileDraft {
   const profile = data.profile;
+  const hasUnspecifiedEducationStatus =
+    profile?.qualifications?.education.some(
+      (item) => item.status === "unknown",
+    ) ?? false;
   const savedLanguages = profile?.languages?.map((language) => ({
     languageCode: language.languageCode as LanguageCode,
     proficiency: language.proficiency,
   }));
   return {
+    qualifications: profile?.qualifications
+      ? {
+          ...profile.qualifications,
+          education: profile.qualifications.education.map((item) => ({
+            ...item,
+            status: item.status === "in_progress" ? "in_progress" : "completed",
+          })),
+        }
+      : {
+          academicDegreeStatus: "none",
+          education: [],
+        },
+    qualificationsEdited: hasUnspecifiedEducationStatus,
     preferredDisplayName:
       profile?.preferredDisplayName ?? data.identity.googleDisplayName ?? "",
     targetJobTitles: data.selections.targetJobTitles,
@@ -168,6 +188,9 @@ export function profileDraftToValues(
 ): SaveProfileArgs["values"] {
   const selectedLocation = draft.preferredLocations[0];
   return {
+    ...(draft.qualificationsEdited
+      ? { qualifications: draft.qualifications }
+      : {}),
     preferredDisplayName: draft.preferredDisplayName.trim() || null,
     targetJobTitleIds: draft.targetJobTitles.map((item) => item.id),
     professionalSummary: draft.professionalSummary.trim() || null,
@@ -215,6 +238,21 @@ export function profileDraftToValues(
   };
 }
 
+export function profileDraftChanges(
+  draft: ProfileDraft,
+  savedDraft: ProfileDraft,
+): SaveProfileArgs["values"] {
+  const changes = profileDraftToValues(draft);
+  const previous = profileDraftToValues(savedDraft);
+  for (const field of Object.keys(changes) as Array<
+    keyof SaveProfileArgs["values"]
+  >) {
+    if (JSON.stringify(changes[field]) === JSON.stringify(previous[field]))
+      delete changes[field];
+  }
+  return changes;
+}
+
 export function getInitialStep(data: CurrentProfile) {
   const savedStep = data.profile?.onboardingStep ?? 1;
   return Math.min(PROFILE_LIMITS.steps, Math.max(1, Math.trunc(savedStep)));
@@ -241,6 +279,17 @@ export function validateProfileStep(
     }
   }
   if (step === 2) {
+    if (
+      draft.qualifications.education.length > 10 ||
+      draft.qualifications.education.some(
+        (item) =>
+          (item.field?.length ?? 0) > 160 ||
+          (item.credential?.length ?? 0) > 160,
+      ) ||
+      draft.qualifications.education.some((item) => item.status === "unknown")
+    ) {
+      errors.qualifications = "qualifications.invalid";
+    }
     const summaryLength = draft.professionalSummary.trim().length;
     if (summaryLength > PROFILE_LIMITS.professionalSummary.max) {
       errors.professionalSummary = "onboarding.errors.summary";

@@ -15,6 +15,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import {
   jobFeedViewValidator,
   loadSearchProfile,
+  loadSuggestionMatches,
   loadUserJobsFeed,
   userJobsFeedValidator,
 } from "./jobDiscovery";
@@ -799,18 +800,8 @@ export const listUsers = query({
               .withIndex("by_userId_and_jobId", (q) => q.eq("userId", user._id))
               .take(101),
           ]);
-        const visibleJobs = profile
-          ? await ctx.db
-              .query("jobMatches")
-              .withIndex(
-                "by_userId_profileRevision_displayEligible_relevanceScore",
-                (q) =>
-                  q
-                    .eq("userId", user._id)
-                    .eq("profileRevision", profile.updatedAt)
-                    .eq("displayEligible", true),
-              )
-              .take(101)
+        const visibleJobs = profile?.onboardingCompleted
+          ? await loadSuggestionMatches(ctx, user._id, profile.updatedAt)
           : [];
         return {
           user: {
@@ -984,18 +975,9 @@ export const getUserInsight = query({
         visibleJobs: [],
       };
     }
-    const matches = await ctx.db
-      .query("jobMatches")
-      .withIndex(
-        "by_userId_profileRevision_displayEligible_relevanceScore",
-        (q) =>
-          q
-            .eq("userId", args.userId)
-            .eq("profileRevision", profileRecord.updatedAt)
-            .eq("displayEligible", true),
-      )
-      .order("desc")
-      .take(20);
+    const matches = (
+      await loadSuggestionMatches(ctx, args.userId, profileRecord.updatedAt)
+    ).slice(0, 20);
     const visibleJobs = (
       await Promise.all(
         matches.map(async (match) => {

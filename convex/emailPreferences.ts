@@ -7,7 +7,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { resolveExperienceRequirement } from "./jobDiscoveryModel";
+import { loadSuggestionMatches } from "./jobDiscovery";
 import { recordProductEvent } from "./productAnalytics";
 
 export const emailFrequencyValidator = v.union(
@@ -129,28 +129,13 @@ export const prepareDelivery = internalMutation({
     )
       return null;
 
-    const matches = await ctx.db
-      .query("jobMatches")
-      .withIndex(
-        "by_userId_profileRevision_displayEligible_relevanceScore",
-        (q) =>
-          q
-            .eq("userId", args.userId)
-            .eq("profileRevision", profile.updatedAt)
-            .eq("displayEligible", true),
-      )
-      .order("desc")
-      .take(5);
+    const matches = (
+      await loadSuggestionMatches(ctx, args.userId, profile.updatedAt)
+    ).slice(0, 5);
     const jobs = [];
     for (const match of matches) {
       const job = await ctx.db.get("jobs", match.jobId);
       if (!job) continue;
-      const experience = resolveExperienceRequirement(job);
-      if (
-        experience.min !== null &&
-        experience.min > (profile.yearsOfExperience ?? 0)
-      )
-        continue;
       jobs.push({
         title: job.title,
         companyName: job.companyName,

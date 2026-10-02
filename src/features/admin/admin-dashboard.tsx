@@ -37,10 +37,17 @@ import { AuthBoundary } from "@/features/auth/auth-gate";
 import { SignInScreen } from "@/features/auth/sign-in-screen";
 import { Brand } from "@/features/auth/brand";
 import { Button } from "@/components/ui/button";
+import { CatalogReview } from "./catalog-review";
 import { cn } from "@/lib/utils";
 
 type Section =
-  "overview" | "users" | "searches" | "tokenUsage" | "jobs" | "inspector";
+  | "overview"
+  | "users"
+  | "searches"
+  | "tokenUsage"
+  | "jobs"
+  | "inspector"
+  | "catalog";
 
 function israelDateKey(timestamp = Date.now()) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1735,6 +1742,7 @@ function AdminDashboard() {
     { id: "searches", label: t("admin.nav.searches"), icon: Search },
     { id: "tokenUsage", label: t("admin.nav.tokenUsage"), icon: Coins },
     { id: "jobs", label: t("admin.nav.jobs"), icon: BriefcaseBusiness },
+    { id: "catalog", label: t("admin.nav.catalog"), icon: Sparkles },
     { id: "inspector", label: t("admin.nav.inspector"), icon: Eye },
   ];
   return (
@@ -1821,6 +1829,8 @@ function AdminDashboard() {
                 <TokenUsage dateKey={dateKey} />
               ) : section === "jobs" ? (
                 <JobsSection />
+              ) : section === "catalog" ? (
+                <CatalogReview />
               ) : (
                 <Inspector />
               )}

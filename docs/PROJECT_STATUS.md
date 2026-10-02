@@ -152,12 +152,14 @@ grouped in that menu. The profile page uses a focused five-section navigation
 with URL-backed selection and section-level editing instead of one long page.
 
 Suggested-job cards display the deterministic relevance score out of 100 used
-for ordering, together with a strong, partial, or possible match band. A score
-below 58 no longer hides an otherwise eligible professional opportunity.
+for ordering, together with a strong or partial match band. Strong matches are
+shown first; partial matches supplement only when fewer than five strong matches
+exist. Possible matches are excluded from suggestions.
 Hovering or focusing the score shows the exact points earned across
 role, skills, domain, experience, seniority, location, and preferences, plus
 the strongest matched profile evidence. The explanation is localized in
-English and Hebrew and remains separate from the optional AI deep-review score.
+English and Hebrew. New deep reviews use the same server match score and
+requirement statuses, with AI adding explanations and resume/application advice.
 
 Component coverage checks profile routing/edit/save, keyboard opening and Escape
 focus restoration, language switching, RTL direction, and the In progress tab.
@@ -319,3 +321,138 @@ Development: three old-format cached reviews were reset for the clean schema;
 resume records and application history were retained. Production rollout and
 live-provider output quality remain unverified; local visual checks use sample
 review data and mocked tests cannot establish real-world AI assessment accuracy.
+
+## Accurate matching and low-cost skill identities (2026-10-01)
+
+Implemented: shared bilingual aliases and indexed onboarding skill reuse;
+unfamiliar skills accepted privately without blocking; factual education and
+experience evidence from the existing CV call; shared education editing;
+manual overrides preserved through CV changes; qualification/proficiency checks,
+conservative unknowns, and strong-first five-result near-match fallback. Feed,
+notifications, admin counts and new deep reviews share matching decisions.
+Cached reviews are marked stale when matching conclusions change, without
+automatically requesting another paid review.
+
+Limits: unfamiliar arbitrary synonyms are not semantically auto-merged; only
+recognized explicit professional credential clauses are interpreted; missing
+experience facts remain unknown, while an empty education list means no education.
+Unfamiliar education field wording stays unconfirmed. Ranking thresholds need real-world
+owner-reviewed calibration. No extra AI/embedding calls or new decision API were
+added. Production rollout and live-provider extraction accuracy remain unverified.
+
+Validation: `npm run check`, all 377 tests, and `npm run build -- --webpack`
+passed. React Doctor reported no errors, with bounded lookup/seed-loop warnings
+and an existing component-complexity warning. Default Turbopack builds remain
+blocked by the environment's process/port permission restriction. Automated
+frontend tests cover Hebrew/English education controls and requirement evidence;
+the education editor has since had Hebrew/English desktop/mobile browser checks
+using a local preview (see the follow-up below).
+
+Development: deployed to `glorious-mallard-885`, refreshed the catalog alias
+index, and dispatched a deterministic matching sweep. The subsequent read
+confirmed 60 materialized eligible matches with requirement assessments and no
+failed matching tasks in the inspected scheduler window. No live AI job search,
+embedding request, or production deployment was run for this change.
+
+## Education simplification (2026-10-01)
+
+Implemented: the profile and onboarding share a regular education list with an Add
+button, type selector, required Studying/Completed choice and compact remove action.
+There is no collapse, optional badge or independent degree-status dropdown. The
+list is authoritative; no entries excludes mandatory-degree jobs. Field matching
+recognizes common Hebrew/English degree aliases from both field and credential
+name, while qualification type/completion prevent diplomas or students from
+passing completed-degree checks. Existing CV extraction prefills this editor and
+uses no extra AI call. Unclear CV completion requires correction before profile
+confirmation. User corrections remain protected through CV replacement.
+
+Validation: npm run check, all 385 tests, a webpack production build and development
+Convex deployment passed. React Doctor reported no errors and the same eight
+bounded-lookup/seed-loop/existing complexity warnings. A local component preview
+was checked in Hebrew RTL and English LTR on desktop and at 390px mobile width,
+including adding/removing entries; neither mobile language overflowed. Preview
+data is synthetic; live CV extraction accuracy remains unverified. Production
+rollout remains unverified.
+
+Development matches were recalculated after deployment without AI searches; the
+inspected matching scheduler tasks all completed successfully.
+
+Design follow-up: education now reuses the shared bordered SelectInput/TextField
+and Choice controls instead of borderless inputs and custom status tabs. The soft
+divided rows remain. Code checks and all 10 education/onboarding tests passed;
+Hebrew/English desktop/mobile previews were checked. React Doctor reported the
+same existing warnings and no errors.
+
+Education follow-up: new entries default to Completed, unspecified CV completion
+does the same in the editable draft, and known CV students remain Studying. One
+name field replaces the separate credential/study-field inputs. CV field text is
+included in that name when needed; edits clear the prior hidden field to prevent
+contradictory matches. No AI calls or backend deployment were added for this UI
+change.
+
+Validation for the single-name/default-status follow-up: code checks and all 386
+tests passed. Hebrew desktop/mobile preview confirmed one input and Completed
+selected on addition; existing student entries retained their status. React
+Doctor reported the same existing warnings and no errors.
+
+Onboarding education prefill fix: an activating CV upload now clears the older
+education override in an unfinished onboarding draft, while edits made after
+upload and education confirmed in completed profiles remain protected. A CV also
+activates when the existing manual draft has no active resume. The onboarding
+form refreshes on active-CV/source-version changes and retains unsaved edits on
+ordinary reactive saves. An explicit revision-guarded internal support operation
+restores cached education only for an unfinished pending review.
+
+Validation: code checks and all 392 tests passed, including first/replacement CV
+prefill, edits during processing, completed-profile preservation, stale repair
+rejection, and frontend draft refresh/preservation. Deployed to development
+`glorious-mallard-885`; the reported test account's two education entries were
+restored from cached extraction without another AI call and read back for
+verification. Production was unchanged. React Doctor reported no errors; warnings
+remain for bounded lookups/seeding, sequential resume operations, and component
+complexity. No visual design changes or production build were required for this
+behavioral fix.
+
+## Database vocabulary and education catalog (2026-10-02)
+
+Implemented: education names use a searchable bilingual database catalog with
+free-text additions. Matching resolves skill, study-subject and qualification
+aliases from the database; degree level and completion remain independent checks.
+Unfamiliar terms stay private until curated, with occurrences deduplicated per
+user or canonical job. The monthly cleanup considers at most 30 terms used by
+at least three independent sources, makes one bounded AI request without retries,
+and skips the request when there is nothing eligible. Clear existing synonyms
+can be approved automatically; new concepts and uncertain proposals require the
+admin Catalog review. Confirmed mappings trigger deterministic rematching.
+
+Validation: npm run check, all 408 tests and npm run build -- --webpack passed.
+Hebrew RTL and English LTR component previews were checked on desktop and at
+390px mobile width, including keyboard selection and custom names retaining
+spaces after blur. React Doctor reported no errors and 12 warnings for bounded
+lookup/seed loops, sequential resume operations and component complexity.
+
+Development: seeded 19 education concepts and 173 skill aliases on
+glorious-mallard-885 and dispatched matching without AI. All 179 inspected
+matching scheduler tasks succeeded. The monthly cron definition was accepted
+by deployment; a live paid cleanup invocation has not been exercised. Visual
+dashboard schedule verification was unavailable because the dashboard required
+sign-in. Production was unchanged.
+
+### Next step after observing the current matching/catalog behavior
+
+- [ ] Extract richer matching evidence from CVs: experience duration per skill,
+      recency of use, and supporting employment/project examples. Keep unknown
+      values explicit and avoid adding onboarding questions unless necessary.
+- [ ] Make routine catalog maintenance fully automatic: approve clear new
+      generic concepts as well as confirmed aliases across role/field/skill/
+      education dropdowns, and reconsider uncertain terms in later bounded AI
+      batches without requiring owner review. Let the inexpensive first pass
+      mark difficult cases for deeper checking by a stronger model, with a
+      separate bounded escalation budget and no repeated unbounded retries. Retain
+      conflict checks, distinct related concepts, privacy validation and monthly
+      spending limits. This is deferred until the current behavior has been
+      observed; it is not implemented or scheduled as an agent follow-up.
+- [ ] Before expanding automation, inspect actual search coverage, relevant and
+      irrelevant feed examples, unfamiliar-term proposals and cleanup usage.
+      Pay particular attention to different locations sharing the same national
+      role search and to qualified users excluded by unresolved terminology.

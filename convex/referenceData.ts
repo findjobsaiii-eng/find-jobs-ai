@@ -1,9 +1,16 @@
+import { seedEducationCatalog } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { CATALOG_SEED } from "./referenceCatalogData";
+import {
+  findPublicSkillCatalogItem,
+  normalizeSkillTerm,
+  resolveSkillIdentity,
+  upsertSkillCatalogItem,
+} from "./skillIdentity";
 
 const catalogKindValidator = v.union(v.literal("jobTitle"), v.literal("skill"));
 
@@ -111,7 +118,18 @@ export const searchCatalog = query({
           .take(8)
           .then((items) => items.filter((item) => item.active));
 
-    return [...privateItems, ...publicItems].map(toCatalogOption);
+    const exactSkill =
+      args.kind === "skill" && search
+        ? await findPublicSkillCatalogItem(ctx, search)
+        : null;
+    const ordered = [
+      ...(exactSkill ? [exactSkill] : []),
+      ...privateItems,
+      ...publicItems,
+    ];
+    return [...new Map(ordered.map((item) => [item._id, item])).values()].map(
+      toCatalogOption,
+    );
   },
 });
 
@@ -139,17 +157,26 @@ export const addCustomCatalogItem = mutation({
       });
     }
 
-    const key = normalizedKey(label);
-    const likelyPublicMatches = await ctx.db
-      .query("catalogItems")
-      .withSearchIndex("search_catalog", (q) =>
-        q
-          .search("searchText", label)
-          .eq("kind", args.kind)
-          .eq("visibility", "public")
-          .eq("active", true),
-      )
-      .take(20);
+    const key =
+      args.kind === "skill" ? normalizeSkillTerm(label) : normalizedKey(label);
+    const exactSkill =
+      args.kind === "skill"
+        ? await findPublicSkillCatalogItem(ctx, label)
+        : null;
+    if (exactSkill) return toCatalogOption(exactSkill);
+    const likelyPublicMatches =
+      args.kind === "skill"
+        ? []
+        : await ctx.db
+            .query("catalogItems")
+            .withSearchIndex("search_catalog", (q) =>
+              q
+                .search("searchText", label)
+                .eq("kind", args.kind)
+                .eq("visibility", "public")
+                .eq("active", true),
+            )
+            .take(20);
     const publicMatch = likelyPublicMatches.find((item) =>
       item.normalizedLabels.includes(key),
     );
@@ -177,6 +204,12 @@ export const addCustomCatalogItem = mutation({
     }
 
     const now = Date.now();
+    if (args.kind === "skill") {
+      const id = await upsertSkillCatalogItem(ctx, userId, label, args.locale);
+      const item = id ? await ctx.db.get("catalogItems", id) : null;
+      if (!item) throw new Error("Skill creation failed");
+      return toCatalogOption(item);
+    }
     const id = await ctx.db.insert("catalogItems", {
       kind: args.kind,
       labelEn: args.locale === "en" ? label : undefined,
@@ -209,7 +242,16 @@ export const seedCatalog = internalMutation({
     let inserted = 0;
     let updated = 0;
     for (const item of CATALOG_SEED) {
-      const labels = [item.labelEn, item.labelHe, ...(item.aliases ?? [])];
+      const seeded = await ctx.db
+        .query("catalogItems")
+        .withIndex("by_source_and_externalId", (q) =>
+          q.eq("source", "curated").eq("externalId", item.slug),
+        )
+        .unique();
+      const retainedAliases = [
+        ...new Set([...(seeded?.aliases ?? []), ...(item.aliases ?? [])]),
+      ];
+      const labels = [item.labelEn, item.labelHe, ...retainedAliases];
       const normalizedLabels = [...new Set(labels.map(normalizedKey))];
       const values = {
         kind: item.kind,
@@ -217,7 +259,11 @@ export const seedCatalog = internalMutation({
         labelHe: item.labelHe,
         normalizedKey: normalizedKey(item.labelEn),
         normalizedLabels,
-        aliases: item.aliases ?? [],
+        aliases: retainedAliases,
+        conceptKey:
+          item.kind === "skill"
+            ? resolveSkillIdentity(item.labelEn).key
+            : undefined,
         searchText: labels.join(" "),
         visibility: "public" as const,
         source: "curated" as const,
@@ -232,17 +278,47 @@ export const seedCatalog = internalMutation({
           q.eq("source", "curated").eq("externalId", item.slug),
         )
         .unique();
+      let catalogItemId: Id<"catalogItems">;
       if (existing) {
         await ctx.db.patch("catalogItems", existing._id, values);
         updated += 1;
+        catalogItemId = existing._id;
       } else {
-        await ctx.db.insert("catalogItems", {
+        catalogItemId = await ctx.db.insert("catalogItems", {
           ...values,
           createdAt: Date.now(),
         });
         inserted += 1;
       }
+      if (item.kind === "skill") {
+        const conceptKey = resolveSkillIdentity(item.labelEn).key;
+        const existingAliases = await ctx.db
+          .query("catalogSkillAliases")
+          .withIndex("by_conceptKey", (q) => q.eq("conceptKey", conceptKey))
+          .take(80);
+        const normalizedTerms = [...new Set(labels.map(normalizeSkillTerm))];
+        for (const alias of existingAliases) {
+          if (!normalizedTerms.includes(alias.normalizedTerm)) {
+            await ctx.db.delete("catalogSkillAliases", alias._id);
+          }
+        }
+        for (const normalizedTerm of normalizedTerms) {
+          const alias = await ctx.db
+            .query("catalogSkillAliases")
+            .withIndex("by_normalizedTerm", (q) =>
+              q.eq("normalizedTerm", normalizedTerm),
+            )
+            .unique();
+          if (alias && alias.conceptKey !== conceptKey)
+            throw new Error(`Conflicting skill alias: ${normalizedTerm}`);
+          const aliasValues = { normalizedTerm, conceptKey, catalogItemId };
+          if (alias)
+            await ctx.db.patch("catalogSkillAliases", alias._id, aliasValues);
+          else await ctx.db.insert("catalogSkillAliases", aliasValues);
+        }
+      }
     }
+    await seedEducationCatalog(ctx);
     return { inserted, updated, total: CATALOG_SEED.length };
   },
 });

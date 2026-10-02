@@ -20,6 +20,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
+import { requirementLabel } from "./requirement-label";
 
 type FeedJob = FunctionReturnType<
   typeof api.jobDiscovery.listCurrentUserJobs
@@ -453,7 +454,7 @@ function RequirementRow({
             <Icon aria-hidden="true" className="size-4" />
           </span>
           <span className="min-w-0 flex-1 text-sm font-medium">
-            {item.requirement}
+            {requirementLabel(t, item.requirement)}
           </span>
           <span
             className={cn(
@@ -469,14 +470,22 @@ function RequirementRow({
           />
         </summary>
         <div className="border-border border-t px-3 py-3 ps-12 text-xs leading-relaxed">
-          <p className="text-muted-foreground">{item.evidence}</p>
+          <p className="text-muted-foreground">
+            {item.evidence.startsWith("jobMatching.")
+              ? t(item.evidence)
+              : item.evidence}
+          </p>
           {item.nextStep ? (
             <p className="mt-2 flex items-start gap-1.5">
               <ArrowUpRight
                 aria-hidden="true"
                 className="text-primary mt-0.5 size-3.5 shrink-0 rtl:-scale-x-100"
               />
-              <span>{item.nextStep}</span>
+              <span>
+                {item.nextStep.startsWith("jobMatching.")
+                  ? t(item.nextStep)
+                  : item.nextStep}
+              </span>
             </p>
           ) : null}
         </div>

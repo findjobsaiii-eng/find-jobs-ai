@@ -2,6 +2,7 @@
 
 import type OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import { SKILL_IDENTITY_EXTRACTION_GUIDE } from "./skillIdentity";
 import {
   JOB_DISCOVERY_LIMITS,
   normalizeJob,
@@ -168,6 +169,8 @@ async function requestJobBatch(
           "Assess each exact listing in aiAssessment during this same search: open, closed, or unknown. Open requires an available job-specific application action or a publication date within the last 30 days, with evidenceUrl equal to sourceUrl and a short evidenceText describing what you actually observed. Set evidenceType to application_available or recent_posting; use none for closed/unknown. Include postedAt for recent_posting. A search snippet or HTTP success alone does not prove open. Do not make extra searches solely to determine status; use unknown when the existing search provides insufficient evidence. Never invent facts, dates, or URLs.",
           "Extract experience requirements exactly in years: for a range use its lower and upper bounds, for X+ or a stated minimum use X as the minimum and null as the maximum, for an exact X years use X for both, and use null when the source is silent.",
           "Treat entry-level or junior wording without a numeric requirement as a 0-year minimum. Apply the same rules to Hebrew descriptions.",
+          SKILL_IDENTITY_EXTRACTION_GUIDE,
+          "Keep requiredSkills restricted to actual requirements and preferredSkills to explicitly preferred skills. In educationRequirements preserve the exact credential, subject, mandatory/preferred wording, completed vs student/in-progress status, and any degree OR equivalent-experience alternative. Do not turn a preferred degree into a mandatory one, drop an alternative, or treat a diploma as a bachelor's degree. In languages preserve stated proficiency (basic, conversational, professional, fluent/native). Preserve mandatory certifications and licenses in requirementsText with their exact names. Do not invent a requirement when the listing is silent.",
           "Use null or empty arrays when the source does not state a field. Every job URL and evidence URL must come from web search sources.",
           `Return at most ${maxCandidates} useful candidates. Keep descriptions, requirements, lists, and evidence concise.`,
           compactFallback

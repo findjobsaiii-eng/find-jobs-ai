@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { evaluateJobQuality, isDisplayEligibleJob } from "./jobQuality";
+import { loadSearchProfile } from "./jobDiscovery";
 import type { SearchProfile } from "./jobDiscoveryModel";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
 import { isDisplayEligibleSource } from "./jobActivityPolicy";
@@ -31,44 +32,9 @@ async function loadProfile(
     !stored.targetJobTitleIds?.length
   )
     return null;
-  const [titles, skills] = await Promise.all([
-    Promise.all(
-      stored.targetJobTitleIds.map((id) => ctx.db.get("catalogItems", id)),
-    ),
-    Promise.all(
-      (stored.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
-    ),
-  ]);
-  const visibleLabel = (item: Doc<"catalogItems"> | null) =>
-    item?.active &&
-    (item.visibility === "public" || item.ownerUserId === userId)
-      ? (item.labelEn ?? item.labelHe)
-      : undefined;
-  const targetJobTitles = titles
-    .map(visibleLabel)
-    .filter((x): x is string => Boolean(x));
-  if (!targetJobTitles.length) return null;
   return {
     revision: stored.updatedAt,
-    profile: {
-      targetJobTitles,
-      skills: skills.map(visibleLabel).filter((x): x is string => Boolean(x)),
-      yearsOfExperience: stored.yearsOfExperience ?? 0,
-      location: stored.primaryLocation,
-      workArrangements: stored.workArrangements?.length
-        ? stored.workArrangements
-        : ["onsite", "hybrid", "remote"],
-      employmentTypes: stored.employmentTypes?.length
-        ? stored.employmentTypes
-        : ["full-time", "part-time", "contract"],
-      languages: stored.languages ?? [],
-      minimumMonthlySalaryIls: stored.minimumMonthlySalaryIls ?? 0,
-      normalizedPastRoles: stored.cvCareerProfile?.normalizedPastRoles ?? [],
-      currentRole: stored.cvCareerProfile?.currentTitle,
-      seniority: stored.seniority,
-      professionalDomains: stored.cvCareerProfile?.domains ?? [],
-      experienceByDomain: stored.cvCareerProfile?.experienceByDomain ?? [],
-    },
+    profile: await loadSearchProfile(ctx, userId),
   };
 }
 
@@ -129,6 +95,7 @@ export const reconcileUserPage = internalMutation({
       const displayEligible = Boolean(
         !hidesSuggestion(application) &&
         quality.outcome === "eligible" &&
+        quality.matchQuality !== "possible" &&
         freshness.eligible &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
@@ -156,6 +123,7 @@ export const reconcileUserPage = internalMutation({
         matchQuality: quality.matchQuality,
         scoreComponents: quality.scoreComponents,
         matchReasons: quality.matchReasons,
+        requirementAssessments: quality.requirementAssessments,
         resultSource: "central" as const,
         evaluatedAt: now,
       };
@@ -254,6 +222,7 @@ export const reconcileJobUsers = internalMutation({
       const displayEligible = Boolean(
         !hidesSuggestion(application) &&
         quality.outcome === "eligible" &&
+        quality.matchQuality !== "possible" &&
         freshness.eligible &&
         isDisplayEligibleJob(job) &&
         isUserFacingJobSource(source) &&
@@ -281,6 +250,7 @@ export const reconcileJobUsers = internalMutation({
         matchQuality: quality.matchQuality,
         scoreComponents: quality.scoreComponents,
         matchReasons: quality.matchReasons,
+        requirementAssessments: quality.requirementAssessments,
         resultSource: "central" as const,
         evaluatedAt: now,
       };
@@ -335,6 +305,7 @@ export const reconcileUserJob = internalMutation({
     const displayEligible = Boolean(
       !hidesSuggestion(application) &&
       quality.outcome === "eligible" &&
+      quality.matchQuality !== "possible" &&
       freshness.eligible &&
       isDisplayEligibleJob(job) &&
       isUserFacingJobSource(source) &&
@@ -360,6 +331,7 @@ export const reconcileUserJob = internalMutation({
       matchQuality: quality.matchQuality,
       scoreComponents: quality.scoreComponents,
       matchReasons: quality.matchReasons,
+      requirementAssessments: quality.requirementAssessments,
       resultSource: "central" as const,
       evaluatedAt: now,
     };

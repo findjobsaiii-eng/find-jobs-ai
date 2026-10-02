@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -92,5 +93,36 @@ describe("visual review decisions", () => {
     expect(
       screen.getByText("No React evidence was supplied."),
     ).not.toBeVisible();
+  });
+  it("explains server-derived uncertain experience in Hebrew on demand", async () => {
+    await i18n.changeLanguage("he");
+    render(
+      <DeepReviewContent
+        review={{
+          ...review,
+          requirements: [
+            {
+              requirement: "3+ years of relevant experience",
+              status: "unknown",
+              importance: "must_have",
+              evidence: "jobMatching.evidence.experienceUnknown",
+              nextStep: "jobMatching.nextStep.experience",
+            },
+          ],
+        }}
+        facts={facts}
+        unavailable={false}
+      />,
+    );
+    const requirement = screen.getByText("לפחות 3 שנות ניסיון רלוונטי");
+    const evidence = screen.getByText(
+      "הניסיון שלך בתחום הרלוונטי עדיין לא אושר.",
+    );
+    expect(evidence).not.toBeVisible();
+    await userEvent.click(requirement.closest("summary")!);
+    expect(evidence).toBeVisible();
+    expect(
+      screen.getByText("כדאי לאשר את הניסיון שלך בתחום הרלוונטי."),
+    ).toBeVisible();
   });
 });

@@ -11,6 +11,7 @@ import { getProfileServerError } from "./profile-server-error";
 import {
   createProfileDraft,
   PROFILE_LIMITS,
+  profileDraftChanges,
   profileDraftToValues,
   type CurrentProfile,
   type ProfileErrors,
@@ -104,7 +105,7 @@ export function ProfileEditor({
     setIsSubmitting(true);
     try {
       await saveProfile({
-        values: profileDraftToValues(draft),
+        values: profileDraftChanges(draft, savedDraft),
         onboardingStep: PROFILE_LIMITS.steps,
         complete: true,
       });

@@ -1,4 +1,6 @@
+import type { IdentityCatalog } from "./referenceIdentityModel";
 import { z } from "zod";
+import type { CandidateQualifications } from "./candidateQualifications";
 import { resolveJobGeography, type JobGeography } from "./jobGeography";
 import { DISCOVERY_SOURCE_GUIDANCE } from "./jobSourceQuality";
 
@@ -71,6 +73,9 @@ export const openAIJobBatchSchema = z.strictObject({
 export type OpenAIJob = z.infer<typeof openAIJobSchema>;
 
 export type SearchProfile = {
+  identityCatalog?: IdentityCatalog;
+  qualifications?: CandidateQualifications;
+  experienceEvidence?: "known" | "unknown";
   targetJobTitles: string[];
   targetRoleVariants?: Array<{ title: string; aliases: string[] }>;
   skills: string[];
@@ -171,8 +176,24 @@ function validExperienceYears(value: number) {
   return Number.isInteger(value) && value >= 0 && value <= 80;
 }
 
+function experienceStatements(text: string) {
+  return text.split(/[\n;•]|(?<=[.!?])\s+/u).map((part) => part.trim());
+}
+
+function isPreferredExperienceStatement(text: string) {
+  return (
+    /(?:preferred|preferably|ideally|nice.to.have|advantage|יתרון|עדיפות)/iu.test(
+      text,
+    ) && !/(?:required|mandatory|must\b|חובה)/iu.test(text)
+  );
+}
+
 function parseExperienceRequirements(text: string) {
-  const value = normalizeWhitespace(text).toLocaleLowerCase("en-US");
+  const value = normalizeWhitespace(
+    experienceStatements(text)
+      .filter((statement) => !isPreferredExperienceStatement(statement))
+      .join("\n"),
+  ).toLocaleLowerCase("en-US");
   const found: ParsedExperienceRequirement[] = [];
   const rangeSpans: Array<{ start: number; end: number }> = [];
   const add = (minText: string, maxText?: string) => {
@@ -255,9 +276,24 @@ function parseExperienceRequirements(text: string) {
 export function resolveExperienceRequirement(
   source: ExperienceRequirementSource,
 ) {
-  const parsed = parseExperienceRequirements(
-    [source.requirementsText ?? "", source.descriptionText ?? ""].join("\n"),
-  );
+  const requirementText = [
+    source.requirementsText ?? "",
+    source.descriptionText ?? "",
+  ].join("\n");
+  const parsed = parseExperienceRequirements(requirementText);
+  const onlyPreferredExperience =
+    parsed.length === 0 &&
+    experienceStatements(requirementText).some(
+      (statement) =>
+        isPreferredExperienceStatement(statement) &&
+        /\d{1,2}\s*(?:\+\s*)?(?:years?|yrs?|שנות|שנים)/iu.test(statement),
+    );
+  const structuredMin = onlyPreferredExperience
+    ? null
+    : source.requiredExperienceYearsMin;
+  const structuredMax = onlyPreferredExperience
+    ? null
+    : source.requiredExperienceYearsMax;
   const parsedMin = parsed.length
     ? Math.max(...parsed.map((requirement) => requirement.min))
     : null;
@@ -267,13 +303,11 @@ export function resolveExperienceRequirement(
     .filter((value): value is number => value !== null);
   const min =
     parsedMin === null
-      ? source.requiredExperienceYearsMin
-      : source.requiredExperienceYearsMin === null
+      ? structuredMin
+      : structuredMin === null
         ? parsedMin
-        : Math.max(parsedMin, source.requiredExperienceYearsMin);
-  let max = parsedMaxes.length
-    ? Math.max(...parsedMaxes)
-    : source.requiredExperienceYearsMax;
+        : Math.max(parsedMin, structuredMin);
+  let max = parsedMaxes.length ? Math.max(...parsedMaxes) : structuredMax;
   if (min !== null && max !== null && max < min) max = null;
   if (min !== null) return { min, max };
 

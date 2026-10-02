@@ -1,3 +1,4 @@
+import type { IdentityCatalog } from "./referenceIdentityModel";
 import type { Doc } from "./_generated/dataModel";
 import {
   resolveExperienceRequirement,
@@ -9,6 +10,11 @@ import {
   hasFreshJobActivity,
   isActiveFeedLifecycle,
 } from "./jobActivityPolicy";
+import {
+  evaluateRequirements,
+  type RequirementAssessment,
+} from "./jobRequirements";
+import { resolveSkillIdentity, skillsEquivalent } from "./skillIdentity";
 import { isDevelopmentFixtureJob } from "./jobSourceProvenance";
 
 export const MINIMUM_RELEVANCE_SCORE = 58;
@@ -45,6 +51,7 @@ export type QualityEvaluation = {
     preferences: number;
   };
   matchReasons: string[];
+  requirementAssessments: RequirementAssessment[];
   matchDetails: {
     targetRole?: string;
     pastRole?: string;
@@ -81,19 +88,6 @@ type QualityJob = Omit<
 > & {
   workAuthorizationRequirements?: string | null;
   geo?: { latitude: number; longitude: number; countryCode: string };
-};
-
-const LANGUAGE_NAMES: Readonly<Record<string, string[]>> = {
-  he: ["he", "hebrew", "עברית"],
-  en: ["en", "english", "אנגלית"],
-  ar: ["ar", "arabic", "ערבית"],
-  ru: ["ru", "russian", "רוסית"],
-  fr: ["fr", "french", "צרפתית"],
-  am: ["am", "amharic", "אמהרית"],
-  es: ["es", "spanish", "ספרדית"],
-  uk: ["uk", "ukrainian", "אוקראינית"],
-  ro: ["ro", "romanian", "רומנית"],
-  yi: ["yi", "yiddish", "יידיש"],
 };
 
 const GENERIC_ROLE_TOKENS = new Set([
@@ -381,40 +375,27 @@ function bestTitleMatch(needles: string[], value: string) {
   );
 }
 
-function canonicalSkill(value: string) {
-  return normalized(value)
-    .replace(/\bshopify plus\b/gu, "shopify")
-    .replace(/\bhtml5\b/gu, "html")
-    .replace(/\bcss3\b/gu, "css")
-    .replace(/\bjavascript es\d(?:\+)?\b/gu, "javascript")
-    .replace(/\bgoogle analytics 4\b/gu, "ga4")
-    .replace(/\s+familiarity$/u, "")
-    .trim();
+function canonicalSkill(value: string, catalog?: IdentityCatalog) {
+  const identity = resolveSkillIdentity(value, catalog);
+  return identity.labelEn
+    ? normalized(identity.labelEn)
+    : normalized(
+        identity.known
+          ? identity.key.replace(/^skill:/u, "").replace(/-/gu, " ")
+          : value,
+      );
 }
 
-function skillSimilarity(left: string, right: string) {
-  const a = canonicalSkill(left);
-  const b = canonicalSkill(right);
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if (Math.min(a.length, b.length) >= 4 && (a.includes(b) || b.includes(a)))
-    return 0.9;
-  const leftTokens = tokens(a).filter(
-    (token) => !GENERIC_ROLE_TOKENS.has(token),
-  );
-  const rightTokens = tokens(b).filter(
-    (token) => !GENERIC_ROLE_TOKENS.has(token),
-  );
-  if (leftTokens.length === 1 && rightTokens.length === 1)
-    return tokenEquivalent(leftTokens[0], rightTokens[0]) ? 0.9 : 0;
-  const shared = leftTokens.filter((token) =>
-    rightTokens.some((candidate) => tokenEquivalent(token, candidate)),
-  ).length;
-  return shared ? (2 * shared) / (leftTokens.length + rightTokens.length) : 0;
+function skillSimilarity(
+  left: string,
+  right: string,
+  catalog?: IdentityCatalog,
+) {
+  return skillsEquivalent(left, right, catalog) ? 1 : 0;
 }
 
-function skillWeight(value: string) {
-  const skill = canonicalSkill(value);
+function skillWeight(value: string, catalog?: IdentityCatalog) {
+  const skill = canonicalSkill(value, catalog);
   if (SOFT_SKILL_PATTERN.test(skill)) return 0.2;
   if (
     /(?:shopify|woocommerce|magento|salesforce commerce|node.js|react|typescript|javascript|php|python|sql|mongodb|postgresql|html|css|seo|ga4|google tag manager|erp|sap)/u.test(
@@ -431,17 +412,21 @@ function skillWeight(value: string) {
   return 0.8;
 }
 
-function skillCoverage(needed: string[], profileSkills: string[]) {
+function skillCoverage(
+  needed: string[],
+  profileSkills: string[],
+  catalog?: IdentityCatalog,
+) {
   if (!needed.length || !profileSkills.length)
     return { score: 0, matched: [] as string[] };
   let totalWeight = 0;
   let matchedWeight = 0;
   const matched: string[] = [];
   for (const need of needed) {
-    const weight = skillWeight(need);
+    const weight = skillWeight(need, catalog);
     const similarity = Math.max(
       0,
-      ...profileSkills.map((skill) => skillSimilarity(need, skill)),
+      ...profileSkills.map((skill) => skillSimilarity(need, skill, catalog)),
     );
     totalWeight += weight;
     matchedWeight += weight * similarity;
@@ -470,19 +455,6 @@ function locationMatches(job: QualityJob, profile: SearchProfile) {
       profile.location.countryCode.toUpperCase() &&
     distanceKm(job.geo, profile.location) <= profile.location.radiusKm,
   );
-}
-
-function languageMatches(jobLanguages: string[], profile: SearchProfile) {
-  if (!jobLanguages.length) return true;
-  const candidateTerms = new Set(
-    profile.languages.flatMap(
-      ({ languageCode }) => LANGUAGE_NAMES[languageCode] ?? [languageCode],
-    ),
-  );
-  return jobLanguages.every((language) => {
-    const value = normalized(language);
-    return [...candidateTerms].some((term) => value.includes(normalized(term)));
-  });
 }
 
 const SENIORITY_LEVELS: Readonly<Record<string, number>> = {
@@ -552,12 +524,54 @@ function domainEvaluation(job: QualityJob, profile: SearchProfile) {
   };
 }
 
+function specializedFamilies(value: string) {
+  const concepts = roleConcepts(value);
+  const result = new Set<string>();
+  if (concepts.has("mechanical") || concepts.has("robotics"))
+    result.add("engineering");
+  else if (
+    concepts.has("development") ||
+    concepts.has("frontend") ||
+    concepts.has("backend") ||
+    concepts.has("fullstack")
+  )
+    result.add("software");
+  if (concepts.has("finance")) result.add("finance");
+  if (concepts.has("marketing")) result.add("marketing");
+  if (concepts.has("ecommerce") || concepts.has("site_management"))
+    result.add("commerce");
+  if (concepts.has("it_support")) result.add("it_support");
+  return result;
+}
+
 export function evaluateJobQuality(
   job: QualityJob,
   profile: SearchProfile,
 ): QualityEvaluation {
   const hardExclusions: string[] = [];
-  const targetRole = bestTitleMatch(profile.targetJobTitles, job.title);
+  const wantedFamilies = new Set(
+    [
+      ...profile.targetJobTitles,
+      ...(profile.currentRole ? [profile.currentRole] : []),
+      ...(profile.normalizedPastRoles ?? []),
+    ].flatMap((title) => [...specializedFamilies(title)]),
+  );
+  if (wantedFamilies.has("commerce")) wantedFamilies.add("software");
+  if (wantedFamilies.has("software")) wantedFamilies.add("commerce");
+  const jobFamilies = specializedFamilies(job.title);
+  if (
+    wantedFamilies.size &&
+    jobFamilies.size &&
+    ![...jobFamilies].some((family) => wantedFamilies.has(family))
+  )
+    hardExclusions.push("professional_mismatch");
+  const targetRole = bestTitleMatch(
+    [
+      ...profile.targetJobTitles,
+      ...(profile.targetRoleVariants ?? []).flatMap((role) => role.aliases),
+    ],
+    job.title,
+  );
   const currentRole = profile.currentRole
     ? bestTitleMatch([profile.currentRole], job.title)
     : { score: 0, value: undefined };
@@ -575,8 +589,16 @@ export function evaluateJobQuality(
     pastRole.score,
   );
 
-  const required = skillCoverage(job.requiredSkills, profile.skills);
-  const preferred = skillCoverage(job.preferredSkills, profile.skills);
+  const required = skillCoverage(
+    job.requiredSkills,
+    profile.skills,
+    profile.identityCatalog,
+  );
+  const preferred = skillCoverage(
+    job.preferredSkills,
+    profile.skills,
+    profile.identityCatalog,
+  );
   const combinedSkillScore = Math.max(required.score, preferred.score * 0.7);
   const domain = domainEvaluation(job, profile);
   const compatibleLocation = locationMatches(job, profile);
@@ -589,12 +611,65 @@ export function evaluateJobQuality(
     job.employmentType === "unknown" ||
     profile.employmentTypes.includes(job.employmentType);
 
+  const domainExperience = (profile.experienceByDomain ?? []).filter(
+    (entry) =>
+      bestTitleMatch([entry.domain], job.title).score >= 0.35 ||
+      setSimilarity(roleConcepts(entry.domain), roleConcepts(job.title)) >= 0.5,
+  );
+  // Domain intervals were already merged during CV extraction. Do not sum
+  // concurrent domains or let unrelated employment fulfill a role minimum.
+  const relevantExperience =
+    profile.experienceEvidence === "unknown"
+      ? null
+      : profile.experienceByDomain?.length
+        ? domainExperience.length
+          ? Math.max(...domainExperience.map((entry) => entry.months)) / 12
+          : null
+        : profile.yearsOfExperience;
+  const requirementAssessments = evaluateRequirements(
+    job,
+    profile,
+    relevantExperience,
+  );
+  const mandatory = requirementAssessments.filter(
+    (item) => item.importance === "must_have",
+  );
+  if (
+    mandatory.some(
+      (item) =>
+        item.status === "gap" &&
+        job.educationRequirements.includes(item.requirement),
+    )
+  )
+    hardExclusions.push("education_conflict");
+  if (
+    mandatory.some(
+      (item) =>
+        item.status === "gap" && job.languages.includes(item.requirement),
+    )
+  )
+    hardExclusions.push("language_conflict");
   const experienceRequirement = resolveExperienceRequirement(job);
   let experience = 0.7;
   if (experienceRequirement.min !== null) {
-    const gap = experienceRequirement.min - profile.yearsOfExperience;
-    experience = gap <= 0 ? 1 : gap <= 1 ? 0.35 : 0;
-    if (gap > 0) hardExclusions.push("experience_conflict");
+    const gap =
+      relevantExperience === null
+        ? null
+        : experienceRequirement.min - relevantExperience;
+    experience = gap === null ? 0.35 : gap <= 0 ? 1 : gap <= 1 ? 0.35 : 0;
+    if (gap !== null && gap > 0) hardExclusions.push("experience_conflict");
+    requirementAssessments.push({
+      requirement: `${experienceRequirement.min}+ years of relevant experience`,
+      importance: "must_have",
+      status: gap === null ? "unknown" : gap <= 0 ? "met" : "gap",
+      evidence:
+        relevantExperience === null
+          ? "jobMatching.evidence.experienceUnknown"
+          : gap !== null && gap > 0
+            ? "jobMatching.evidence.experienceGap"
+            : "jobMatching.evidence.experienceMet",
+      nextStep: gap === null ? "jobMatching.nextStep.experience" : null,
+    });
   }
 
   const jobSeniority = inferredJobSeniority(job.title);
@@ -605,8 +680,6 @@ export function evaluateJobQuality(
     seniority = gap === 0 ? 1 : gap === 1 ? 0.5 : gap === 2 ? 0.15 : 0;
   }
 
-  const compatibleLanguage = languageMatches(job.languages, profile);
-  if (!compatibleLanguage) hardExclusions.push("language_conflict");
   if (
     job.salaryMax !== null &&
     normalized(job.salaryCurrency ?? "") === "ils" &&
@@ -623,7 +696,8 @@ export function evaluateJobQuality(
   )
     hardExclusions.push("work_authorization_conflict");
   if (roleMatch < 0.28 && domain.score < 0.3 && combinedSkillScore < 0.25)
-    hardExclusions.push("professional_mismatch");
+    if (!hardExclusions.includes("professional_mismatch"))
+      hardExclusions.push("professional_mismatch");
 
   const preferences =
     (workArrangementCompatible ? 0.5 : 0) +
@@ -631,24 +705,49 @@ export function evaluateJobQuality(
   const scoreComponents = {
     role: Math.round(roleMatch * 35),
     requiredSkills: Math.round(required.score * 18),
-    preferredSkills: Math.round(preferred.score * 7),
+    preferredSkills: Math.round(preferred.score * 5),
     experience: Math.round(experience * 10),
     location: compatibleLocation ? 5 : 0,
     workArrangement: 0,
     employmentType: 0,
-    language: 0,
-    education: 0,
+    language:
+      job.languages.length &&
+      requirementAssessments
+        .filter((item) => job.languages.includes(item.requirement))
+        .every((item) => item.status === "met")
+        ? 2
+        : 0,
+    education:
+      job.educationRequirements.length &&
+      requirementAssessments
+        .filter((item) => job.educationRequirements.includes(item.requirement))
+        .every((item) => item.status === "met")
+        ? 2
+        : 0,
     semantic: 0,
     domain: Math.round(domain.score * 15),
-    seniority: Math.round(seniority * 7),
-    preferences: Math.round(preferences * 3),
+    seniority: Math.round(seniority * 6),
+    preferences: Math.round(preferences * 2),
   };
   const relevanceScore = Object.values(scoreComponents).reduce(
     (sum, value) => sum + value,
     0,
   );
   const passesRelevanceThreshold = relevanceScore >= MINIMUM_RELEVANCE_SCORE;
-  const matchQuality = classifyMatchQuality(relevanceScore);
+  const hasUnconfirmedMandatory = requirementAssessments.some(
+    (item) => item.importance === "must_have" && item.status !== "met",
+  );
+  const matchQuality =
+    hasUnconfirmedMandatory ||
+    (jobSeniority !== null &&
+      candidateSeniority !== null &&
+      jobSeniority > candidateSeniority + 1) ||
+    !workArrangementCompatible ||
+    !employmentTypeCompatible
+      ? relevanceScore >= PARTIAL_MATCH_MINIMUM_SCORE
+        ? "partial"
+        : "possible"
+      : classifyMatchQuality(relevanceScore);
   const exclusionReasons = [...hardExclusions];
   const matchedSkills = [
     ...new Set([...required.matched, ...preferred.matched]),
@@ -667,7 +766,8 @@ export function evaluateJobQuality(
   return {
     outcome: !hardExclusions.length ? "eligible" : "excluded",
     hardEligibilityPassed: hardExclusions.length === 0,
-    passesRelevanceThreshold,
+    passesRelevanceThreshold:
+      passesRelevanceThreshold && matchQuality === "strong",
     matchQuality,
     exclusionReasons,
     relevanceScore,
@@ -680,6 +780,7 @@ export function evaluateJobQuality(
       ...(compatibleLocation ? ["location"] : []),
     ],
     matchDetails,
+    requirementAssessments,
   };
 }
 

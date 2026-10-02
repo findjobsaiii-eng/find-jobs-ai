@@ -205,6 +205,7 @@ it("returns the selected user's exact Jobs read model without changing data", as
       jobId,
       profileRevision: now,
       displayEligible: true,
+      matchQuality: "partial",
       outcome: "eligible",
       exclusionReasons: [],
       relevanceScore: 100,
@@ -303,11 +304,8 @@ it("returns the selected user's exact Jobs read model without changing data", as
     preferredDisplayName: "Candice",
     minimumMonthlySalaryIls: 20_000,
   });
-  expect(preview?.feed.jobs).toHaveLength(1);
-  expect(preview?.feed.jobs[0]).toMatchObject({
-    title: "Frontend Engineer",
-    companyName: "Example",
-  });
+  // Applied jobs belong in tracking even if a stale match remains materialized.
+  expect(preview?.feed.jobs).toHaveLength(0);
   const inProgressPreview = await asUser(t, adminId).query(
     api.admin.getUserJobsPreview,
     { userId: subjectId, view: "inProgress" },
@@ -323,7 +321,7 @@ it("returns the selected user's exact Jobs read model without changing data", as
   expect(insight).toMatchObject({
     user: { userId: subjectId, email: "candidate@example.com" },
     profile: { completed: true },
-    visibleJobs: [{ title: "Frontend Engineer", companyName: "Example" }],
+    visibleJobs: [],
   });
   const after = await t.run(async (ctx) => ({
     profile: await ctx.db

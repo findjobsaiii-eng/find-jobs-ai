@@ -41,6 +41,7 @@ type Env = {
   readonly JWKS: string;
   readonly JWT_PRIVATE_KEY: string;
   readonly OPENAI_API_KEY: string;
+  readonly OPENAI_CATALOG_MODEL: string | undefined;
   readonly OPENAI_JOB_REVIEW_MODEL: string | undefined;
   readonly OPENAI_JOB_SEARCH_MODEL: string;
   readonly PUBLIC_APP_URL: string;

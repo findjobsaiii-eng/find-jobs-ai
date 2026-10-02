@@ -132,11 +132,24 @@ async function addCompletedProfile(
       createdAt: 1,
       updatedAt: 1,
     });
+    const typescriptId = await ctx.db.insert("catalogItems", {
+      kind: "skill",
+      labelEn: "TypeScript",
+      normalizedKey: "typescript",
+      normalizedLabels: ["typescript"],
+      searchText: "typescript",
+      visibility: "public",
+      source: "curated",
+      priority: 1,
+      active: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
     await ctx.db.insert("candidateProfiles", {
       userId,
       email: "candidate@example.com",
       targetJobTitleIds: [titleId],
-      skillIds: [skillId],
+      skillIds: [skillId, typescriptId],
       yearsOfExperience,
       preferredPlaceIds: [searchProfile.location.placeId],
       locationRadiusKm: searchProfile.location.radiusKm,
@@ -260,6 +273,128 @@ async function ingestCandidates(
 }
 
 describe("shared job discovery", () => {
+  it("finds strong matches beyond a high-scoring near-match window and tops up only below five", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    const strongIds: Id<"jobs">[] = [];
+    for (let index = 0; index < 66; index += 1) {
+      const isStrong = index >= 60;
+      const jobId = await t.run(async (ctx) => {
+        const { aiAssessment: _assessment, ...job } = normalizedJob();
+        const now = Date.now();
+        const id = await ctx.db.insert("jobs", {
+          ...job,
+          requiredSkills: isStrong
+            ? []
+            : ["React", "TypeScript", "Unconfirmed custom skill"],
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          normalizedSourceUrl: `${job.normalizedSourceUrl}-${index}`,
+          jobFingerprint: `${job.jobFingerprint}-${index}`,
+          contentHash: `${job.contentHash}-${index}`,
+          firstDiscoveredAt: now,
+          lastDiscoveredAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "active",
+          lifecycleStatus: "verified_active",
+        });
+        const sourceId = await ctx.db.insert("jobSources", {
+          jobId: id,
+          sourceUrl: `${job.sourceUrl}-${index}`,
+          normalizedUrl: `${job.normalizedSourceUrl}-${index}`,
+          finalUrl: `${job.sourceUrl}-${index}`,
+          domain: "careers.example.com",
+          sourceTier: "employer",
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
+        });
+        await ctx.db.patch("jobs", id, { bestSourceId: sourceId });
+        return id;
+      });
+      if (isStrong) strongIds.push(jobId);
+      await t.mutation(internal.jobMatching.reconcileUserJob, {
+        userId,
+        jobId,
+      });
+    }
+    // Simulate asynchronous lifecycle reconciliation: stale high-score rows
+    // must not turn the first hundred index entries into the entire inventory.
+    await t.run(async (ctx) => {
+      const template = await ctx.db.get("jobs", strongIds[0]);
+      const templateMatch = await ctx.db
+        .query("jobMatches")
+        .withIndex("by_userId_and_jobId", (q) =>
+          q.eq("userId", userId).eq("jobId", strongIds[0]),
+        )
+        .unique();
+      if (!template || !templateMatch)
+        throw new Error("Missing matching fixture");
+      const { _id: _jobId, _creationTime: _jobTime, ...jobValues } = template;
+      const {
+        _id: _matchId,
+        _creationTime: _matchTime,
+        ...matchValues
+      } = templateMatch;
+      for (let index = 0; index < 120; index += 1) {
+        const jobId = await ctx.db.insert("jobs", {
+          ...jobValues,
+          lifecycleStatus: "closed",
+          jobFingerprint: `stale-${index}`,
+        });
+        await ctx.db.insert("jobMatches", {
+          ...matchValues,
+          jobId,
+          relevanceScore: 100,
+        });
+      }
+    });
+    const feed = () =>
+      asUser(t, userId).query(api.jobDiscovery.listCurrentUserJobs, {
+        view: "suggestions",
+      });
+    const six = await feed();
+    expect(six.jobs).toHaveLength(6);
+    expect(six.jobs.every((item) => item.matchQuality === "strong")).toBe(true);
+    await t.run((ctx) =>
+      ctx.db.patch("jobs", strongIds[0], { lifecycleStatus: "closed" }),
+    );
+    const five = await feed();
+    expect(five.jobs).toHaveLength(5);
+    expect(five.jobs.every((item) => item.matchQuality === "strong")).toBe(
+      true,
+    );
+    await t.run((ctx) =>
+      ctx.db.patch("jobs", strongIds[1], { lifecycleStatus: "closed" }),
+    );
+    const four = await feed();
+    expect(four.jobs).toHaveLength(5);
+    expect(
+      four.jobs.filter((item) => item.matchQuality === "strong"),
+    ).toHaveLength(4);
+    expect(
+      four.jobs.filter((item) => item.matchQuality === "partial"),
+    ).toHaveLength(1);
+    await t.run(async (ctx) => {
+      for (const id of strongIds.slice(2))
+        await ctx.db.patch("jobs", id, { lifecycleStatus: "closed" });
+    });
+    const nearOnly = await feed();
+    expect(nearOnly.jobs).toHaveLength(5);
+    expect(nearOnly.jobs.every((item) => item.matchQuality === "partial")).toBe(
+      true,
+    );
+    expect(
+      nearOnly.jobs.every((item) =>
+        item.requirementAssessments?.some(
+          (requirement) => requirement.status === "unknown",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("loads persisted aliases for curated target roles", async () => {
     const t = convexTest(schema, modules);
     const userId = await createUser(t);

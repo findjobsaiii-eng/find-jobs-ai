@@ -1,10 +1,19 @@
 import {
+  loadIdentityCatalog,
+  observeReferenceTerms,
+} from "./referenceIdentity";
+import {
+  identityCatalogValidator,
+  educationObservationTerms,
+} from "./referenceIdentityModel";
+import {
   aiActivityAssessment,
   applicationStatus,
   applicationTimelineEvent,
   jobFeedItem,
   jobSearchProviderDiagnostics,
 } from "./schema";
+import { candidateQualificationsValidator } from "./candidateQualifications";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -82,6 +91,11 @@ const locationValidator = v.object({
   radiusKm: v.number(),
 });
 const searchProfileValidator = v.object({
+  identityCatalog: v.optional(identityCatalogValidator),
+  qualifications: v.optional(candidateQualificationsValidator),
+  experienceEvidence: v.optional(
+    v.union(v.literal("known"), v.literal("unknown")),
+  ),
   targetJobTitles: v.array(v.string()),
   targetRoleVariants: v.optional(
     v.array(v.object({ title: v.string(), aliases: v.array(v.string()) })),
@@ -563,13 +577,14 @@ export async function loadSearchProfile(
   ) {
     throw new ConvexError({ code: "LOCATION_RECONFIRM_REQUIRED" });
   }
-  const [titles, skills] = await Promise.all([
+  const [titles, skills, identityCatalog] = await Promise.all([
     Promise.all(
       profile.targetJobTitleIds.map((id) => ctx.db.get("catalogItems", id)),
     ),
     Promise.all(
       (profile.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
     ),
+    loadIdentityCatalog(ctx),
   ]);
   const label = (item: Doc<"catalogItems"> | null) =>
     item?.active &&
@@ -584,6 +599,7 @@ export async function loadSearchProfile(
     .filter((value): value is string => Boolean(value));
   if (!targetJobTitles.length) profileIncomplete();
   return {
+    identityCatalog,
     targetJobTitles,
     targetRoleVariants: titles.flatMap((item) => {
       const title = label(item);
@@ -601,6 +617,14 @@ export async function loadSearchProfile(
       ];
     }),
     skills: selectedSkills,
+    qualifications: profile.qualifications,
+    experienceEvidence: profile.manualOverrideFields?.includes(
+      "yearsOfExperience",
+    )
+      ? "known"
+      : profile.cvCareerProfile
+        ? (profile.cvCareerProfile.experienceEvidence ?? "unknown")
+        : "known",
     yearsOfExperience: profile.yearsOfExperience ?? 0,
     location: profile.primaryLocation,
     workArrangements: profile.workArrangements?.length
@@ -720,24 +744,15 @@ async function hasVisibleMatchesForCurrentProfile(
   ctx: QueryCtx | MutationCtx,
   userId: Id<"users">,
 ) {
-  const profile = await ctx.db
-    .query("candidateProfiles")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .unique();
+  const profile = await getProfile(ctx, userId);
   if (!profile?.onboardingCompleted) return false;
-  return Boolean(
-    await ctx.db
-      .query("jobMatches")
-      .withIndex(
-        "by_userId_profileRevision_displayEligible_relevanceScore",
-        (q) =>
-          q
-            .eq("userId", userId)
-            .eq("profileRevision", profile.updatedAt)
-            .eq("displayEligible", true),
-      )
-      .first(),
-  );
+  try {
+    return (
+      (await loadSuggestionMatches(ctx, userId, profile.updatedAt)).length > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 export const hasVisibleJobsForUser = internalQuery({
@@ -1413,6 +1428,7 @@ export const completeSearch = internalMutation({
     let deduplicatedCount = 0;
     let eligibleCount = 0;
     let qualityRejectedCount = 0;
+    const identityCatalog = await loadIdentityCatalog(ctx);
     const seenJobs = new Set<Id<"jobs">>();
     for (const { job, verification } of args.jobs.slice(0, maxJobs)) {
       const canonical = await findCanonicalJob(ctx, job, verification);
@@ -1545,7 +1561,10 @@ export const completeSearch = internalMutation({
       centralJob = await ctx.db.get("jobs", jobId);
       if (!centralJob) continue;
 
-      const quality = evaluateJobQuality(centralJob, args.profile);
+      const quality = evaluateJobQuality(centralJob, {
+        ...args.profile,
+        identityCatalog,
+      });
       const freshness = evaluateSuggestionFreshness({
         postedAt: centralJob.postedAt,
         lifecycleStatus: centralJob.lifecycleStatus,
@@ -1567,6 +1586,23 @@ export const completeSearch = internalMutation({
       }
       if (alreadySeen) continue;
       seenJobs.add(jobId);
+      await observeReferenceTerms(
+        ctx,
+        { key: `job:${jobId}` },
+        [
+          ...[...job.requiredSkills, ...job.preferredSkills].map((term) => ({
+            kind: "skill" as const,
+            term,
+          })),
+          ...educationObservationTerms(job.educationRequirements).map(
+            (term) => ({
+              kind: "education" as const,
+              term,
+            }),
+          ),
+        ],
+        identityCatalog,
+      );
       await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileJobUsers, {
         jobId,
         cursor: null,
@@ -1797,6 +1833,7 @@ async function feedItem(
     scoreComponents: quality.scoreComponents,
     matchReasons: quality.matchReasons,
     matchHighlights: quality.matchDetails,
+    requirementAssessments: quality.requirementAssessments,
     resultSource: "central" as const,
   };
 }
@@ -1809,14 +1846,34 @@ function deepReviewView(
   review: Doc<"jobDeepReviews"> | undefined,
   job: Doc<"jobs">,
   profileRevision: number,
+  currentMatching?: Pick<
+    ReturnType<typeof evaluateJobQuality>,
+    "relevanceScore" | "requirementAssessments"
+  >,
 ) {
   if (!review) return undefined;
+  const conclusions = (
+    requirements: NonNullable<Doc<"jobDeepReviews">["requirements"]>,
+  ) =>
+    requirements
+      .map(({ requirement, status, importance }) =>
+        JSON.stringify([requirement, status, importance]),
+      )
+      .sort()
+      .join("\n");
+  const matchingChanged =
+    review.status === "completed" &&
+    currentMatching !== undefined &&
+    (review.matchPercentage !== currentMatching.relevanceScore ||
+      conclusions(review.requirements ?? []) !==
+        conclusions(currentMatching.requirementAssessments));
   return {
     status: review.status,
     language: review.language,
     stale:
       review.profileRevision !== profileRevision ||
-      review.jobContentHash !== job.contentHash,
+      review.jobContentHash !== job.contentHash ||
+      matchingChanged,
     matchPercentage: review.matchPercentage,
     verdict: review.verdict,
     summary: review.summary,
@@ -1835,6 +1892,59 @@ function deepReviewView(
   };
 }
 
+/** The same inventory policy drives the feed, notifications, and admin counts.
+ * Quality is an index partition so high-scoring near-matches cannot obscure
+ * stronger eligible jobs outside the first score window. */
+export async function loadSuggestionMatches(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+  profileRevision: number,
+  suppliedProfile?: SearchProfile,
+): Promise<Doc<"jobMatches">[]> {
+  const profile = suppliedProfile ?? (await loadSearchProfile(ctx, userId));
+  const loadPartition = async (
+    matchQuality: "strong" | "partial",
+    limit: number,
+  ) => {
+    const valid: Doc<"jobMatches">[] = [];
+    let scanned = 0;
+    const rows = ctx.db
+      .query("jobMatches")
+      .withIndex("by_user_revision_eligible_quality_score", (q) =>
+        q
+          .eq("userId", userId)
+          .eq("profileRevision", profileRevision)
+          .eq("displayEligible", true)
+          .eq("matchQuality", matchQuality),
+      )
+      .order("desc");
+    // Iteration stops at a hard scan budget. It avoids the single-paginated-
+    // query restriction while continuing past temporarily stale index rows.
+    for await (const row of rows) {
+      scanned += 1;
+      const [job, application] = await Promise.all([
+        ctx.db.get("jobs", row.jobId),
+        ctx.db
+          .query("jobApplications")
+          .withIndex("by_userId_and_jobId", (q) =>
+            q.eq("userId", userId).eq("jobId", row.jobId),
+          )
+          .unique(),
+      ]);
+      if (job && (!application?.status || application.status === "saved")) {
+        const item = await feedItem(ctx, job, profile);
+        if (item?.matchQuality === matchQuality) valid.push(row);
+      }
+      if (valid.length >= limit || scanned >= 500) break;
+    }
+    return valid;
+  };
+  const strong = await loadPartition("strong", 50);
+  if (strong.length >= 5) return strong;
+  const partial = await loadPartition("partial", 5 - strong.length);
+  return [...strong, ...partial];
+}
+
 async function suggestionFeedForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -1847,18 +1957,12 @@ async function suggestionFeedForUser(
     ReturnType<typeof timelineEventView>[]
   >,
 ) {
-  const matches = await ctx.db
-    .query("jobMatches")
-    .withIndex(
-      "by_userId_profileRevision_displayEligible_relevanceScore",
-      (q) =>
-        q
-          .eq("userId", userId)
-          .eq("profileRevision", profileRevision)
-          .eq("displayEligible", true),
-    )
-    .order("desc")
-    .take(50);
+  const matches = await loadSuggestionMatches(
+    ctx,
+    userId,
+    profileRevision,
+    profile,
+  );
   const jobs = [];
   for (const match of matches) {
     const job = await ctx.db.get("jobs", match.jobId);
@@ -1876,11 +1980,14 @@ async function suggestionFeedForUser(
         reviewsByJob.get(job._id),
         job,
         profileRevision,
+        item,
       ),
     });
   }
   jobs.sort(
     (a, b) =>
+      (a.matchQuality === "strong" ? 0 : 1) -
+        (b.matchQuality === "strong" ? 0 : 1) ||
       b.relevanceScore - a.relevanceScore ||
       freshnessSortValue(b.postedAt) - freshnessSortValue(a.postedAt) ||
       feedSourcePriority(b.sourceTier) - feedSourcePriority(a.sourceTier),
@@ -1937,6 +2044,9 @@ export async function loadUserJobsFeed(
   const eventsByApplication = timelineEventsByApplication(applicationEvents);
   const reviewsByJob = new Map(reviews.map((review) => [review.jobId, review]));
   if (view === "inProgress") {
+    const currentProfile = profileRecord?.onboardingCompleted
+      ? await loadSearchProfile(ctx, userId)
+      : undefined;
     const jobs = await Promise.all(
       applications
         .filter((application) => application.status)
@@ -1957,6 +2067,9 @@ export async function loadUserJobsFeed(
                 reviewsByJob.get(application.jobId),
                 current,
                 profileRecord?.updatedAt ?? 0,
+                currentProfile
+                  ? evaluateJobQuality(current, currentProfile)
+                  : undefined,
               )
             : application.snapshot.deepReview;
           const snapshotSourceUrl =
@@ -2072,19 +2185,11 @@ export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
         .withIndex("by_userId_and_appliedAt", (q) => q.eq("userId", userId))
         .order("desc")
         .take(100),
-      ctx.db
-        .query("jobMatches")
-        .withIndex(
-          "by_userId_profileRevision_displayEligible_relevanceScore",
-          (q) =>
-            q
-              .eq("userId", userId)
-              .eq("profileRevision", profileRecord.updatedAt)
-              .eq("displayEligible", true),
-        )
-        .order("desc")
-        .take(50),
+      loadSuggestionMatches(ctx, userId, profileRecord.updatedAt, profile),
     ]);
+  const selectedSuggestionIds = new Set(
+    materializedMatches.map((match) => match.jobId),
+  );
   const appliedJobIds = new Set(
     applications
       .filter((item) => item.status && item.status !== "saved")
@@ -2127,7 +2232,8 @@ export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
       accepted:
         activityEligible &&
         freshness.eligible &&
-        quality.outcome === "eligible",
+        quality.outcome === "eligible" &&
+        quality.matchQuality !== "possible",
     };
   });
   const activityEligible = evaluated.filter((item) => item.activityEligible);
@@ -2263,8 +2369,10 @@ export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
         (reason) => reason === "location_conflict",
       ),
       freshnessEligible: item.freshness.eligible,
-      suggestionsEligible: item.accepted && !appliedJobIds.has(item.job._id),
-      decision: item.accepted ? item.quality.matchQuality : ("reject" as const),
+      suggestionsEligible: selectedSuggestionIds.has(item.job._id),
+      decision: selectedSuggestionIds.has(item.job._id)
+        ? item.quality.matchQuality
+        : ("reject" as const),
     })),
   };
 }
@@ -2307,17 +2415,7 @@ async function buildSourceCoverage(ctx: QueryCtx, userId: Id<"users">) {
     ctx.db.query("jobs").take(500),
     ctx.db.query("jobSources").take(1000),
     profileRecord
-      ? ctx.db
-          .query("jobMatches")
-          .withIndex(
-            "by_userId_profileRevision_displayEligible_relevanceScore",
-            (q) =>
-              q
-                .eq("userId", userId)
-                .eq("profileRevision", profileRecord.updatedAt)
-                .eq("displayEligible", true),
-          )
-          .take(100)
+      ? loadSuggestionMatches(ctx, userId, profileRecord.updatedAt, profile)
       : Promise.resolve([]),
     ctx.db
       .query("jobSearchRuns")

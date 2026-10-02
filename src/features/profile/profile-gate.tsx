@@ -80,6 +80,7 @@ function ProfileRoute({
 
   return manualEntry || resumeReady ? (
     <OnboardingScreen
+      key={`${profileState.profile?.activeResumeId ?? "manual"}:${profileState.profile?.profileSourceVersion ?? 0}`}
       initialData={profileState}
       resumeReview={resumeReady}
       onBackToResume={

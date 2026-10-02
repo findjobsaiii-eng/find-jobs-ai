@@ -4,6 +4,8 @@ import { internalMutation } from "./_generated/server";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
 import { reviewRequirements } from "./schema";
 import { recordProductEvent } from "./productAnalytics";
+import { loadSearchProfile } from "./jobDiscovery";
+import { evaluateJobQuality } from "./jobQuality";
 
 const reviewLanguage = v.union(v.literal("en"), v.literal("he"));
 const reviewVerdict = v.union(
@@ -64,6 +66,11 @@ export const prepare = internalMutation({
     sourceId: v.id("jobSources"),
     profileRevision: v.number(),
     jobContentHash: v.string(),
+    matching: v.object({
+      matchPercentage: v.number(),
+      verdict: reviewVerdict,
+      requirements: reviewRequirements,
+    }),
     job: jobContext,
     resumes: v.array(resumeContext),
   }),
@@ -91,6 +98,10 @@ export const prepare = internalMutation({
       throw new Error("REVIEW_CONTEXT_NOT_FOUND");
     if (!match?.displayEligible && !application)
       throw new Error("JOB_NOT_AVAILABLE_TO_USER");
+    const quality = evaluateJobQuality(
+      job,
+      await loadSearchProfile(ctx, args.userId),
+    );
     const source = job.bestSourceId
       ? await ctx.db.get("jobSources", job.bestSourceId)
       : null;
@@ -177,6 +188,18 @@ export const prepare = internalMutation({
       sourceId: source._id,
       profileRevision: profile.updatedAt,
       jobContentHash: job.contentHash,
+      matching: {
+        matchPercentage: quality.relevanceScore,
+        verdict:
+          quality.matchQuality === "strong"
+            ? quality.relevanceScore >= 78
+              ? ("strong" as const)
+              : ("good" as const)
+            : quality.matchQuality === "partial"
+              ? ("stretch" as const)
+              : ("low" as const),
+        requirements: quality.requirementAssessments,
+      },
       job: {
         title: job.title,
         companyName: job.companyName,

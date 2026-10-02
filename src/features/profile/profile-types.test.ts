@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createProfileDraft,
   profileDraftToValues,
+  profileDraftChanges,
   validateProfileStep,
   type CurrentProfile,
 } from "./profile-types";
@@ -96,4 +97,67 @@ describe("profile location draft", () => {
       professionalSummary: "onboarding.errors.summary",
     });
   });
+});
+
+describe("optional qualifications draft", () => {
+  it("does not turn missing education into a manual confirmation during onboarding", () => {
+    const draft = createProfileDraft(profileData());
+    expect(draft.qualifications).toEqual({
+      academicDegreeStatus: "none",
+      education: [],
+    });
+    expect(profileDraftToValues(draft)).not.toHaveProperty("qualifications");
+    draft.qualifications = { academicDegreeStatus: "none", education: [] };
+    draft.qualificationsEdited = true;
+    expect(profileDraftToValues(draft).qualifications).toEqual(
+      draft.qualifications,
+    );
+  });
+  it("defaults unspecified CV completion to Completed while preserving students", () => {
+    const data = profileData();
+    if (!data.profile) throw new Error("Expected profile");
+    data.profile.qualifications = {
+      academicDegreeStatus: "none",
+      education: [
+        {
+          level: "bachelor",
+          status: "unknown",
+          field: "Computer Science",
+          credential: "B.Sc.",
+        },
+        {
+          level: "master",
+          status: "in_progress",
+          field: "Computer Science",
+          credential: "M.Sc.",
+        },
+      ],
+    };
+    const draft = createProfileDraft(data);
+    expect(draft.qualifications.education.map((item) => item.status)).toEqual([
+      "completed",
+      "in_progress",
+    ]);
+    expect(
+      profileDraftToValues(draft).qualifications?.education.map(
+        (item) => item.status,
+      ),
+    ).toEqual(["completed", "in_progress"]);
+    expect(validateProfileStep(2, draft)).not.toHaveProperty("qualifications");
+  });
+});
+
+it("does not mark untouched CV defaults as user confirmations when only education changes", () => {
+  const original = createProfileDraft(profileData());
+  const edited = {
+    ...original,
+    qualificationsEdited: true,
+    qualifications: { academicDegreeStatus: "none" as const, education: [] },
+  };
+  expect(profileDraftChanges(edited, original)).toEqual({
+    qualifications: { academicDegreeStatus: "none", education: [] },
+  });
+  expect(
+    profileDraftChanges({ ...original, yearsOfExperience: "3" }, original),
+  ).toEqual({ yearsOfExperience: 3 });
 });

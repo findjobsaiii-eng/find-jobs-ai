@@ -234,7 +234,7 @@ only as a temporary search bias and is never written to Convex. The legacy Place
 ID array remains for compatibility; profiles that predate normalized location
 storage must reconfirm and save their location before starting another search.
 The radius slider supports 5–200 km in 5 km increments and defaults to 25 km.
-Curated job titles and skills can be updated idempotently with
+Bootstrap job titles, skills, study fields, and credentials can be seeded idempotently with
 `npm run catalog:seed`. Curated job-title rows also store editable bilingual
 aliases used by discovery. Private titles added by users deliberately have no
 shared aliases.
@@ -265,6 +265,7 @@ OPENAI_API_KEY
 OPENAI_JOB_SEARCH_MODEL
 OPENAI_CV_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
 OPENAI_JOB_REVIEW_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
+OPENAI_CATALOG_MODEL # optional; monthly vocabulary cleanup otherwise uses OPENAI_JOB_SEARCH_MODEL
 JOB_SEARCH_ENABLED
 JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
 JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
@@ -323,7 +324,10 @@ concrete next step; resume-edit reasons and application guidance also expand on
 demand. The header stays below the app navigation while scrolling, with collapse
 controls at the top and bottom that restore focus to the review button.
 
-New reviews use concise structured output in the same AI call. Resume cards show
+New reviews use the feed matcher’s score, verdict, and requirement statuses. The
+existing AI call adds a short summary, optional localized explanations, resume
+advice and application routes; it cannot replace the server’s status decisions.
+Resume cards show
 the owned versions actually compared for that review, not invented alternatives.
 Job availability tags use the current feed state rather than an old AI report;
 closed listings cannot expose an active application action. The report cache now
@@ -431,7 +435,131 @@ stored. This makes feed reads small and indexed while allowing an older posting
 to surface for as long as it remains active. After first deploying the match
 index to an existing environment, run
 `npx convex run jobMatching:dispatchAllUsers '{}'` once to enqueue the initial
-backfill.
+reconciliation.
+
+### Eligibility and skill matching
+
+Onboarding, CV extraction, and job matching share canonical skill identities.
+Database catalogs map confirmed equivalent terms (for example, ReactJS/React
+and כושר ביטוי/כושר התבטאות). Similar-looking or related concepts such as Java /
+JavaScript, React / React Native, and interpersonal / verbal / public-speaking
+skills remain separate. Indexed `catalogSkillAliases` resolves known onboarding
+terms to public catalog IDs. Unfamiliar valid skills are accepted immediately as
+private entries with a stable normalized identity; they are not automatically
+published or fuzzy-matched to a different skill. Existing CV/job extraction calls
+use conventional skill names when equivalence is clear. There is no separate
+AI or embedding call for routine normalization, comparisons, or page loads.
+Unfamiliar terms remain unresolved until extraction or catalog curation
+establishes equivalence. Bootstrap constants initialize catalogs; runtime
+matching receives a database identity snapshot, including learned aliases.
+The pure formatting/test helpers can use bootstrap identities; deployed profile
+matching does not fall back to them.
+
+`educationConcepts` stores bilingual study subjects and specific credentials,
+with aliases. The existing degree/qualification name field is a searchable
+combobox, with free-text and an explicit add-for-me option. Selecting a subject
+never guesses a degree level or completion. The level/status controls stay
+independent. Matching recognizes confirmed subject aliases inside requirement
+text, including Hebrew prefixes, and distinguishes CS from CSS and Computer
+Science from Software Engineering.
+
+`catalogTermCandidates` records unfamiliar generic vocabulary from saved profiles,
+resume extraction, and job ingestion. `catalogTermOccurrences` counts one source
+per user (across CV versions) or canonical job (across rediscovery), rather than
+counting uploads/searches. Job education collection extracts compact study
+subjects conservatively; full requirement sentences are not published. Raw
+resumes, emails and user identifiers are never sent to vocabulary cleanup.
+Account deletion removes its occurrence records and reduces counts, removing
+unapproved candidates that have no sources left.
+
+On the first of each month at 02:20 UTC, `referenceIdentityActions:curateMonthly`
+considers up to 30 pending terms with at least 3 independent occurrences. No
+eligible terms means no AI call. `catalogCurationRuns` atomically claims the month:
+at most one provider request, no SDK retries, a 60-second timeout and 4,500 output
+token limit. Only terms/counts and a bounded catalog of generic labels are sent;
+the matching snapshot is also excluded from deep-review AI input. Set optional
+`OPENAI_CATALOG_MODEL` to select a dedicated inexpensive model. Runs record model,
+input/output tokens, completion/failure and approved/review totals; these are
+shown separately in the admin Catalog section.
+
+High-confidence (at least 0.98), safe equivalent proposals may add canonical
+concepts or aliases. Frequency alone never confirms a term. Low-confidence or
+uncertain equivalence proposals stay in admin review; unsafe terms are rejected.
+Existing alias conflicts cannot be overwritten. Approval is transactional, so
+validation/capacity failures cannot publish partial mappings. Catalog snapshots
+are bounded to 900 skill aliases and 200 education concepts, with at most 900
+aliases in each education identity map; exceeding those
+caps requires an intentional capacity change, rather than silent truncation.
+Admin-only approval/rejection is guarded server-side. Learned aliases survive
+bootstrap reseeding. Approved changes schedule normal match reconciliation,
+without job-search or deep-review AI calls. Unknown private profile items remain
+private; matching resolves their saved label through the updated alias map.
+
+Education is a regular, non-collapsible section in the professional profile and
+onboarding's experience/skills step. The existing CV extraction call prefills the
+same editor. Users enter one degree/certificate name and choose a qualification
+type. Completed is selected by default, including unclear CV completion; known
+students stay Studying. The name combines CV credential/field details when needed;
+editing it clears the old field metadata. There is no separate degree-status
+question or optional badge.
+
+The education list is authoritative: no entries means no listed education, and
+mandatory degree jobs are excluded. Ongoing study is accepted only when the
+listing welcomes students. Only listed completed degrees may meet completed-degree
+requirements. The stored degree-status summary is derived from that list and
+never used as an independent declaration. Field matching checks both the study
+field and credential name through confirmed database aliases: מדמח, מדמ״ח,
+CS and Computer Science identify the same field, while a broad label such as
+“tech” does not. Qualification type and status still control eligibility; a
+practical diploma or unfinished degree does not become a completed bachelor's
+degree just because its name mentions computer science. Ambiguous names stay
+unconfirmed instead of being guessed.
+
+Confirmed education survives CV replacement/switching after onboarding. During
+unfinished onboarding, uploading an activating CV clears the previous education
+override so the extraction can prefill a fresh review. Edits made after upload
+still win; inactive library uploads do not reset education. Onboarding drafts
+refresh when the active CV/source revision changes, preserving local edits during
+ordinary profile saves. An explicit internal support repair can restore education
+from the active CV's cached extraction for an unfinished pending review, guarded
+by the expected profile revision; it does not rerun AI or touch completed profiles.
+Only changed profile fields
+become manual overrides. CV experience comes from merged, non-overlapping dated
+employment intervals, clipped to the present; undated CV experience stays unknown
+rather than a confirmed zero.
+
+The deterministic matcher checks mandatory education and recognized alternatives,
+relevant domain experience, language proficiency, and explicitly mandatory known
+professional credentials. Unknown credential names/education fields stay unknown.
+Preferred qualifications affect fit, and missing skills are unknown rather than
+proven absent. Confirmed non-negotiable conflicts exclude the job. Unknown
+mandatory requirements, known preference conflicts, and major seniority gaps
+prevent the strong band even if role similarity gives a high numerical score.
+Unrelated professions and low-fit possible matches are excluded from suggestions.
+
+| Valid strong suggestions | Feed policy                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| Five or more             | Strong matches only, retaining the existing 50-result limit    |
+| One to four              | Strong matches first, then near-matches to reach at most five  |
+| None                     | Up to five credible near-matches, or an actionable empty state |
+
+Near-matches require a score of at least 45; strong matches require at least 58
+and supported mandatory requirements. Scores are ranking heuristics, not a
+probability of being hired. Feed, email selection and admin visible-job counts
+use the same live selection policy. Near-match cards identify requirements to
+confirm. Applied jobs remain in tracking. Separate indexed strong/partial
+partitions continue past stale entries within a 500-row scan budget per partition;
+normal reconciliation removes stale rows in bounded background pages.
+Cached deep reviews show an update notice when their score or requirement
+conclusions differ from the current matcher; checking this adds no AI call.
+
+After development deployment, run `npm run catalog:seed` to initialize/refresh the catalogs and alias
+index and `npx convex run jobMatching:dispatchAllUsers '{}'` to recompute derived
+matches without searching again. Users can add education missing from a CV in
+the shared onboarding/profile editor. No automatic
+legacy backfill or new provider API is introduced. Embeddings can be considered
+for unfamiliar-term candidate lookup if measured missed matches justify the cost;
+similarity alone must never certify skill equivalence or eligibility.
 
 ### Homepage and development controls
 
