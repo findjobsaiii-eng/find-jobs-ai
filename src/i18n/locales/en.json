@@ -62,6 +62,18 @@
     "privacy": "Your resume stays private and in your control.",
     "quickStart": "30-second setup · up to 70% less time spent searching.",
     "secondaryCta": "See how it works",
+    "video": {
+      "eyebrow": "Meet Jobmiter",
+      "title": "Less searching. More moving forward.",
+      "play": "Watch the film",
+      "replay": "Watch again",
+      "retry": "Try again",
+      "duration": "32 sec",
+      "playerLabel": "Jobmiter introduction video",
+      "description": "A 32-second introduction to Jobmiter in Hebrew, with on-screen Hebrew captions.",
+      "loading": "Loading video…",
+      "error": "The video couldn’t play. Please try again."
+    },
     "nav": {
       "label": "Landing page navigation",
       "how": "How it works",

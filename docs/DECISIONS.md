@@ -971,3 +971,17 @@ ranges contained within it. Other bounded ranges use a local scale padded by
 30% of their width on each side (with a minimum padding for narrow/exact pay).
 The scale is visual context, not a filter or market benchmark. Only actual band
 values are printed; one-sided salaries remain textual.
+
+### D-047: User-initiated landing video with native playback controls
+
+Status: Accepted.
+
+The landing marketing film uses the supplied Cloudflare R2 MP4s, choosing mobile
+or desktop at the 768px breakpoint only when the visitor requests playback.
+The source remains selected during playback so resizing does not restart the
+film. Local responsive WebP posters keep the initial page light; no MP4 source
+or autoplay attribute is present before activation. A branded, keyboard-accessible
+play cover hands off to native controls, with loading, retry, and replay states.
+The supplied films include burned-in Hebrew captions; the invitation and player
+labels are localized in English and Hebrew. The site CSP permits the specific
+R2 media origin. No video player dependency or backend change is required.

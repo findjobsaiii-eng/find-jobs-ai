@@ -652,6 +652,18 @@ This client-side presentation gate complements the owner checks in Convex, which
 remain the authorization boundary. Unsaved profile edits require confirmation
 before topic navigation.
 
+The signed-out landing page includes a click-to-play marketing film below the
+hero. It selects the portrait R2 video below 768px and the widescreen version at
+768px and above, when playback is requested. Only local WebP preview images load
+before that click; the MP4 source is attached in the click handler and never
+autoplays. Native controls handle playback, seeking, audio, and fullscreen. The
+supplied videos include on-screen Hebrew captions. The CSP explicitly allows
+`https://media.jobmiter.com` under `media-src`.
+
+Video URLs and poster paths live in
+`src/features/landing/marketing-video.tsx`. Posters in `public/media/` are frames
+from the supplied films at 10.5 seconds; regenerate them when replacing a film.
+
 ## Search visibility in Israel
 
 Public SEO defaults to Hebrew: titles, descriptions, Open Graph/Twitter metadata,

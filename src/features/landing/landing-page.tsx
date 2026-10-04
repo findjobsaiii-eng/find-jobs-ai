@@ -5,6 +5,7 @@ import {
   Check,
   FileCheck2,
   LoaderCircle,
+  Play,
   Search,
   ShieldCheck,
   Sparkles,
@@ -20,6 +21,7 @@ import { GoogleMark } from "@/features/auth/google-mark";
 import { LanguageButton } from "@/features/auth/language-button";
 import { useGoogleSignIn } from "@/features/auth/use-google-sign-in";
 import { AnimatedMatchingMap } from "./animated-matching-map";
+import { MarketingVideo } from "./marketing-video";
 
 const STEPS = [
   { id: "ask", icon: Search },
@@ -245,13 +247,10 @@ export function LandingPage() {
               size="lg"
               nativeButton={false}
               className="h-13 rounded-xl border-slate-300 bg-white/65 px-6 text-base backdrop-blur hover:bg-white"
-              render={<a href="#how-it-works" />}
+              render={<a href="#watch-jobmiter" />}
             >
+              <Play aria-hidden="true" className="size-4 fill-current" />
               {t("landing.secondaryCta")}
-              <ArrowRight
-                aria-hidden="true"
-                className="size-4 rtl:rotate-180"
-              />
             </Button>
           </div>
           <p className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -273,6 +272,8 @@ export function LandingPage() {
           <AnimatedMatchingMap />
         </motion.div>
       </section>
+
+      <MarketingVideo />
 
       <div
         dir="ltr"

@@ -71,6 +71,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.googleapis.com https://*.gstatic.com",
+  "media-src 'self' https://media.jobmiter.com",
   `connect-src 'self' ${remoteConnections.join(" ")}`,
   "worker-src 'self' blob:",
 ].join("; ");
