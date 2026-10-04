@@ -972,7 +972,7 @@ ranges contained within it. Other bounded ranges use a local scale padded by
 The scale is visual context, not a filter or market benchmark. Only actual band
 values are printed; one-sided salaries remain textual.
 
-### D-047: User-initiated landing video with native playback controls
+### D-047: User-initiated landing video with minimal custom controls
 
 Status: Accepted.
 
@@ -981,7 +981,13 @@ or desktop at the 768px breakpoint only when the visitor requests playback.
 The source remains selected during playback so resizing does not restart the
 film. Local responsive WebP posters keep the initial page light; no MP4 source
 or autoplay attribute is present before activation. A branded, keyboard-accessible
-play cover hands off to native controls, with loading, retry, and replay states.
+play cover opens custom play/pause, mute, desktop volume, and fullscreen controls,
+with loading, retry, and replay states. Progress is displayed without seeking.
+Two compact glass surfaces surround the controls, leaving the middle transparent.
+The audio controls retain left-to-right ordering in both page directions.
+Controls fade during playback and stay available to keyboard users. Element
+fullscreen includes the custom controls; unsupported browsers use a full-window
+view with Escape and contained keyboard focus, preserving the selected source.
 The supplied films include burned-in Hebrew captions; the invitation and player
 labels are localized in English and Hebrew. The site CSP permits the specific
 R2 media origin. No video player dependency or backend change is required.

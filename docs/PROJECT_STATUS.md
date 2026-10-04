@@ -41,19 +41,23 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 ## Verified implemented features
 
 - Implemented locally: responsive landing marketing video below the hero, with
-  local preview images, a prominent keyboard-accessible play invitation, native
-  playback controls, and localized loading/retry/replay states. The provided R2
+  local preview images, a prominent keyboard-accessible play invitation, custom
+  play/pause, mute, desktop volume, fullscreen, and a progress line without
+  seeking. Controls fade during playback and remain accessible with keyboard
+  focus. Loading/retry/replay states are localized. The provided R2
   MP4s are selected at activation (portrait below 768px, widescreen otherwise)
   and never autoplay or download before activation. The media origin is allowed
   explicitly by CSP. Production deployment of this change is unverified.
-  Validation: `npm run check`, `npm test` (432 tests), and
+  Validation: `npm run check`, `npm test` (436 tests), and
   `npm run build -- --webpack` passed. Browser checks against the built site
-  verified both R2 videos, keyboard focus, replay, source retention on resize,
-  Hebrew/English mobile layouts, and zero R2 requests before activation.
+  verified both R2 videos, pause/resume, mute/volume, progress without seeking,
+  element fullscreen and full-window fallback, Escape/focus containment,
+  control fading, replay, source retention on resize, Hebrew/English mobile
+  layouts, and zero R2 requests before activation.
   The default Turbopack build is blocked by worker-port permissions in this
-  environment. React Doctor reported no errors and two warnings: the existing
-  Motion import pattern and lack of separate caption tracks (the films include
-  on-screen Hebrew captions).
+  environment. React Doctor reported no errors; warnings cover the player's
+  size/complexity, the existing Motion import pattern, and lack of separate
+  caption tracks (the films include on-screen Hebrew captions).
 - Implemented locally: deep-review salary range card with published pay taking
   precedence over clearly labeled AI guesses. The existing review request may
   estimate gross monthly base pay for an Israeli role with no published salary;

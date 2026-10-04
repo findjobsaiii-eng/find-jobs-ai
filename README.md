@@ -656,12 +656,16 @@ The signed-out landing page includes a click-to-play marketing film below the
 hero. It selects the portrait R2 video below 768px and the widescreen version at
 768px and above, when playback is requested. Only local WebP preview images load
 before that click; the MP4 source is attached in the click handler and never
-autoplays. Native controls handle playback, seeking, audio, and fullscreen. The
+autoplays. Custom controls provide play/pause, mute, a desktop volume slider, and
+fullscreen. A slim progress line shows elapsed playback without seeking. Controls
+fade while playing and remain available on pointer/touch interaction or keyboard
+focus. Fullscreen expands the entire custom player; browsers without element
+fullscreen use a full-window view with Escape and keyboard focus containment. The
 supplied videos include on-screen Hebrew captions. The CSP explicitly allows
 `https://media.jobmiter.com` under `media-src`.
 
 Video URLs and poster paths live in
-`src/features/landing/marketing-video.tsx`. Posters in `public/media/` are frames
+`src/features/landing/marketing-video-player.tsx`. Posters in `public/media/` are frames
 from the supplied films at 10.5 seconds; regenerate them when replacing a film.
 
 ## Search visibility in Israel

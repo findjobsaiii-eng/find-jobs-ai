@@ -275,6 +275,14 @@
     radial-gradient(circle at 0% 100%, rgb(59 130 246 / 9%), transparent 22rem);
 }
 
+.marketing-video-frame:fullscreen {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+
 .landing-cta-glow {
   background-image:
     radial-gradient(circle at 50% 120%, rgb(20 184 166 / 27%), transparent 48%),
