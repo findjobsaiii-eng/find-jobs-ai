@@ -40,6 +40,15 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented locally: subtle `uisfx` interaction sounds for trusted clicks,
+  navigation, tabs, toggles and range-slider value changes, with an English/Hebrew mute control in public
+  headers and the signed-in user menu. The browser preference persists and
+  synchronizes across tabs; no startup, hover, typing or background-loop audio.
+  Video controls and interactions during audible media are silent. Nine new
+  tests cover trusted playback, rate limiting, saved/cross-tab mute, denied
+  storage, delayed unlocks, media suppression, slider throttling and cleanup. All 445 tests and
+  the Webpack production build passed. Production deployment is unverified.
+
 - Implemented locally: responsive landing marketing video below the hero, with
   local preview images, a prominent keyboard-accessible play invitation, custom
   play/pause, mute, desktop volume, fullscreen, and a progress line without

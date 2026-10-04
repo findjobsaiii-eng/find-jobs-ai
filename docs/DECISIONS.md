@@ -991,3 +991,22 @@ view with Escape and contained keyboard focus, preserving the selected source.
 The supplied films include burned-in Hebrew captions; the invitation and player
 labels are localized in English and Hebrew. The site CSP permits the specific
 R2 media origin. No video player dependency or backend change is required.
+
+### D-048: Quiet local interface sounds with persistent mute
+
+Status: Accepted.
+
+Use `uisfx` 0.4's minimal pack with master volume 0.35, two concurrent voices,
+and an 85ms interaction cooldown. A single client provider delegates trusted
+click activations to semantic cues, covering pointer and keyboard input without
+per-component plumbing. Range inputs use the brief `snap` cue on trusted value changes, at most once
+per 120ms; this includes travel-distance adjustments with pointer, touch, or
+keyboard input. No hover, typing, loading loops, or outcome sounds are added. A click never claims that an asynchronous operation succeeded.
+
+Keep video controls silent and suppress effects while audible media is playing.
+Public/auth headers and the signed-in user menu expose localized mute controls.
+Sound defaults on after a deliberate interaction; the browser-local preference
+synchronizes across tabs and survives reloads. Muting stops active effects and
+prevents pending unlocks from playing. Storage and audio failures cannot block
+normal interactions. Web Audio is created lazily by the package, with locally
+synthesized cues and no remote audio requests. The code is MIT and audio is CC0.

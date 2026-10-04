@@ -1,3 +1,4 @@
+import { SoundToggle } from "@/features/interface-sounds/sound-toggle";
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import type { CurrentProfile } from "@/features/profile/profile-types";
@@ -31,7 +32,10 @@ export function AuthShell({
             {identity ? (
               <UserMenu identity={identity} showProfile={false} />
             ) : (
-              <LanguageButton />
+              <div className="flex items-center gap-2">
+                <SoundToggle />
+                <LanguageButton />
+              </div>
             )}
           </header>
         ) : null}

@@ -1,5 +1,7 @@
 "use client";
 
+import { SoundToggle } from "@/features/interface-sounds/sound-toggle";
+
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -164,6 +166,7 @@ export function UserMenu({
                 <Languages aria-hidden="true" className="size-4" />
                 {t("language.otherLanguage")}
               </button>
+              <SoundToggle labeled />
               <button
                 type="button"
                 disabled={signingOut}

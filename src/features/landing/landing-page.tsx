@@ -1,5 +1,7 @@
 "use client";
 
+import { SoundToggle } from "@/features/interface-sounds/sound-toggle";
+
 import {
   ArrowRight,
   Check,
@@ -177,6 +179,7 @@ export function LandingPage() {
             </a>
           </nav>
           <div className="flex items-center gap-2">
+            <SoundToggle />
             <LanguageButton />
             <Button
               className="bg-brand-midnight hidden rounded-xl text-white shadow-md shadow-slate-950/12 hover:bg-slate-800 sm:inline-flex"

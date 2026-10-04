@@ -668,6 +668,19 @@ Video URLs and poster paths live in
 `src/features/landing/marketing-video-player.tsx`. Posters in `public/media/` are frames
 from the supplied films at 10.5 seconds; regenerate them when replacing a film.
 
+## Interface sounds
+
+`src/features/interface-sounds/` uses `uisfx`'s minimal pack at low volume for
+trusted button, link, tab, and toggle activations. Range sliders add a quiet
+`snap` cue on value changes (at most once per 120ms), including touch and
+keyboard adjustments. Audio is synthesized locally;
+there are no audio downloads, hover/typing sounds, or background loops. Web Audio
+starts only inside a deliberate interaction. Video controls and interactions
+while audible media is playing stay silent. The header sound button and signed-in
+user-menu setting persist the browser-wide choice under
+`jobmiter:interface-sounds` and synchronize open tabs. Sound defaults on and
+supplements visible feedback; denied storage or unavailable audio does not block UI.
+
 ## Search visibility in Israel
 
 Public SEO defaults to Hebrew: titles, descriptions, Open Graph/Twitter metadata,

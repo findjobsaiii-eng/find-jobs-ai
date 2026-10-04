@@ -9,6 +9,7 @@ import { I18nextProvider } from "react-i18next";
 import { AuthConfigurationErrorScreen } from "@/features/auth/auth-configuration-error-screen";
 import { AuthFlowProvider } from "@/features/auth/auth-flow-provider";
 import { CookieConsentManager } from "@/features/privacy/cookie-consent-manager";
+import { InterfaceSoundsProvider } from "@/features/interface-sounds/interface-sounds-provider";
 import { parseConvexUrl } from "./convex-url";
 import i18n from "@/i18n";
 
@@ -27,7 +28,9 @@ export function AppProviders({
 
   const content = (
     <MotionConfig reducedMotion="user">
-      <CookieConsentManager>{children}</CookieConsentManager>
+      <InterfaceSoundsProvider>
+        <CookieConsentManager>{children}</CookieConsentManager>
+      </InterfaceSoundsProvider>
     </MotionConfig>
   );
 

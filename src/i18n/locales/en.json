@@ -1,4 +1,9 @@
 {
+  "interfaceSounds": {
+    "label": "Interface sounds",
+    "enable": "Enable interface sounds",
+    "disable": "Mute interface sounds"
+  },
   "brand": {
     "name": "JOBMITER"
   },

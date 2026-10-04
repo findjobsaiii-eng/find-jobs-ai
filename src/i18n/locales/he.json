@@ -1,4 +1,9 @@
 {
+  "interfaceSounds": {
+    "label": "צלילי ממשק",
+    "enable": "הפעלת צלילי ממשק",
+    "disable": "השתקת צלילי ממשק"
+  },
   "brand": {
     "name": "JOBMITER"
   },
