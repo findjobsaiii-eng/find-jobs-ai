@@ -136,10 +136,19 @@ describe("CV text extraction", () => {
         labelHe: "הקלדה מהירה",
         aliases: ["מקליד מהר"],
       },
+      {
+        kind: "experienceDomain",
+        labelEn: "Insurance",
+        labelHe: "ביטוח",
+        aliases: [],
+      },
     ]);
     expect(catalog).toContain("Data Entry Clerk | קלדן נתונים");
     expect(catalog).toContain("Fast Typing | הקלדה מהירה");
     expect(catalog).toContain("aliases: מקליד מהר");
+    expect(catalog).toContain(
+      "EXISTING EXPERIENCE AREAS:\n- Insurance | ביטוח",
+    );
   });
 
   it("rejects malformed DOCX bytes and keeps empty extraction visibly empty", async () => {

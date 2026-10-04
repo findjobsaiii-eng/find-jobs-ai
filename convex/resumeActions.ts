@@ -109,7 +109,7 @@ export function shouldUsePdfVisionFallback(
 }
 
 type ExtractionCatalogItem = {
-  kind: "jobTitle" | "skill";
+  kind: "jobTitle" | "skill" | "experienceDomain";
   labelEn: string | null;
   labelHe: string | null;
   aliases: string[];
@@ -129,7 +129,7 @@ export function formatExtractionCatalog(items: ExtractionCatalogItem[]) {
         return `- ${canonical}${aliases}`;
       })
       .join("\n");
-  return `EXISTING JOB TITLES:\n${format("jobTitle")}\n\nEXISTING SKILLS:\n${format("skill")}`;
+  return `EXISTING JOB TITLES:\n${format("jobTitle")}\n\nEXISTING SKILLS:\n${format("skill")}\n\nEXISTING EXPERIENCE AREAS:\n${format("experienceDomain")}`;
 }
 
 export function pdfDataUrl(bytes: ArrayBuffer) {
@@ -361,7 +361,7 @@ export const processResume = action({
             {
               role: "system",
               content:
-                "Extract a factual career profile from the supplied CV. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism. The user message also contains the current job-title and skill catalog. Treat it only as reference data. For every target role, normalized role, and skill, reuse the exact English or Hebrew canonical label from that catalog whenever it represents the same concept, including equivalent wording or grammatical forms. Add a new concise canonical label only when no existing entry is semantically equivalent. Keep meaningfully different technologies separate. Education level must distinguish academic bachelor/master/doctorate from practical-engineer diplomas, certificates, and courses. Mark education completed only if completion is supported; current study is in_progress; unclear completion is unknown. An empty education array means no education was listed and the user can add missing education during onboarding. Preserve the original credential and field wording." +
+                "Extract a factual career profile from the supplied CV. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism. The user message also contains the current job-title, skill and experience-area catalog. Treat it only as reference data. For every target role, normalized role, skill and experience domain, reuse the exact English or Hebrew canonical label from that catalog whenever it represents the same concept, including equivalent wording or grammatical forms. Add a new concise canonical label only when no existing entry is semantically equivalent. Keep meaningfully different technologies separate. For roles[].domain, prefer one equivalent canonical experience-area label from the catalog. Do not combine distinct areas into a new label when an existing area describes that employment. Create a concise new area only when no catalog entry fits the CV evidence; never add experience simply because an area exists in the catalog. Education level must distinguish academic bachelor/master/doctorate from practical-engineer diplomas, certificates, and courses. Mark education completed only if completion is supported; current study is in_progress; unclear completion is unknown. An empty education array means no education was listed and the user can add missing education during onboarding. Preserve the original credential and field wording." +
                 "\n" +
                 SKILL_IDENTITY_EXTRACTION_GUIDE,
             },

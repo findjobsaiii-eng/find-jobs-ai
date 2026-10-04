@@ -9,6 +9,40 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
+it("includes public and owned experience areas in CV extraction without leaking another user's private area", async () => {
+  const t = convexTest(schema, modules);
+  await t.mutation(internal.referenceData.seedCatalog, {});
+  const [userId, otherId] = await t.run(async (ctx) => [
+    await ctx.db.insert("users", { name: "Owner" }),
+    await ctx.db.insert("users", { name: "Other" }),
+  ]);
+  await asUser(t, userId).mutation(api.referenceData.addCustomCatalogItem, {
+    kind: "experienceDomain",
+    label: "Marine insurance operations",
+    locale: "en",
+  });
+  await asUser(t, otherId).mutation(api.referenceData.addCustomCatalogItem, {
+    kind: "experienceDomain",
+    label: "Private unrelated area",
+    locale: "en",
+  });
+  const catalog = await t.query(internal.resumes.getCatalogForExtraction, {
+    userId,
+  });
+  expect(catalog).toContainEqual(
+    expect.objectContaining({ kind: "experienceDomain", labelEn: "Insurance" }),
+  );
+  expect(catalog).toContainEqual(
+    expect.objectContaining({
+      kind: "experienceDomain",
+      labelEn: "Marine insurance operations",
+    }),
+  );
+  expect(
+    catalog.some((item) => item.labelEn === "Private unrelated area"),
+  ).toBe(false);
+});
+
 function asUser(t: TestConvex<typeof schema>, userId: Id<"users">) {
   return t.withIdentity({
     subject: `${userId}|test`,

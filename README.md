@@ -229,7 +229,12 @@ publishing unreviewed input or creating a manual moderation queue.
 
 Experience areas use the same searchable chip picker in onboarding and profile.
 The `experienceDomain` catalog starts with 14 bilingual suggestions; users can
-add private suggestions. CV-extracted areas prefill the picker. Once edited,
+add private suggestions. CV-extracted areas prefill the picker.
+CV extraction receives public and owner-private experience-area suggestions
+alongside roles and skills, and is instructed to reuse equivalent canonical
+labels instead of inventing similar wording. This remains part of the existing
+CV extraction call; AI compliance is not a guarantee of perfect normalization.
+Once edited,
 `candidateProfiles.experienceDomains` is authoritative for matching, including
 an intentionally empty list. Replacement CVs and CV switching preserve those
 choices. The original CV facts and durations remain separate: adding an area

@@ -45,8 +45,8 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
   estimate gross monthly base pay for an Israeli role with no published salary;
   insufficient context remains unknown. Estimates are stored separately on the
   review and never used for filtering/scoring or written as employer salary.
-  No separate AI request or salary-specific web search is added. Production
-  deployment is pending; shared salary-table estimation remains a TODO below.
+  No separate AI request or salary-specific web search is added. The backend
+  was deployed to production on 2026-10-04; shared salary-table estimation remains a TODO below.
   Verified: `npm run check`, `npm test` (422 tests),
   `npm run build -- --webpack`, and `npx convex dev --once` on
   `glorious-mallard-885`; Hebrew desktop and English mobile estimate previews.
@@ -57,12 +57,12 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
   Desktop/mobile previews verified the band. `npm run check` passed; all 425
   tests passed on rerun after one unrelated OAuth visibility test initially
   failed (that test also passed independently).
-- Implemented in development: editable experience areas in onboarding/profile,
+- Implemented and deployed to production: editable experience areas in onboarding/profile,
   using the shared searchable chip picker, 14 bilingual catalog suggestions and
   owner-private custom additions. CV areas prefill the field; manual corrections
   and an empty selection survive replacement/switching CVs and drive matching
   without changing recorded experience durations or adding AI calls. Production
-  deployment of this follow-up is pending. Automatic experience-area vocabulary
+  catalog seeding completed on 2026-10-04. Automatic experience-area vocabulary
   curation is not implemented.
   Validation: `npm run check`, `npm test` (416 tests), and
   `npm run build -- --webpack` passed; Hebrew/English responsive component
@@ -519,3 +519,20 @@ before release. Actual production search accuracy and the first live monthly
 vocabulary cleanup remain observation items; no paid cleanup call was triggered
 for deployment. Fully automatic vocabulary approval and stronger-model escalation
 remain the next deferred improvements above.
+
+## Experience-area production rollout (2026-10-04)
+
+CV extraction now receives the public and owner-private experience-area catalog
+alongside roles and skills. The existing prompt prefers equivalent canonical
+area labels, avoids combining distinct areas into new labels, and still permits
+new concepts when no suggestion fits the CV evidence. No separate AI call is
+introduced; existing CVs are not automatically reprocessed.
+
+Validation: `npm run check`, all 426 tests, `npm run build -- --webpack`, and
+development deployment succeeded. Production Convex deployment to
+`famous-badger-815` succeeded; `referenceData:seedCatalog` inserted 14 items,
+updated 117 and reported 131 bootstrap entries. Live onboarding, job matching,
+and paid AI testing were deliberately left to the owner as requested.
+
+Convex reported that the project is above Free plan limits during deployment;
+the owner should resolve capacity/plan limits before advertising traffic.

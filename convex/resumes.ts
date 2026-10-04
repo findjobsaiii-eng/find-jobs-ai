@@ -359,7 +359,11 @@ export const getOwnedForProcessing = internalQuery({
 });
 
 const extractionCatalogItemValidator = v.object({
-  kind: v.union(v.literal("jobTitle"), v.literal("skill")),
+  kind: v.union(
+    v.literal("jobTitle"),
+    v.literal("skill"),
+    v.literal("experienceDomain"),
+  ),
   labelEn: v.union(v.string(), v.null()),
   labelHe: v.union(v.string(), v.null()),
   aliases: v.array(v.string()),
@@ -369,7 +373,7 @@ export const getCatalogForExtraction = internalQuery({
   args: { userId: v.id("users") },
   returns: v.array(extractionCatalogItemValidator),
   handler: async (ctx, args) => {
-    const kinds = ["jobTitle", "skill"] as const;
+    const kinds = ["jobTitle", "skill", "experienceDomain"] as const;
     const groups = await Promise.all(
       kinds.flatMap((kind) => [
         ctx.db
@@ -390,8 +394,11 @@ export const getCatalogForExtraction = internalQuery({
     return groups
       .flat()
       .filter(
-        (item): item is Doc<"catalogItems"> & { kind: "jobTitle" | "skill" } =>
-          item.active && (item.kind === "jobTitle" || item.kind === "skill"),
+        (
+          item,
+        ): item is Doc<"catalogItems"> & {
+          kind: "jobTitle" | "skill" | "experienceDomain";
+        } => item.active && kinds.some((kind) => kind === item.kind),
       )
       .map((item) => ({
         kind: item.kind,
