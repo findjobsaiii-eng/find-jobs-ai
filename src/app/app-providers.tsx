@@ -8,6 +8,7 @@ import { MotionConfig } from "motion/react";
 import { I18nextProvider } from "react-i18next";
 import { AuthConfigurationErrorScreen } from "@/features/auth/auth-configuration-error-screen";
 import { AuthFlowProvider } from "@/features/auth/auth-flow-provider";
+import { ReminderLanguageSync } from "@/features/auth/reminder-language-sync";
 import { CookieConsentManager } from "@/features/privacy/cookie-consent-manager";
 import { InterfaceSoundsProvider } from "@/features/interface-sounds/interface-sounds-provider";
 import { parseConvexUrl } from "./convex-url";
@@ -47,7 +48,10 @@ export function AppProviders({
   return (
     <I18nextProvider i18n={i18n}>
       <ConvexAuthNextjsProvider client={convex}>
-        <AuthFlowProvider>{content}</AuthFlowProvider>
+        <AuthFlowProvider>
+          <ReminderLanguageSync />
+          {content}
+        </AuthFlowProvider>
       </ConvexAuthNextjsProvider>
     </I18nextProvider>
   );

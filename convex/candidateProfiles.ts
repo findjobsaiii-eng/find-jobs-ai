@@ -1,3 +1,4 @@
+import { cancelOnboardingReminders } from "./onboardingReminders";
 import { observeReferenceTerms } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
@@ -708,6 +709,8 @@ export const saveCurrent = mutation({
       });
       const updated = await ctx.db.get("candidateProfiles", existing._id);
       if (!updated) throw new Error("Candidate profile update failed");
+      if (updated.onboardingCompleted)
+        await cancelOnboardingReminders(ctx, userId);
       if (updated.onboardingCompleted && !updated.cvReviewPending) {
         await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
           userId,
@@ -747,6 +750,7 @@ export const saveCurrent = mutation({
     const created = await ctx.db.get("candidateProfiles", id);
     if (!created) throw new Error("Candidate profile creation failed");
     if (created.onboardingCompleted) {
+      await cancelOnboardingReminders(ctx, userId);
       await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
         userId,
       });

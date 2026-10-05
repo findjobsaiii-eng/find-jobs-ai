@@ -1010,3 +1010,39 @@ synchronizes across tabs and survives reloads. Muting stops active effects and
 prevents pending unlocks from playing. Storage and audio failures cannot block
 normal interactions. Web Audio is created lazily by the package, with locally
 synthesized cues and no remote audio requests. The code is MIT and audio is CC0.
+
+### D-049: Two bounded onboarding reminders scheduled from account creation
+
+Status: Accepted.
+
+Enroll new Google signups through Convex Auth's after-user-created callback,
+only when no existing account was linked. Persist two indexed reminder records
+and scheduled action IDs, due at 24 and 72 hours from the user creation time.
+Subsequent sign-ins do not reset the sequence. An explicitly authorized rollout
+enrolls existing incomplete accounts in bounded, idempotent pages, excluding
+deleting accounts and email opt-outs. Accounts older than 72 hours receive only
+the final reminder; those aged 24–72 hours receive one first reminder plus the
+original future final date. Overdue sends are staggered two seconds apart to
+avoid a provider burst. Every completion path and account deletion cancels pending jobs in
+the same mutation; the send claim independently checks current eligibility.
+
+Reuse the existing Resend SDK and delivery/webhook tables. Freeze delivery
+identity and language at the first attempt. A ten-minute scheduled watchdog
+recovers network failures and interrupted actions with a stable per-reminder
+idempotency key, at most five attempts within twelve hours. Permanent failures
+stop the watchdog. Cancellation cannot recall a request already handed to the
+provider; late acknowledgements during deletion must not recreate email records.
+
+One prominent CTA resumes setup at the authenticated homepage. English/Hebrew
+copy comes from locale resources and the user's interface language is synced
+server-side, with Hebrew as the signup default. Random 256-bit bearer tokens
+authorize setup-reminder opt-out without requiring sign-in; GET only confirms,
+POST cancels both remaining reminders. This is separate from job email frequency,
+though never-email users are excluded. No promotional offers or repeated follow-ups
+beyond the second reminder are included.
+
+`ONBOARDING_REMINDERS_ENABLED=true` activates sends per deployment. Keep it unset
+in development verification. Production `famous-badger-815` was deployed and
+enabled on 2026-10-05, including the owner's authorized historical enrollment.
+Provider acceptance, webhook delivery and actual inbox placement are distinct
+verification steps; no actual email is sent during tests.

@@ -5,6 +5,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
+import { scheduleOnboardingReminders } from "./onboardingReminders";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -57,6 +58,7 @@ describe("account deletion", () => {
         provider: "google",
         providerAccountId: "private-id",
       });
+      await scheduleOnboardingReminders(ctx, userId);
       return { userId, otherUserId, storageId };
     });
     const currentUser = t.withIdentity({
@@ -82,6 +84,9 @@ describe("account deletion", () => {
       expect(await ctx.db.query("resumeDocuments").collect()).toHaveLength(0);
       expect(await ctx.db.query("legalConsents").collect()).toHaveLength(0);
       expect(await ctx.db.query("emailPreferences").collect()).toHaveLength(0);
+      expect(await ctx.db.query("onboardingReminders").collect()).toHaveLength(
+        0,
+      );
       expect(await ctx.db.query("authSessions").collect()).toHaveLength(0);
       expect(await ctx.db.query("authAccounts").collect()).toHaveLength(0);
       expect(await ctx.db.query("accountDeletionJobs").collect()).toHaveLength(

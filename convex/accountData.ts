@@ -1,3 +1,4 @@
+import { cancelOnboardingReminders } from "./onboardingReminders";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -11,6 +12,7 @@ export const deleteMine = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
+    await cancelOnboardingReminders(ctx, userId);
     const existing = await ctx.db
       .query("accountDeletionJobs")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -295,6 +297,16 @@ export const deleteBatch = internalMutation({
               });
           }
         }
+        break;
+      }
+      case 22: {
+        const rows = await ctx.db
+          .query("onboardingReminders")
+          .withIndex("by_userId_and_phase", (q) => q.eq("userId", userId))
+          .take(2);
+        hasRows = rows.length > 0;
+        for (const row of rows)
+          await ctx.db.delete("onboardingReminders", row._id);
         break;
       }
       default: {

@@ -1,3 +1,4 @@
+import { cancelOnboardingReminders } from "./onboardingReminders";
 import { observeReferenceTerms } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
@@ -973,6 +974,7 @@ export const setActive = mutation({
       onboardingCompleted: true,
       onboardingStep: 4,
     });
+    await cancelOnboardingReminders(ctx, userId);
     if (resume.status === "replaced")
       await ctx.db.patch("resumeDocuments", resume._id, {
         status: "ready",
@@ -1073,6 +1075,7 @@ export const finishReview = mutation({
       completedAt: profile.completedAt ?? now,
       updatedAt: now,
     });
+    await cancelOnboardingReminders(ctx, userId);
     await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
       userId,
       lifecycleStatus: "verified_active",

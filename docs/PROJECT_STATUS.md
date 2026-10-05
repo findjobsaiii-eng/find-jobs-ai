@@ -40,6 +40,23 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented and deployed to production: onboarding reminder emails at 24 and 72 hours after new
+  signup, with automatic cancellation on completion/deletion, one setup CTA,
+  English/Hebrew templates, recipient-only unsubscribe, bounded retries and
+  Resend delivery tracking. Sends are enabled in production by
+  `ONBOARDING_REMINDERS_ENABLED=true`; the development flag is unset.
+  Validation: `npm run check`, all 461 tests, the Webpack production build, and
+  deployment to development `glorious-mallard-885` passed. Scheduler timing,
+  cancellation, retries, opt-out isolation and deletion safeguards were verified
+  without sending real emails.
+  Production deployment to `famous-badger-815` succeeded on 2026-10-05.
+  Authorized historical enrollment scanned 24 existing accounts, excluded 12,
+  and enrolled 12 incomplete accounts: ten final reminders and two first
+  reminders were accepted by Resend; two future final reminders retain their
+  original signup-based dates. Delivery webhooks confirmed 11 delivered at the
+  rollout check, with no bounces or complaints. Provider delivery does not
+  verify inbox placement. Enrollment is paginated, staggered and safe to rerun.
+
 - Implemented locally: subtle `uisfx` interaction sounds for trusted clicks,
   navigation, tabs, toggles and range-slider value changes, with an English/Hebrew mute control in public
   headers and the signed-in user menu. The browser preference persists and

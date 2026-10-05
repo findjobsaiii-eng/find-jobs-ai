@@ -1,4 +1,20 @@
 {
+  "onboardingReminder": {
+    "subject24": "Your Jobmiter setup is waiting for you",
+    "subject72": "One last reminder to finish setting up Jobmiter",
+    "heading24": "Let’s finish setting up Jobmiter",
+    "heading72": "Ready to continue?",
+    "body24": "You signed up for Jobmiter, but your setup is still incomplete. Finish your profile and preferences so Jobmiter can find relevant jobs for you.",
+    "body72": "This is our final setup reminder. Your account is here whenever you’re ready to finish your profile and preferences.",
+    "greeting": "Hi",
+    "cta": "Continue setting up Jobmiter",
+    "footer": "You received this because you signed up for Jobmiter and have not finished setup.",
+    "unsubscribe": "Stop setup reminders",
+    "unsubscribeTitle": "Stop setup reminders?",
+    "unsubscribeBody": "This will stop setup reminders for your account. It won’t change your job email preferences.",
+    "unsubscribeConfirm": "Stop reminders",
+    "unsubscribed": "Setup reminders have been stopped."
+  },
   "interfaceSounds": {
     "label": "Interface sounds",
     "enable": "Enable interface sounds",

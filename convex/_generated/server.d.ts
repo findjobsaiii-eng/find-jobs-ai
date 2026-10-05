@@ -40,6 +40,7 @@ type Env = {
   readonly JOB_SEARCH_OUTPUT_TOKEN_LIMIT: string;
   readonly JWKS: string;
   readonly JWT_PRIVATE_KEY: string;
+  readonly ONBOARDING_REMINDERS_ENABLED: string | undefined;
   readonly OPENAI_API_KEY: string;
   readonly OPENAI_CATALOG_MODEL: string | undefined;
   readonly OPENAI_JOB_REVIEW_MODEL: string | undefined;

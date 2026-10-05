@@ -332,6 +332,50 @@ The initial recommended development value is `gpt-5.6-luna`; keep the model in
 deployment configuration so it can be changed without shipping frontend code.
 Do not create a browser-prefixed copy of either variable.
 
+### Onboarding reminder emails
+
+New Google signups schedule two Convex actions at 24 and 72 hours from the
+user's creation time. Signing in again does not restart the sequence. Both
+reminders use one setup CTA pointing to the public homepage, which restores
+the authenticated onboarding flow. All onboarding-completion paths cancel
+pending jobs; each send also checks completion, recipient availability, account
+deletion, and email opt-out.
+
+For an explicitly authorized historical rollout, the internal mutation
+`onboardingReminders:enrollExistingPage` scans at most 50 users per page,
+with a stable signup `cutoff`, `paginationOpts`, `sendAfter`, and `dryRun`.
+Run all pages in dry-run mode first, then repeat with `dryRun=false` and carry
+`nextSendAfter` into the following page. It skips completed, deleting,
+never-email and already-enrolled users. Accounts aged 24–72 hours receive one
+overdue first reminder and retain their original 72-hour date; older accounts
+receive only the final reminder. Younger accounts retain both signup dates.
+Catch-up emails are staggered two seconds apart. Repeating enrollment is safe
+and never restarts canceled or completed sequences.
+
+Set the Convex environment variable `ONBOARDING_REMINDERS_ENABLED=true` only
+on a deployment where sending should be active. Unset or false leaves email
+sending disabled; disabled scheduled actions are skipped rather than backfilled
+when the flag changes. `RESEND_API_KEY`, `PUBLIC_APP_URL`, and the existing Resend
+webhook configuration are reused. No real reminder email is sent by unit tests.
+
+Reminder language follows the authenticated user's selected English/Hebrew
+interface language, with Hebrew as the signup default. Copy lives under
+`onboardingReminder` in both locale resources. Templates are in
+`convex/onboardingReminderTemplate.ts`. Each email includes a scanner-safe
+unsubscribe confirmation link and provider one-click unsubscribe headers.
+Opting out cancels setup reminders only; setting job emails to never also stops
+setup reminders. Account deletion cancels scheduled jobs and removes reminder
+records. Accepted sends and subsequent webhook events use the existing email
+delivery tables.
+
+Transient/network failures and crashed actions retry with the same recipient,
+content, token, and Resend idempotency key via a ten-minute watchdog. Attempts
+are capped at five and a twelve-hour retry window, inside Resend's 24-hour
+idempotency retention. Permanent provider failures stop retries. An email
+already handed to Resend cannot be recalled if onboarding completes during
+the external request. Production enablement and real inbox delivery must be
+verified separately.
+
 ### Deep job reviews
 
 Pro and admin users can request a saved, private AI review for any job currently

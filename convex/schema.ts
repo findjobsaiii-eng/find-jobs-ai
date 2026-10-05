@@ -387,6 +387,41 @@ const schema = defineSchema({
     ),
     resendEmailId: v.optional(v.string()),
   }).index("by_userId", ["userId"]),
+  onboardingReminders: defineTable({
+    userId: v.id("users"),
+    phase: v.union(v.literal("24h"), v.literal("72h")),
+    dueAt: v.number(),
+    language: v.union(v.literal("en"), v.literal("he")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("canceled"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    scheduledId: v.optional(v.id("_scheduled_functions")),
+    firstAttemptAt: v.optional(v.number()),
+    lastAttemptAt: v.optional(v.number()),
+    unsubscribeToken: v.optional(v.string()),
+    delivery: v.optional(
+      v.object({
+        to: v.string(),
+        displayName: v.union(v.string(), v.null()),
+        language: v.union(v.literal("en"), v.literal("he")),
+        unsubscribeUrl: v.string(),
+        message: v.object({
+          subject: v.string(),
+          html: v.string(),
+          text: v.string(),
+        }),
+      }),
+    ),
+    resendEmailId: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_userId_and_phase", ["userId", "phase"])
+    .index("by_unsubscribeToken", ["unsubscribeToken"]),
   resumeUploadRateLimits: defineTable({
     userId: v.id("users"),
     windowStartedAt: v.number(),

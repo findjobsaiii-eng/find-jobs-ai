@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { scheduleOnboardingReminders } from "./onboardingReminders";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -188,6 +189,7 @@ describe("candidate profiles", () => {
       }),
     ).rejects.toThrow();
 
+    await t.run((ctx) => scheduleOnboardingReminders(ctx, userId));
     const completed = await user.mutation(api.candidateProfiles.saveCurrent, {
       values: {
         preferredDisplayName: "Candidate",
@@ -220,6 +222,19 @@ describe("candidate profiles", () => {
     });
 
     expect(completed.onboardingCompleted).toBe(true);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("onboardingReminders")
+          .withIndex("by_userId_and_phase", (q) => q.eq("userId", userId))
+          .take(2),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ phase: "24h", status: "canceled" }),
+        expect.objectContaining({ phase: "72h", status: "canceled" }),
+      ]),
+    );
     expect(completed.workArrangements).toEqual(["hybrid", "remote"]);
     expect(completed.preferredPlaceIds).toEqual([
       "ChIJH3w7GaZMHRURkD-WwKJy-8E",

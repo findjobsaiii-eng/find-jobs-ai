@@ -1,6 +1,8 @@
 import Google from "@auth/core/providers/google";
 import { convexAuth } from "@convex-dev/auth/server";
 import { env } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import { scheduleOnboardingReminders } from "./onboardingReminders";
 import {
   requireAuthEnvironmentValue,
   requireAuthSiteUrl,
@@ -23,6 +25,12 @@ requireAuthEnvironmentValue("JWT_PRIVATE_KEY", env.JWT_PRIVATE_KEY);
 requireAuthSiteUrl(env.SITE_URL);
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  callbacks: {
+    afterUserCreatedOrUpdated: async (ctx, { userId, existingUserId }) => {
+      if (!existingUserId)
+        await scheduleOnboardingReminders(ctx as MutationCtx, userId);
+    },
+  },
   providers: [
     Google({
       clientId: googleClientId,
