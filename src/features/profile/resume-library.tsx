@@ -8,7 +8,7 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
-  ChevronDown,
+  Sparkles,
   FileText,
   LoaderCircle,
   Pencil,
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { SectionHeader, Surface } from "@/components/ui/product-layout";
 import { cn } from "@/lib/utils";
+import { ResumeProfileUpdateDialog } from "./resume-profile-update-dialog";
 import { processingErrorKey } from "./resume-errors";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -41,6 +42,9 @@ export function ResumeLibrary() {
   const generateUploadUrl = useMutation(api.resumes.generateUploadUrl);
   const createFromUpload = useMutation(api.resumes.createFromUpload);
   const processResume = useAction(api.resumeActions.processResume);
+  const prepareProfileUpdate = useAction(
+    api.resumeActions.prepareProfileUpdate,
+  );
   const updateMetadata = useMutation(api.resumes.updateMetadata);
   const deleteResume = useMutation(api.resumes.deleteResume);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,9 +53,8 @@ export function ResumeLibrary() {
   const [busy, setBusy] = useState<Id<"resumeDocuments"> | "upload" | null>(
     null,
   );
-  const [expandedId, setExpandedId] = useState<Id<"resumeDocuments"> | null>(
-    null,
-  );
+  const [profileResumeId, setProfileResumeId] =
+    useState<Id<"resumeDocuments"> | null>(null);
   const [editingId, setEditingId] = useState<Id<"resumeDocuments"> | null>(
     null,
   );
@@ -104,6 +107,7 @@ export function ResumeLibrary() {
         fileName: pendingFile.name,
         mimeType: pendingFile.type,
         size: pendingFile.size,
+        activateOnSuccess: false,
         ...(label.trim() ? { displayName: label } : {}),
         ...(note.trim() ? { note } : {}),
       });
@@ -115,6 +119,20 @@ export function ResumeLibrary() {
       if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
       setError(processingErrorKey(cause));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startProfileUpdate = async (resumeId: Id<"resumeDocuments">) => {
+    if (busy) return;
+    setBusy(resumeId);
+    setError(null);
+    try {
+      await prepareProfileUpdate({ resumeId });
+      setProfileResumeId(resumeId);
+    } catch {
+      setError("profileUpdate");
     } finally {
       setBusy(null);
     }
@@ -161,6 +179,12 @@ export function ResumeLibrary() {
 
   return (
     <Surface className="scroll-mt-24">
+      {profileResumeId ? (
+        <ResumeProfileUpdateDialog
+          resumeId={profileResumeId}
+          onClose={() => setProfileResumeId(null)}
+        />
+      ) : null}
       <SectionHeader
         title={t("resumeLibrary.title")}
         description={t("resumeLibrary.description")}
@@ -282,25 +306,18 @@ export function ResumeLibrary() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t("resumeLibrary.details")}
-                    aria-expanded={expandedId === resume.id}
-                    onClick={() =>
-                      setExpandedId((current) =>
-                        current === resume.id ? null : resume.id,
-                      )
-                    }
-                  >
-                    <ChevronDown
-                      aria-hidden="true"
-                      className={cn(
-                        "transition-transform",
-                        expandedId === resume.id && "rotate-180",
-                      )}
-                    />
-                  </Button>
+                  {resume.status !== "processing" &&
+                  resume.status !== "failed" ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy !== null}
+                      onClick={() => void startProfileUpdate(resume.id)}
+                    >
+                      <Sparkles aria-hidden="true" />
+                      {t("resumeLibrary.updateProfile")}
+                    </Button>
+                  ) : null}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -324,29 +341,6 @@ export function ResumeLibrary() {
                   </Button>
                 </div>
               </div>
-              {expandedId === resume.id ? (
-                <div className="border-border mt-4 space-y-2 border-t pt-4 text-sm">
-                  {resume.targetRoles.length ? (
-                    <p>
-                      <span className="font-medium">{t("resume.roles")}:</span>{" "}
-                      {resume.targetRoles
-                        .map((role) => role.labelHe ?? role.labelEn)
-                        .join(" · ")}
-                    </p>
-                  ) : null}
-                  {resume.skills.length ? (
-                    <p>
-                      <span className="font-medium">
-                        {t("resume.strengths")}:
-                      </span>{" "}
-                      {resume.skills
-                        .slice(0, 8)
-                        .map((skill) => skill.labelHe ?? skill.labelEn)
-                        .join(" · ")}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
               {editingId === resume.id ? (
                 <div className="border-border mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2">
                   <label className="text-sm font-medium">

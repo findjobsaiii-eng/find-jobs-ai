@@ -7,6 +7,8 @@ export function processingErrorKey(error: unknown) {
       : error instanceof Error && error.message === "upload_failed"
         ? "UPLOAD_FAILED"
         : null;
+  if (code === "RESUME_LIMIT_REACHED") return "limit";
+  if (code === "RESUME_TEXT_TOO_LARGE") return "textTooLarge";
   if (code === "FILE_TOO_LARGE") return "tooLarge";
   if (code === "UPLOAD_RATE_LIMITED") return "rateLimited";
   if (code === "SCANNED_PDF") return "parsing";

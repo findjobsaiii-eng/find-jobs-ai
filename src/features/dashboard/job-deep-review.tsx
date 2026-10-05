@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
+import { ConvexError } from "convex/values";
 import { Button } from "@/components/ui/button";
 import { captureProductEvent } from "@/features/privacy/analytics";
 import {
@@ -47,6 +48,7 @@ export function JobDeepReview({
   const [requesting, setRequesting] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [failureKey, setFailureKey] = useState("jobReview.error");
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const reduceMotion = useReducedMotion();
@@ -78,7 +80,14 @@ export function JobDeepReview({
         language: i18n.resolvedLanguage?.startsWith("he") ? "he" : "en",
         plan,
       });
-    } catch {
+    } catch (cause) {
+      setFailureKey(
+        cause instanceof ConvexError &&
+          typeof cause.data === "object" &&
+          cause.data?.code === "REVIEW_RESUMES_TOO_LARGE"
+          ? "jobReview.resumeContentTooLarge"
+          : "jobReview.error",
+      );
       setFailed(true);
     } finally {
       setRequesting(false);
@@ -251,7 +260,7 @@ export function JobDeepReview({
             {t(
               review?.errorCode === "job_inactive"
                 ? "jobReview.inactive"
-                : "jobReview.error",
+                : failureKey,
             )}
           </p>
         ) : null}

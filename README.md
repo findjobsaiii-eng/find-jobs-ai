@@ -196,7 +196,7 @@ Before editing Convex code, read `convex/_generated/ai/guidelines.md`. Managed C
 
 ### Candidate profiles
 
-After Google sign-in, users without an effective profile see one primary action: upload a PDF or DOCX CV. Convex Storage keeps the original private file; a Node action extracts the actual document text with PDF.js or Mammoth and then asks OpenAI for a server-validated structured career profile. The UI holds the analysis state for at least five seconds before showing a compact roles, strengths, seniority, experience, and location review. “Find jobs for me” accepts that summary and opens the personalized feed. The full four-step form remains available for later manual editing.
+After Google sign-in, users without an effective profile see one primary action: upload a PDF or DOCX CV. Convex Storage keeps the original private file; a Node action extracts the actual document text with PDF.js or Mammoth and then asks OpenAI for a server-validated structured career profile. The existing four-step onboarding lets users review and freely edit the prefilled fields before completing setup. Scanned PDFs are transcribed first, and that text is saved for later reviews.
 
 Candidate ownership and Google identity fields are derived exclusively in Convex. The client never sends a user ID, email, Google display name, or profile image. All profile reads and writes reject unauthenticated callers and query the indexed profile belonging to the server-derived auth user.
 
@@ -217,7 +217,28 @@ Editable profile data is normalized and bounded on the server:
 | Minimum monthly gross salary | Optional whole ILS amount from 1,000–200,000                         |
 | Languages                    | 1–10 unique supported languages, each with a proficiency selection   |
 
-CV versions are stored in the owner-indexed `resumeDocuments` table. Raw text and the complete structured extraction remain server-only; clients receive only the concise review projection. `candidateProfiles.cvCareerProfile` keeps the normalized matching representation while the ordinary profile fields are the effective values used by discovery. Manual saves record field-level overrides. A replacement CV updates the CV-derived layer and recalculates unmodified effective fields, while intentional changes to roles, skills, location, seniority, work preferences, salary, languages, experience, and summary remain in place. Existing pre-CV completed profiles are treated as manually chosen, so their values are preserved on first import.
+CVs are owner-scoped documents in `resumeDocuments`, with the private original
+file and complete extracted text. Normal PDF/DOCX library uploads use PDF.js or
+Mammoth without AI. Image-only PDFs use AI transcription; incomplete OCR is
+rejected rather than saved as a partial transcript. Text is persisted before
+profile analysis so an AI profile failure does not lose extraction work.
+Documents over 400,000 UTF-8 text bytes fail explicitly rather than being
+silently truncated. Accounts can keep up to 25 resumes.
+
+After onboarding, uploads never import profile data, change career preferences,
+or restart onboarding, including accounts created through manual entry. The
+library exposes document metadata only; the expandable inferred-role/strength
+summary has been removed. “Update profile from this resume” explicitly requests
+AI analysis of the cached text (or reuses an existing structured result), then
+opens the same editable fields in a four-step review. Review and cancellation
+leave the current profile unchanged. Final approval atomically validates
+ownership, profile revision and all edited values, then applies those values
+and the selected CV evidence. Concurrent profile edits require restarting review.
+Selecting a default document also preserves profile facts and preferences.
+
+`candidateProfiles.cvCareerProfile` retains factual CV evidence for matching;
+ordinary profile fields record the user's effective choices. Raw resume text
+and the full structured extraction remain server-only.
 
 ### Onboarding options
 
@@ -380,8 +401,11 @@ verified separately.
 
 Pro and admin users can request a saved, private AI review for any job currently
 available to them. The action first reverifies the posting and updates its shared
-activity state, then compares the job with the effective profile and up to six
-ready resume versions. It stores a match percentage, a structured requirement
+activity state, then compares the job with the effective profile and every usable saved
+resume (up to 25), using complete cached text rather than reparsing files or
+clipping individual documents. A combined 200,000-character input budget fails
+explicitly if exceeded. It compares the actual document content against the
+user’s editable profile. It stores a match percentage, a structured requirement
 checklist, the compared resume names and recommended version, truthful tailoring suggestions,
 interview preparation topics, and evidence-backed employer/application links.
 Free users can read a previously saved review but cannot generate or refresh one.

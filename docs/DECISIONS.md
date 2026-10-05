@@ -351,7 +351,7 @@ ID, timestamps, activity, and merge/closure reasons.
 
 ### D-021: CV-derived data and user overrides produce one effective profile
 
-Status: Accepted
+Status: Superseded for completed-profile uploads by D-050; onboarding extraction remains in place.
 
 Evidence: `convex/resumeProfileModel.ts`, `convex/resumes.ts`,
 `convex/resumeActions.ts`, `src/features/profile/resume-onboarding.tsx`, and
@@ -1046,3 +1046,27 @@ in development verification. Production `famous-badger-815` was deployed and
 enabled on 2026-10-05, including the owner's authorized historical enrollment.
 Provider acceptance, webhook delivery and actual inbox placement are distinct
 verification steps; no actual email is sent during tests.
+
+### D-050: Resume documents and explicit profile import are separate operations
+
+Status: Accepted.
+
+Preserve the current onboarding profile-prefill flow. After onboarding, uploading
+means saving the original file and complete extracted text only, including for
+manual profiles with no source CV. Standard PDF/DOCX extraction uses existing
+libraries; image-only PDF transcription uses AI and is persisted before optional
+profile parsing. Incomplete OCR and oversized text fail explicitly; stored text
+is never silently truncated. Deep review receives every usable saved document's
+cached text, at most 25 documents within a combined 200,000-character budget.
+
+Keep generic inferred-role and strength summaries out of the resume library.
+An explicit per-document profile-update action analyzes cached text or reuses
+existing structured extraction. It opens editable onboarding fields in an
+isolated local draft. Final approval atomically applies validated user choices
+and source evidence, checks owner identity and the original profile revision,
+and refreshes discovery. Cancellation and intermediate review steps do not
+write profile fields. Selecting a default document preserves career preferences.
+
+Implementation and tests do not authorize production deployment or a historical
+resume migration. This change is validated against the existing development
+backend; no automatic reprocessing of old documents is introduced.

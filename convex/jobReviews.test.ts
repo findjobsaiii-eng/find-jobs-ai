@@ -374,3 +374,53 @@ it("keeps other users' resumes out of the compared resume cards", async () => {
     ).toEqual([{ id: resumeId, name: "Frontend CV" }]);
   });
 });
+
+it("compares all saved usable resumes using their complete cached text", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, jobId, resumeId } = await setupReviewContext(t);
+  const fullText =
+    "Evidence from a longer resume. ".repeat(500) +
+    "Important experience at the end.";
+  await t.run(async (ctx) => {
+    const base = (await ctx.db.get("resumeDocuments", resumeId))!;
+    const { _id, _creationTime, ...fields } = base;
+    void _id;
+    void _creationTime;
+    for (let i = 0; i < 7; i++)
+      await ctx.db.insert("resumeDocuments", {
+        ...fields,
+        fileName: `version-${i}.pdf`,
+        extractedText: fullText,
+        createdAt: i + 2,
+      });
+  });
+  const context = await t.mutation(internal.jobReviews.prepare, {
+    userId,
+    jobId,
+    language: "en",
+    requestId: "all-cached",
+  });
+  expect(context.resumes).toHaveLength(8);
+  expect(context.resumes.slice(1).every((r) => r.text === fullText)).toBe(true);
+});
+
+it("rejects oversized combined resume content instead of silently clipping or omitting evidence", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, jobId, resumeId } = await setupReviewContext(t);
+  await t.run((ctx) =>
+    ctx.db.patch("resumeDocuments", resumeId, {
+      extractedText: "A".repeat(200_001),
+    }),
+  );
+  await expect(
+    t.mutation(internal.jobReviews.prepare, {
+      userId,
+      jobId,
+      language: "en",
+      requestId: "too-large",
+    }),
+  ).rejects.toThrow("REVIEW_RESUMES_TOO_LARGE");
+  expect(
+    await t.run((ctx) => ctx.db.query("jobDeepReviews").first()),
+  ).toBeNull();
+});

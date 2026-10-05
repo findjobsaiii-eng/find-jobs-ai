@@ -258,7 +258,7 @@ describe("CV-derived effective profiles", () => {
     );
   });
 
-  it("stores a second resume independently and switches the effective CV without losing manual location", async () => {
+  it("stores a second resume independently and selecting it preserves profile facts", async () => {
     const t = convexTest(schema, modules);
     const first = await seedUserAndResume(t);
     await t.mutation(
@@ -310,6 +310,10 @@ describe("CV-derived effective profiles", () => {
     expect(library.find((item) => item.id === second)?.displayName).toBe(
       "Product",
     );
+    const review = await user.query(api.resumes.getCurrent);
+    await user.mutation(api.resumes.finishReview, {
+      targetJobTitleIds: review!.targetRoles.map((r) => r.id),
+    });
     await user.mutation(api.resumes.setActive, { resumeId: second });
     const current = await user.query(api.resumes.getCurrent);
     expect(current?.currentTitle).toBe("Product Manager");
@@ -629,7 +633,7 @@ describe("qualification source changes", () => {
       ).toEqual(qualifications);
     },
   );
-  it("replaces unconfirmed resume education when changing the active resume", async () => {
+  it("preserves resume education when selecting a different document", async () => {
     const t = convexTest(schema, modules);
     const first = await seedUserAndResume(t);
     await t.mutation(internal.resumes.completeProcessing, {
@@ -665,11 +669,25 @@ describe("qualification source changes", () => {
       (await user.query(api.candidateProfiles.getCurrent)).profile
         ?.qualifications?.academicDegreeStatus,
     ).toBe("completed");
+    const review = await user.query(api.resumes.getCurrent);
+    await user.mutation(api.resumes.finishReview, {
+      targetJobTitleIds: review!.targetRoles.map((r) => r.id),
+    });
     await user.mutation(api.resumes.setActive, { resumeId: secondId });
     expect(
       (await user.query(api.candidateProfiles.getCurrent)).profile
         ?.qualifications,
-    ).toEqual({ academicDegreeStatus: "none", education: [] });
+    ).toEqual({
+      academicDegreeStatus: "completed",
+      education: [
+        {
+          level: "bachelor",
+          status: "completed",
+          field: "Physics",
+          credential: "B.Sc.",
+        },
+      ],
+    });
   });
 });
 
@@ -876,6 +894,179 @@ it.each([{ areas: ["Insurance"] }, { areas: [] }])(
     expect(
       (await user.query(api.candidateProfiles.getCurrent)).profile
         ?.cvCareerProfile?.domains,
-    ).toEqual(["Customer Service"]);
+    ).toEqual(["E-commerce"]);
   },
 );
+
+it("saves document-only uploads without changing a completed profile, including a manual profile without a source CV", async () => {
+  const t = convexTest(schema, modules);
+  const first = await seedUserAndResume(t);
+  await t.mutation(
+    internal.resumes.completeProcessing,
+    completion(first.resumeId, first.userId),
+  );
+  await t.run(async (ctx) => {
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", first.userId))
+      .unique();
+    await ctx.db.patch("candidateProfiles", profile!._id, {
+      onboardingCompleted: true,
+      activeResumeId: undefined,
+      cvReviewPending: false,
+    });
+  });
+  const user = asUser(t, first.userId);
+  const before = await user.query(api.candidateProfiles.getCurrent);
+  const storageId = await t.run((ctx) =>
+    ctx.storage.store(new Blob(["file"], { type: "application/pdf" })),
+  );
+  const resumeId = await user.mutation(api.resumes.createFromUpload, {
+    storageId,
+    fileName: "new.pdf",
+    mimeType: "application/pdf",
+    size: 4,
+    activateOnSuccess: true,
+  });
+  expect(
+    (await t.run((ctx) => ctx.db.get("resumeDocuments", resumeId)))
+      ?.activateOnSuccess,
+  ).toBe(false);
+  const text =
+    "Complete resume content with professional work history.\n".repeat(2500);
+  await t.mutation(internal.resumes.saveExtractedText, {
+    resumeId,
+    userId: first.userId,
+    text,
+    finalize: true,
+  });
+  expect(await user.query(api.candidateProfiles.getCurrent)).toEqual(before);
+  const document = await t.run((ctx) =>
+    ctx.db.get("resumeDocuments", resumeId),
+  );
+  expect(document?.extractedText).toBe(text);
+  expect(document?.structuredProfileJson).toBeUndefined();
+  expect(document?.status).toBe("ready");
+});
+
+it("prepares an isolated editable proposal and applies only the approved values with ownership and revision guards", async () => {
+  const t = convexTest(schema, modules);
+  const first = await seedUserAndResume(t);
+  await t.mutation(
+    internal.resumes.completeProcessing,
+    completion(first.resumeId, first.userId),
+  );
+  const user = asUser(t, first.userId);
+  const initial = await user.query(api.resumes.getCurrent);
+  await user.mutation(api.resumes.finishReview, {
+    targetJobTitleIds: initial!.targetRoles.map((r) => r.id),
+  });
+  const before = await user.query(api.candidateProfiles.getCurrent);
+  const storageId = await t.run((ctx) =>
+    ctx.storage.store(new Blob(["file"], { type: "application/pdf" })),
+  );
+  const resumeId = await user.mutation(api.resumes.createFromUpload, {
+    storageId,
+    fileName: "new.pdf",
+    mimeType: "application/pdf",
+    size: 4,
+  });
+  await t.mutation(internal.resumes.saveExtractedText, {
+    resumeId,
+    userId: first.userId,
+    text: "Document facts are preserved separately from user preferences.",
+    finalize: true,
+  });
+  await t.mutation(internal.resumes.completeProcessing, {
+    ...completion(resumeId, first.userId),
+    targetRoles: ["Product Manager"],
+    skills: ["Analytics"],
+    draftOnly: true,
+  });
+  const proposal = await user.query(api.resumes.getProfileUpdateDraft, {
+    resumeId,
+  });
+  expect(proposal.selections.targetJobTitles[0].labelEn).toBe(
+    "Product Manager",
+  );
+  expect(await user.query(api.candidateProfiles.getCurrent)).toEqual(before);
+  const otherId = await t.run((ctx) =>
+    ctx.db.insert("users", { email: "other@example.com" }),
+  );
+  await expect(
+    asUser(t, otherId).query(api.resumes.getProfileUpdateDraft, { resumeId }),
+  ).rejects.toThrow("RESUME_NOT_READY");
+  const args = {
+    values: {
+      preferredDisplayName: "Approved Name",
+      targetJobTitleIds: before.selections.targetJobTitles.map((r) => r.id),
+      professionalSummary: "User-edited summary",
+      languages: [{ languageCode: "en", proficiency: "fluent" as const }],
+      qualifications: { academicDegreeStatus: "none" as const, education: [] },
+    },
+    onboardingStep: 4,
+    complete: true,
+    resumeUpdate: { resumeId, expectedUpdatedAt: before.profile!.updatedAt },
+  };
+  await expect(
+    asUser(t, otherId).mutation(api.candidateProfiles.saveCurrent, args),
+  ).rejects.toThrow("RESUME_PROFILE_UPDATE_CONFLICT");
+  await expect(
+    user.mutation(api.candidateProfiles.saveCurrent, {
+      ...args,
+      resumeUpdate: {
+        ...args.resumeUpdate,
+        expectedUpdatedAt: before.profile!.updatedAt - 1,
+      },
+    }),
+  ).rejects.toThrow("RESUME_PROFILE_UPDATE_CONFLICT");
+  await user.mutation(api.candidateProfiles.saveCurrent, args);
+  const after = await user.query(api.candidateProfiles.getCurrent);
+  expect(after.profile?.preferredDisplayName).toBe("Approved Name");
+  expect(after.profile?.professionalSummary).toBe("User-edited summary");
+  expect(after.selections.targetJobTitles).toEqual(
+    before.selections.targetJobTitles,
+  );
+  expect(after.profile?.activeResumeId).toBe(resumeId);
+  expect(after.profile?.onboardingCompleted).toBe(true);
+  expect(after.profile?.cvReviewPending).toBe(false);
+});
+
+it("bounds the resume library and rejects oversized extraction without storing partial content", async () => {
+  const t = convexTest(schema, modules);
+  const first = await seedUserAndResume(t);
+  const user = asUser(t, first.userId);
+  await expect(
+    t.mutation(internal.resumes.saveExtractedText, {
+      resumeId: first.resumeId,
+      userId: first.userId,
+      text: "א".repeat(200_001),
+      finalize: true,
+    }),
+  ).rejects.toThrow("RESUME_TEXT_TOO_LARGE");
+  expect(
+    (await t.run((ctx) => ctx.db.get("resumeDocuments", first.resumeId)))
+      ?.extractedText,
+  ).toBeUndefined();
+  const storageId = await t.run(async (ctx) => {
+    const base = (await ctx.db.get("resumeDocuments", first.resumeId))!;
+    const { _id, _creationTime, ...fields } = base;
+    void _id;
+    void _creationTime;
+    for (let index = 0; index < 24; index++)
+      await ctx.db.insert("resumeDocuments", {
+        ...fields,
+        fileName: `resume-${index}.pdf`,
+      });
+    return ctx.storage.store(new Blob(["new"], { type: "application/pdf" }));
+  });
+  await expect(
+    user.mutation(api.resumes.createFromUpload, {
+      storageId,
+      fileName: "extra.pdf",
+      mimeType: "application/pdf",
+      size: 3,
+      activateOnSuccess: false,
+    }),
+  ).rejects.toThrow("RESUME_LIMIT_REACHED");
+});

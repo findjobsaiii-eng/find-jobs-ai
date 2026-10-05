@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { isUserFacingJobSource } from "./jobSourceProvenance";
@@ -112,21 +112,22 @@ export const prepare = internalMutation({
       .query("resumeDocuments")
       .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", args.userId))
       .order("desc")
-      .take(12);
-    const usable = allResumes.filter(usableResume).slice(0, 6);
+      .take(25);
+    const usable = allResumes.filter(usableResume);
     usable.sort((left, right) => {
       if (left._id === profile.activeResumeId) return -1;
       if (right._id === profile.activeResumeId) return 1;
       return right.createdAt - left.createdAt;
     });
-    let remainingCharacters = 48_000;
-    const resumes = usable.flatMap((resume, index) => {
-      if (remainingCharacters <= 0) return [];
-      const text = (resume.extractedText ?? "").slice(
+    if (
+      usable.reduce(
+        (total, resume) => total + (resume.extractedText?.length ?? 0),
         0,
-        Math.min(remainingCharacters, 12_000),
-      );
-      remainingCharacters -= text.length;
+      ) > 200_000
+    )
+      throw new ConvexError({ code: "REVIEW_RESUMES_TOO_LARGE" });
+    const resumes = usable.flatMap((resume, index) => {
+      const text = resume.extractedText!;
       return [
         {
           id: resume._id,

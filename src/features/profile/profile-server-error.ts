@@ -30,6 +30,8 @@ export function getProfileServerError(error: unknown) {
     return { key: "onboarding.errors.save", field: null } as const;
   }
   const data = error.data as { code?: unknown; field?: unknown };
+  if (data.code === "RESUME_PROFILE_UPDATE_CONFLICT")
+    return { key: "onboarding.errors.resumeConflict", field: null } as const;
   if (data.code === "UNAUTHENTICATED") {
     return { key: "onboarding.errors.authentication", field: null } as const;
   }

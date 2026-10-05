@@ -526,7 +526,8 @@
       "grossMonth": "Gross monthly base pay",
       "estimateDisclaimer": "A rough guess, not confirmed by the employer.",
       "day": "Per day"
-    }
+    },
+    "resumeContentTooLarge": "Your saved resumes contain too much text for one review. Shorten or remove a document and try again."
   },
   "resume": {
     "uploadTitle": "Upload your CV",
@@ -574,7 +575,9 @@
       "tooLarge": "This file is too large. The maximum supported size is 10 MB.",
       "rateLimited": "Too many upload attempts. Please try again in an hour.",
       "review": "We couldn’t save your profile. Please try again.",
-      "multiple": "Upload one file at a time."
+      "multiple": "Upload one file at a time.",
+      "textTooLarge": "This document contains too much text. Upload a shorter resume.",
+      "limit": "You can save up to 25 resumes. Delete a document before uploading another."
     },
     "dropTitle": "Drop a resume here or click to browse"
   },
@@ -745,7 +748,8 @@
       "authentication": "Your session has expired. Sign in again and retry.",
       "googleEmail": "Your Google account did not provide an email address. Sign out and use a Google account with an email.",
       "save": "We couldn't save your profile. Check your connection and try again.",
-      "experienceDomains": "Choose up to 20 experience areas, with names between 2 and 160 characters."
+      "experienceDomains": "Choose up to 20 experience areas, with names between 2 and 160 characters.",
+      "resumeConflict": "Your profile or resume changed during review. Close this review and start again."
     }
   },
   "applications": {
@@ -887,7 +891,6 @@
     "metadata": "{{type}} · {{size}}KB · {{date}}",
     "loading": "Loading resumes",
     "empty": "You have not uploaded a resume yet",
-    "details": "Details",
     "edit": "Edit label and note",
     "delete": "Delete",
     "deleteTitle": "Delete “{{name}}”?",
@@ -909,8 +912,14 @@
       "invalid": "We could not open the file.",
       "scannedPdf": "This appears to be a scanned PDF without text.",
       "empty": "We could not find text in the file.",
-      "parsing": "We read the file but could not analyze the resume."
-    }
+      "parsing": "We read the file but could not analyze the resume.",
+      "profileUpdate": "We could not prepare the profile update. Your profile has not changed.",
+      "textTooLarge": "This document contains too much text. Upload a shorter resume.",
+      "limit": "You can save up to 25 resumes. Delete a document before uploading another."
+    },
+    "updateProfile": "Update profile from this resume",
+    "approveProfile": "Approve profile update",
+    "reviewProfileDescription": "Review and edit the suggested details. Your profile changes only when you approve."
   },
   "admin": {
     "eyebrow": "Operations console",

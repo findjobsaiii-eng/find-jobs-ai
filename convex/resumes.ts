@@ -12,6 +12,7 @@ import {
   query,
 } from "./_generated/server";
 import schema from "./schema";
+import { currentProfileValidator, loadProfileView } from "./candidateProfiles";
 import {
   candidateQualificationsValidator,
   normalizeCandidateQualifications,
@@ -94,6 +95,21 @@ export const createFromUpload = mutation({
   returns: v.id("resumeDocuments"),
   handler: async (ctx, args) => {
     const { userId } = await requireUser(ctx);
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const activateOnSuccess =
+      !profile?.onboardingCompleted && args.activateOnSuccess !== false;
+    const savedResumes = await ctx.db
+      .query("resumeDocuments")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(25);
+    if (
+      savedResumes.length >= 25 &&
+      (!args.replacementForId || profile?.onboardingCompleted)
+    )
+      throw new ConvexError({ code: "RESUME_LIMIT_REACHED" });
     const alreadyUsed = await ctx.db
       .query("resumeDocuments")
       .withIndex("by_storageId", (q) => q.eq("storageId", args.storageId))
@@ -151,19 +167,15 @@ export const createFromUpload = mutation({
       ...(note ? { note } : {}),
       mimeType: type,
       size: metadata.size,
-      activateOnSuccess: args.activateOnSuccess,
+      activateOnSuccess,
       replacementForId: args.replacementForId,
       status: "processing",
       createdAt: now,
       updatedAt: now,
     });
-    const profile = await ctx.db
-      .query("candidateProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .unique();
     const willActivate =
       !profile?.activeResumeId ||
-      args.activateOnSuccess === true ||
+      activateOnSuccess ||
       replacement?._id === profile.activeResumeId;
     if (profile && !profile.onboardingCompleted && willActivate) {
       // A new onboarding CV starts a fresh education draft. Clear the old
@@ -321,7 +333,21 @@ export const getCurrent = query({
 
 export const listMine = query({
   args: {},
-  returns: v.array(summaryValidator),
+  returns: v.array(
+    summaryValidator.pick(
+      "id",
+      "fileName",
+      "displayName",
+      "note",
+      "mimeType",
+      "size",
+      "isActive",
+      "status",
+      "failureCode",
+      "createdAt",
+      "updatedAt",
+    ),
+  ),
   handler: async (ctx) => {
     const { userId } = await requireUser(ctx);
     const [profile, resumes] = await Promise.all([
@@ -340,22 +366,103 @@ export const listMine = query({
       resumes.find((resume) =>
         ["ready", "needs_confirmation", "replaced"].includes(resume.status),
       )?._id;
-    return await Promise.all(
-      resumes.map((resume) =>
-        summarizeResume(ctx, resume, profile, inferredActiveId),
-      ),
-    );
+    return resumes.map((resume) => ({
+      id: resume._id,
+      fileName: resume.fileName,
+      displayName:
+        resume.displayName ?? resume.fileName.replace(/\.(?:pdf|docx)$/iu, ""),
+      note: resume.note ?? null,
+      mimeType: resume.mimeType,
+      size: resume.size,
+      isActive: inferredActiveId === resume._id,
+      status: resume.status === "replaced" ? "ready" : resume.status,
+      failureCode: resume.failureCode ?? null,
+      createdAt: resume.createdAt,
+      updatedAt: resume.updatedAt,
+    }));
   },
 });
 
 export const getOwnedForProcessing = internalQuery({
-  args: { resumeId: v.id("resumeDocuments"), userId: v.id("users") },
+  args: {
+    resumeId: v.id("resumeDocuments"),
+    userId: v.id("users"),
+    profileUpdate: v.optional(v.boolean()),
+  },
   returns: v.union(v.null(), schema.doc("resumeDocuments")),
   handler: async (ctx, args) => {
     const resume = await ctx.db.get("resumeDocuments", args.resumeId);
-    return resume?.userId === args.userId && resume.status === "processing"
+    return resume?.userId === args.userId &&
+      (args.profileUpdate
+        ? ["ready", "needs_confirmation", "replaced"].includes(resume.status) &&
+          Boolean(resume.extractedText?.trim())
+        : resume.status === "processing")
       ? resume
       : null;
+  },
+});
+
+export const saveExtractedText = internalMutation({
+  args: {
+    resumeId: v.id("resumeDocuments"),
+    userId: v.id("users"),
+    text: v.string(),
+    finalize: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const resume = await ctx.db.get("resumeDocuments", args.resumeId);
+    if (resume?.userId !== args.userId)
+      throw new ConvexError({ code: "RESUME_NOT_FOUND" });
+    if (
+      !args.text.trim() ||
+      new TextEncoder().encode(args.text).byteLength > 400_000
+    )
+      throw new ConvexError({ code: "RESUME_TEXT_TOO_LARGE" });
+    await ctx.db.patch("resumeDocuments", resume._id, {
+      extractedText: args.text,
+      ...(args.finalize
+        ? { status: "ready" as const, processedAt: Date.now() }
+        : {}),
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const getProfileUpdateDraft = query({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: currentProfileValidator,
+  handler: async (ctx, args) => {
+    const { userId, user } = await requireUser(ctx);
+    const [resume, view] = await Promise.all([
+      ctx.db.get("resumeDocuments", args.resumeId),
+      loadProfileView(ctx, userId, user),
+    ]);
+    if (
+      resume?.userId !== userId ||
+      !resume.structuredProfileJson ||
+      !view.profile?.onboardingCompleted
+    )
+      throw new ConvexError({ code: "RESUME_NOT_READY" });
+    const patch = activeResumePatch(
+      resume,
+      { ...view.profile, manualOverrideFields: ["location"] },
+      view.profile.updatedAt,
+    );
+    const selections = await summarizeResume(ctx, resume, view.profile);
+    return {
+      ...view,
+      profile: {
+        ...view.profile,
+        ...patch,
+        experienceDomains: resume.domains ?? [],
+      },
+      selections: {
+        targetJobTitles: selections.targetRoles,
+        skills: selections.skills,
+      },
+    };
   },
 });
 
@@ -506,6 +613,7 @@ export const completeProcessing = internalMutation({
     resumeId: v.id("resumeDocuments"),
     userId: v.id("users"),
     extractedText: v.string(),
+    draftOnly: v.optional(v.boolean()),
     structuredProfileJson: v.string(),
     currentTitle: v.union(v.string(), v.null()),
     professionalDomain: v.union(v.string(), v.null()),
@@ -554,7 +662,7 @@ export const completeProcessing = internalMutation({
     if (
       !resume ||
       resume.userId !== args.userId ||
-      resume.status !== "processing"
+      (!args.draftOnly && resume.status !== "processing")
     )
       throw new ConvexError({ code: "RESUME_NOT_PROCESSING" });
     const user = await ctx.db.get("users", args.userId);
@@ -583,10 +691,12 @@ export const completeProcessing = internalMutation({
       ? await ctx.db.get("resumeDocuments", resume.replacementForId)
       : null;
     const shouldActivate =
-      !existing?.activeResumeId ||
-      resume.activateOnSuccess === true ||
-      replacement?._id === existing.activeResumeId ||
-      Boolean(replacement && !existing.activeResumeId);
+      !args.draftOnly &&
+      !existing?.onboardingCompleted &&
+      resume.activateOnSuccess !== false &&
+      (!existing?.activeResumeId ||
+        resume.activateOnSuccess === true ||
+        replacement?._id === existing.activeResumeId);
     const replacesActiveResume = Boolean(replacement && shouldActivate);
     const legacyOverrides =
       existing?.onboardingCompleted &&
@@ -718,7 +828,7 @@ export const completeProcessing = internalMutation({
         onboardingStep: 1,
         updatedAt: now,
       });
-    } else if (!existing) {
+    } else if (!existing && !args.draftOnly) {
       await ctx.db.insert("candidateProfiles", {
         userId: args.userId,
         email: user.email.toLocaleLowerCase("en-US"),
@@ -736,8 +846,12 @@ export const completeProcessing = internalMutation({
       });
     }
     await ctx.db.patch("resumeDocuments", resume._id, {
-      status: usable ? "ready" : "needs_confirmation",
-      extractedText: args.extractedText.slice(0, 100_000),
+      status: args.draftOnly
+        ? resume.status
+        : usable
+          ? "ready"
+          : "needs_confirmation",
+      extractedText: args.extractedText,
       structuredProfileJson: args.structuredProfileJson,
       currentTitle: args.currentTitle ?? undefined,
       professionalDomain: args.professionalDomain ?? undefined,
@@ -760,7 +874,7 @@ export const completeProcessing = internalMutation({
       updatedAt: now,
       processedAt: now,
     });
-    if (replacement && replacement.userId === args.userId) {
+    if (!args.draftOnly && replacement && replacement.userId === args.userId) {
       await ctx.storage.delete(replacement.storageId);
       await ctx.db.delete("resumeDocuments", replacement._id);
     }
@@ -948,6 +1062,7 @@ export const updateMetadata = mutation({
   },
 });
 
+// Selecting a default document never imports career data or preferences.
 export const setActive = mutation({
   args: { resumeId: v.id("resumeDocuments") },
   returns: v.null(),
@@ -962,32 +1077,13 @@ export const setActive = mutation({
     ]);
     if (
       resume?.userId !== userId ||
-      !profile ||
-      !["ready", "needs_confirmation", "replaced"].includes(resume.status) ||
-      !resume.targetJobTitleIds?.length ||
-      !resume.skillIds?.length
+      !profile?.onboardingCompleted ||
+      !resume.extractedText?.trim() ||
+      !["ready", "needs_confirmation", "replaced"].includes(resume.status)
     )
       throw new ConvexError({ code: "RESUME_NOT_READY" });
-    const now = Date.now();
     await ctx.db.patch("candidateProfiles", profile._id, {
-      ...activeResumePatch(resume, profile, now),
-      onboardingCompleted: true,
-      onboardingStep: 4,
-    });
-    await cancelOnboardingReminders(ctx, userId);
-    if (resume.status === "replaced")
-      await ctx.db.patch("resumeDocuments", resume._id, {
-        status: "ready",
-        updatedAt: now,
-      });
-    await ctx.scheduler.runAfter(0, internal.jobMatching.reconcileUserPage, {
-      userId,
-      lifecycleStatus: "verified_active",
-      cursor: null,
-      expectedProfileRevision: now,
-    });
-    await ctx.scheduler.runAfter(0, internal.dailyDiscovery.enqueueUser, {
-      userId,
+      activeResumeId: resume._id,
     });
     return null;
   },

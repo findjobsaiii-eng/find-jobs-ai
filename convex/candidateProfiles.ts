@@ -612,6 +612,12 @@ export const saveCurrent = mutation({
     values: editableFieldsValidator,
     onboardingStep: v.number(),
     complete: v.boolean(),
+    resumeUpdate: v.optional(
+      v.object({
+        resumeId: v.id("resumeDocuments"),
+        expectedUpdatedAt: v.number(),
+      }),
+    ),
   },
   returns: schema.doc("candidateProfiles"),
   handler: async (ctx, args) => {
@@ -631,6 +637,21 @@ export const saveCurrent = mutation({
     }
 
     const existing = await getProfile(ctx, userId);
+    const sourceResume = args.resumeUpdate
+      ? await ctx.db.get("resumeDocuments", args.resumeUpdate.resumeId)
+      : null;
+    if (
+      args.resumeUpdate &&
+      (!args.complete ||
+        !existing?.onboardingCompleted ||
+        existing.updatedAt !== args.resumeUpdate.expectedUpdatedAt ||
+        sourceResume?.userId !== userId ||
+        !sourceResume.structuredProfileJson ||
+        !["ready", "needs_confirmation", "replaced"].includes(
+          sourceResume.status,
+        ))
+    )
+      throw new ConvexError({ code: "RESUME_PROFILE_UPDATE_CONFLICT" });
     const normalized = normalizeEditableFields(args.values);
     const overrides = new Set(existing?.manualOverrideFields ?? []);
     for (const field of Object.keys(args.values)) {
@@ -700,6 +721,25 @@ export const saveCurrent = mutation({
       await ctx.db.patch("candidateProfiles", existing._id, {
         ...identityFields,
         ...normalized,
+        ...(sourceResume
+          ? {
+              activeResumeId: sourceResume._id,
+              seniority: sourceResume.seniority,
+              profileSourceVersion: (existing.profileSourceVersion ?? 0) + 1,
+              cvCareerProfile: {
+                resumeId: sourceResume._id,
+                currentTitle: sourceResume.currentTitle,
+                normalizedPastRoles: sourceResume.normalizedPastRoles ?? [],
+                seniority: sourceResume.seniority ?? ("unknown" as const),
+                domains: sourceResume.domains ?? [],
+                coreSkills: sourceResume.coreSkills ?? [],
+                totalExperienceMonths: sourceResume.totalExperienceMonths ?? 0,
+                experienceEvidence: sourceResume.extractedExperienceEvidence,
+                experienceByDomain: sourceResume.experienceByDomain ?? [],
+                updatedAt: now,
+              },
+            }
+          : {}),
         onboardingStep: args.complete ? 4 : args.onboardingStep,
         onboardingCompleted: existing.onboardingCompleted || args.complete,
         manualOverrideFields: [...overrides],

@@ -40,6 +40,20 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented locally: resume-library uploads save original files and complete
+  extracted text without changing completed profiles or running ordinary-file AI
+  profile analysis. Scanned PDF transcription is saved for deep review. The
+  inferred-details disclosure is removed. Explicit profile import opens editable
+  onboarding fields and writes only on final approval, with ownership and
+  profile-revision checks. Deep review uses every usable cached resume within
+  documented account/input limits. Production deployment and historical document
+  reprocessing are not part of this change.
+  Validation: all 473 tests, `npm run check`, the Webpack production build,
+  React Doctor with no findings, and deployment to development
+  `glorious-mallard-885` passed. Ordinary extraction, saved OCR text, isolated
+  review drafts, explicit approval, cancellation, ownership, stale-profile
+  rejection and full-text deep-review inputs are covered by automated tests.
+
 - Implemented and deployed to production: onboarding reminder emails at 24 and 72 hours after new
   signup, with automatic cancellation on completion/deletion, one setup CTA,
   English/Hebrew templates, recipient-only unsubscribe, bounded retries and

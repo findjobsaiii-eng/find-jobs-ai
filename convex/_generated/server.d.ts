@@ -43,6 +43,7 @@ type Env = {
   readonly ONBOARDING_REMINDERS_ENABLED: string | undefined;
   readonly OPENAI_API_KEY: string;
   readonly OPENAI_CATALOG_MODEL: string | undefined;
+  readonly OPENAI_CV_MODEL: string | undefined;
   readonly OPENAI_JOB_REVIEW_MODEL: string | undefined;
   readonly OPENAI_JOB_SEARCH_MODEL: string;
   readonly PUBLIC_APP_URL: string;

@@ -7,7 +7,8 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { openAiResponseUsage } from "./aiUsageModel";
-import { action, env } from "./_generated/server";
+import { z } from "zod";
+import { action, env, type ActionCtx } from "./_generated/server";
 import {
   normalizeResumeExtraction,
   resumeExtractionSchema,
@@ -241,45 +242,72 @@ export function cleanExtractedResumeText(value: string) {
     .replace(/[ \t]+/gu, " ")
     .replace(/\n[ \t]+/gu, "\n")
     .replace(/\n{3,}/gu, "\n\n")
-    .trim()
-    .slice(0, 100_000);
+    .trim();
 }
 
 export const processResume = action({
   args: { resumeId: v.id("resumeDocuments") },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
-    const resume = await ctx.runQuery(internal.resumes.getOwnedForProcessing, {
-      resumeId: args.resumeId,
-      userId,
-    });
-    if (!resume) throw new ConvexError({ code: "RESUME_NOT_PROCESSING" });
-    let stage = "storage_retrieval";
-    let diagnostics: {
-      stage: string;
-      detectedFileType?: string;
-      byteSize?: number;
+  handler: (ctx, args) => processDocument(ctx, args, false),
+});
+
+export const prepareProfileUpdate = action({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.null(),
+  handler: (ctx, args) => processDocument(ctx, args, true),
+});
+
+async function processDocument(
+  ctx: ActionCtx,
+  args: { resumeId: import("./_generated/dataModel").Id<"resumeDocuments"> },
+  profileUpdate: boolean,
+) {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
+  const resume = await ctx.runQuery(internal.resumes.getOwnedForProcessing, {
+    resumeId: args.resumeId,
+    userId,
+    profileUpdate,
+  });
+  if (!resume) throw new ConvexError({ code: "RESUME_NOT_PROCESSING" });
+  if (profileUpdate && resume.structuredProfileJson) return null;
+  let stage = "storage_retrieval";
+  let diagnostics: {
+    stage: string;
+    detectedFileType?: string;
+    byteSize?: number;
+    pageCount?: number;
+    extractedCharacterCount?: number;
+    meaningfulCharacterCount?: number;
+    extractionStatus: string;
+    structuredParserStatus: string;
+    updatedAt: number;
+  } = {
+    stage,
+    byteSize: resume.size,
+    extractionStatus: "not_started",
+    structuredParserStatus: "not_started",
+    updatedAt: Date.now(),
+  };
+  try {
+    let storedFile: Blob | undefined;
+    let text = resume.extractedText ?? "";
+    let extracted: {
+      detectedFileType: DetectedFileType;
+      byteSize: number;
       pageCount?: number;
-      extractedCharacterCount?: number;
-      meaningfulCharacterCount?: number;
-      extractionStatus: string;
-      structuredParserStatus: string;
-      updatedAt: number;
+      text: string;
     } = {
-      stage,
+      detectedFileType: resume.mimeType === "application/pdf" ? "pdf" : "docx",
       byteSize: resume.size,
-      extractionStatus: "not_started",
-      structuredParserStatus: "not_started",
-      updatedAt: Date.now(),
+      text,
     };
-    try {
+    if (!text) {
       const url = await ctx.storage.getUrl(resume.storageId);
       if (!url)
         throw new ResumeProcessingError(
           "FILE_NOT_FOUND",
-          "Convex Storage returned no URL",
+          "Stored file unavailable",
         );
       let response: Response;
       try {
@@ -296,230 +324,313 @@ export const processResume = action({
           `Stored file fetch returned HTTP ${response.status}`,
         );
       stage = "text_extraction";
-      const storedFile = await response.blob();
-      const extracted = await extractResumeDocument(storedFile);
-      const text = cleanExtractedResumeText(extracted.text);
-      const meaningfulCharacters = meaningfulCharacterCount(text);
-      const usePdfVisionFallback = shouldUsePdfVisionFallback(
-        extracted.detectedFileType,
-        text,
+      storedFile = await response.blob();
+      extracted = await extractResumeDocument(storedFile);
+      text = cleanExtractedResumeText(extracted.text);
+    }
+    const meaningfulCharacters = meaningfulCharacterCount(text);
+    const usePdfVisionFallback = shouldUsePdfVisionFallback(
+      extracted.detectedFileType,
+      text,
+    );
+    diagnostics = {
+      stage,
+      detectedFileType: extracted.detectedFileType,
+      byteSize: extracted.byteSize,
+      ...(extracted.pageCount === undefined
+        ? {}
+        : { pageCount: extracted.pageCount }),
+      extractedCharacterCount: text.length,
+      meaningfulCharacterCount: meaningfulCharacters,
+      extractionStatus: usePdfVisionFallback
+        ? "pdf_vision_fallback_required"
+        : "succeeded",
+      structuredParserStatus: "not_started",
+      updatedAt: Date.now(),
+    };
+    await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
+      resumeId: resume._id,
+      userId,
+      diagnostics,
+    });
+    if (env.DEV_TOOLS_ENABLED === "true")
+      console.info("resume_extraction_diagnostics", diagnostics);
+    const insufficientCode = insufficientTextFailureCode(
+      extracted.detectedFileType,
+      text,
+    );
+    if (insufficientCode && !usePdfVisionFallback)
+      throw new ResumeProcessingError(
+        insufficientCode,
+        `Only ${meaningfulCharacters} meaningful characters were extracted`,
       );
-      diagnostics = {
-        stage,
-        detectedFileType: extracted.detectedFileType,
-        byteSize: extracted.byteSize,
-        ...(extracted.pageCount === undefined
-          ? {}
-          : { pageCount: extracted.pageCount }),
-        extractedCharacterCount: text.length,
-        meaningfulCharacterCount: meaningfulCharacters,
-        extractionStatus: usePdfVisionFallback
-          ? "pdf_vision_fallback_required"
-          : "succeeded",
-        structuredParserStatus: "not_started",
-        updatedAt: Date.now(),
-      };
-      await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
-        resumeId: resume._id,
-        userId,
-        diagnostics,
+    if (usePdfVisionFallback) {
+      stage = "text_extraction";
+      const client = new OpenAI({
+        apiKey: env.OPENAI_API_KEY,
+        maxRetries: 1,
+        timeout: 60_000,
       });
-      if (env.DEV_TOOLS_ENABLED === "true")
-        console.info("resume_extraction_diagnostics", diagnostics);
-      const insufficientCode = insufficientTextFailureCode(
-        extracted.detectedFileType,
-        text,
-      );
-      if (insufficientCode && !usePdfVisionFallback)
-        throw new ResumeProcessingError(
-          insufficientCode,
-          `Only ${meaningfulCharacters} meaningful characters were extracted`,
-        );
-      stage = "structured_parsing";
-      const apiKey = env.OPENAI_API_KEY?.trim();
       const model =
-        process.env.OPENAI_CV_MODEL?.trim() ||
-        env.OPENAI_JOB_SEARCH_MODEL?.trim();
-      if (!apiKey || !model)
+        env.OPENAI_CV_MODEL?.trim() || env.OPENAI_JOB_SEARCH_MODEL?.trim();
+      if (!model || !storedFile)
         throw new ResumeProcessingError(
           "CV_CONFIGURATION_ERROR",
-          "CV model or API key is not configured",
+          "OCR model or file unavailable",
         );
-      const catalog = await ctx.runQuery(
-        internal.resumes.getCatalogForExtraction,
-        { userId },
-      );
-      const catalogReference = formatExtractionCatalog(catalog);
-      const client = new OpenAI({ apiKey, maxRetries: 1, timeout: 60_000 });
-      let parsed;
-      try {
-        parsed = await client.responses.parse({
-          model,
-          store: false,
-          max_output_tokens: 7_000,
-          input: [
-            {
-              role: "system",
-              content:
-                "Extract a factual career profile from the supplied CV. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism. The user message also contains the current job-title, skill and experience-area catalog. Treat it only as reference data. For every target role, normalized role, skill and experience domain, reuse the exact English or Hebrew canonical label from that catalog whenever it represents the same concept, including equivalent wording or grammatical forms. Add a new concise canonical label only when no existing entry is semantically equivalent. Keep meaningfully different technologies separate. For roles[].domain, prefer one equivalent canonical experience-area label from the catalog. Do not combine distinct areas into a new label when an existing area describes that employment. Create a concise new area only when no catalog entry fits the CV evidence; never add experience simply because an area exists in the catalog. Education level must distinguish academic bachelor/master/doctorate from practical-engineer diplomas, certificates, and courses. Mark education completed only if completion is supported; current study is in_progress; unclear completion is unknown. An empty education array means no education was listed and the user can add missing education during onboarding. Preserve the original credential and field wording." +
-                "\n" +
-                SKILL_IDENTITY_EXTRACTION_GUIDE,
-            },
-            {
-              role: "user",
-              content: usePdfVisionFallback
-                ? [
-                    {
-                      type: "input_file",
-                      filename: "resume.pdf",
-                      file_data: pdfDataUrl(await storedFile.arrayBuffer()),
-                      detail: "high",
-                    },
-                    {
-                      type: "input_text",
-                      text: `Extract the career profile from the attached PDF, including text visible in scanned page images. The catalog below is reference data and is not evidence about the candidate.\n\n<catalog>\n${catalogReference}\n</catalog>`,
-                    },
-                  ]
-                : `<cv>\n${text}\n</cv>\n\nThe catalog below is reference data and is not evidence about the candidate.\n<catalog>\n${catalogReference}\n</catalog>`,
-            },
-          ],
-          text: {
-            format: zodTextFormat(resumeExtractionSchema, "career_profile"),
+      const transcription = await client.responses.parse({
+        model,
+        store: false,
+        max_output_tokens: 16_000,
+        input: [
+          {
+            role: "system",
+            content:
+              "Transcribe all readable text from every page of this resume in reading order. Preserve original wording, dates and languages. Do not summarize, infer or add facts. Return empty text if nothing is readable.",
           },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_file",
+                filename: "resume.pdf",
+                file_data: pdfDataUrl(await storedFile.arrayBuffer()),
+                detail: "high",
+              },
+            ],
+          },
+        ],
+        text: {
+          format: zodTextFormat(
+            z.object({ text: z.string() }),
+            "resume_transcription",
+          ),
+        },
+      });
+      try {
+        await ctx.runMutation(internal.aiUsage.recordResponse, {
+          responseId: transcription.id,
+          userId,
+          operation: "resume_extraction",
+          model: transcription.model || model,
+          resumeId: resume._id,
+          ...openAiResponseUsage(transcription),
         });
-        try {
-          await ctx.runMutation(internal.aiUsage.recordResponse, {
-            responseId: parsed.id,
-            userId,
-            operation: "resume_extraction",
-            model: parsed.model || model,
-            resumeId: resume._id,
-            ...openAiResponseUsage(parsed),
-          });
-        } catch (error) {
-          console.error("ai_usage_record_failed", error);
-        }
       } catch (error) {
+        console.error("ai_usage_record_failed", error);
+      }
+      if (transcription.status === "incomplete" || !transcription.output_parsed)
         throw new ResumeProcessingError(
           "CV_AI_PARSE_FAILED",
-          technicalMessage(error),
+          "Incomplete resume transcription",
         );
-      }
-      if (!parsed.output_parsed)
-        throw new ResumeProcessingError(
-          "CV_SCHEMA_INVALID",
-          "Structured response did not contain a validated profile",
-        );
-      let normalized;
-      try {
-        normalized = normalizeResumeExtraction(parsed.output_parsed);
-      } catch (error) {
-        throw new ResumeProcessingError(
-          "CV_SCHEMA_INVALID",
-          technicalMessage(error),
-        );
-      }
-      const languages = normalized.languages.flatMap(
-        ({ language, proficiency }) => {
-          const languageCode =
-            LANGUAGE_CODES[
-              language.normalize("NFKC").trim().toLocaleLowerCase("en-US")
-            ];
-          const level = proficiency
-            ? PROFICIENCIES[
-                proficiency.normalize("NFKC").trim().toLocaleLowerCase("en-US")
-              ]
-            : undefined;
-          return languageCode && level
-            ? [{ languageCode, proficiency: level }]
-            : [];
-        },
+      text = cleanExtractedResumeText(transcription.output_parsed.text);
+    }
+    if (meaningfulCharacterCount(text) < 40)
+      throw new ResumeProcessingError(
+        "EMPTY_EXTRACTED_TEXT",
+        "Resume has insufficient readable text",
       );
-      await ctx.runMutation(internal.resumes.completeProcessing, {
-        resumeId: resume._id,
-        userId,
-        extractedText: text,
-        structuredProfileJson: JSON.stringify(normalized),
-        currentTitle: normalized.currentTitle,
-        professionalDomain: normalized.professionalDomain,
-        seniority: normalized.seniority,
-        summary: normalized.summary,
-        targetRoles: normalized.targetRoles.map((role) => role.title),
-        skills: normalized.allSkills,
-        normalizedLocation: normalized.normalizedLocation,
-        totalExperienceMonths: normalized.totalExperienceMonths,
-        experienceEvidence: normalized.experienceEvidence,
-        normalizedPastRoles: normalized.roles.map(
-          (role) => role.normalizedTitle,
-        ),
-        domains: [
-          ...new Set(
-            [
-              normalized.professionalDomain,
-              ...normalized.roles.map((role) => role.domain),
-            ].filter((value): value is string => Boolean(value)),
-          ),
-        ],
-        experienceByDomain: normalized.experienceByDomain,
-        languages,
-        qualifications: normalized.qualifications,
-        confidence: normalized.confidence,
-      });
-      diagnostics = {
-        ...diagnostics,
-        stage: "complete",
-        structuredParserStatus: "succeeded",
-        updatedAt: Date.now(),
-      };
+    if (new TextEncoder().encode(text).byteLength > 400_000)
+      throw new ResumeProcessingError(
+        "RESUME_TEXT_TOO_LARGE",
+        "Resume text exceeds document storage budget",
+      );
+    const documentOnly = !profileUpdate && resume.activateOnSuccess === false;
+    await ctx.runMutation(internal.resumes.saveExtractedText, {
+      resumeId: resume._id,
+      userId,
+      text,
+      finalize: documentOnly,
+    });
+    diagnostics = {
+      ...diagnostics,
+      extractedCharacterCount: text.length,
+      meaningfulCharacterCount: meaningfulCharacterCount(text),
+      extractionStatus: usePdfVisionFallback ? "ocr_succeeded" : "succeeded",
+      updatedAt: Date.now(),
+    };
+    if (documentOnly) {
       await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
         resumeId: resume._id,
         userId,
-        diagnostics,
+        diagnostics: {
+          ...diagnostics,
+          stage: "complete",
+          structuredParserStatus: "not_needed",
+        },
       });
-      if (env.DEV_TOOLS_ENABLED === "true")
-        console.info("resume_processing_complete", diagnostics);
       return null;
-    } catch (error) {
-      const errorData: unknown =
-        error instanceof ConvexError ? error.data : null;
-      const code =
-        error instanceof ResumeProcessingError
-          ? error.code
-          : errorData && typeof errorData === "object" && "code" in errorData
-            ? String(errorData.code)
-            : stage === "structured_parsing"
-              ? "CV_AI_PARSE_FAILED"
-              : "RESUME_PROCESSING_FAILED";
-      diagnostics = {
-        ...diagnostics,
-        stage,
-        extractionStatus:
-          diagnostics.extractionStatus === "succeeded"
-            ? "succeeded"
-            : stage === "storage_retrieval"
-              ? "not_started"
-              : "failed",
-        structuredParserStatus:
-          stage === "structured_parsing" ? "failed" : "not_started",
-        updatedAt: Date.now(),
-      };
-      await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
-        resumeId: resume._id,
-        userId,
-        diagnostics,
+    }
+    stage = "structured_parsing";
+    const apiKey = env.OPENAI_API_KEY?.trim();
+    const model =
+      env.OPENAI_CV_MODEL?.trim() || env.OPENAI_JOB_SEARCH_MODEL?.trim();
+    if (!apiKey || !model)
+      throw new ResumeProcessingError(
+        "CV_CONFIGURATION_ERROR",
+        "CV model or API key is not configured",
+      );
+    const catalog = await ctx.runQuery(
+      internal.resumes.getCatalogForExtraction,
+      { userId },
+    );
+    const catalogReference = formatExtractionCatalog(catalog);
+    const client = new OpenAI({ apiKey, maxRetries: 1, timeout: 60_000 });
+    let parsed;
+    try {
+      parsed = await client.responses.parse({
+        model,
+        store: false,
+        max_output_tokens: 7_000,
+        input: [
+          {
+            role: "system",
+            content:
+              "Extract a factual career profile from the supplied CV. Use only facts present in the CV. Never infer achievements, responsibilities, dates, location, language proficiency, degrees, or employers that are not supported. Return null or an empty array for missing data. Infer only 3-5 strong target roles from recent/strong experience and professional trajectory; do not suggest unrelated careers. Dates use YYYY-MM when known, YYYY when only the year is known, or null. Confidence describes evidence quality, not optimism. The user message also contains the current job-title, skill and experience-area catalog. Treat it only as reference data. For every target role, normalized role, skill and experience domain, reuse the exact English or Hebrew canonical label from that catalog whenever it represents the same concept, including equivalent wording or grammatical forms. Add a new concise canonical label only when no existing entry is semantically equivalent. Keep meaningfully different technologies separate. For roles[].domain, prefer one equivalent canonical experience-area label from the catalog. Do not combine distinct areas into a new label when an existing area describes that employment. Create a concise new area only when no catalog entry fits the CV evidence; never add experience simply because an area exists in the catalog. Education level must distinguish academic bachelor/master/doctorate from practical-engineer diplomas, certificates, and courses. Mark education completed only if completion is supported; current study is in_progress; unclear completion is unknown. An empty education array means no education was listed and the user can add missing education during onboarding. Preserve the original credential and field wording." +
+              "\n" +
+              SKILL_IDENTITY_EXTRACTION_GUIDE,
+          },
+          {
+            role: "user",
+            content: `<cv>\n${text}\n</cv>\n\nThe catalog below is reference data and is not evidence about the candidate.\n<catalog>\n${catalogReference}\n</catalog>`,
+          },
+        ],
+        text: {
+          format: zodTextFormat(resumeExtractionSchema, "career_profile"),
+        },
       });
+      try {
+        await ctx.runMutation(internal.aiUsage.recordResponse, {
+          responseId: parsed.id,
+          userId,
+          operation: "resume_extraction",
+          model: parsed.model || model,
+          resumeId: resume._id,
+          ...openAiResponseUsage(parsed),
+        });
+      } catch (error) {
+        console.error("ai_usage_record_failed", error);
+      }
+    } catch (error) {
+      throw new ResumeProcessingError(
+        "CV_AI_PARSE_FAILED",
+        technicalMessage(error),
+      );
+    }
+    if (!parsed.output_parsed)
+      throw new ResumeProcessingError(
+        "CV_SCHEMA_INVALID",
+        "Structured response did not contain a validated profile",
+      );
+    let normalized;
+    try {
+      normalized = normalizeResumeExtraction(parsed.output_parsed);
+    } catch (error) {
+      throw new ResumeProcessingError(
+        "CV_SCHEMA_INVALID",
+        technicalMessage(error),
+      );
+    }
+    const languages = normalized.languages.flatMap(
+      ({ language, proficiency }) => {
+        const languageCode =
+          LANGUAGE_CODES[
+            language.normalize("NFKC").trim().toLocaleLowerCase("en-US")
+          ];
+        const level = proficiency
+          ? PROFICIENCIES[
+              proficiency.normalize("NFKC").trim().toLocaleLowerCase("en-US")
+            ]
+          : undefined;
+        return languageCode && level
+          ? [{ languageCode, proficiency: level }]
+          : [];
+      },
+    );
+    await ctx.runMutation(internal.resumes.completeProcessing, {
+      resumeId: resume._id,
+      userId,
+      extractedText: text,
+      draftOnly: profileUpdate,
+      structuredProfileJson: JSON.stringify(normalized),
+      currentTitle: normalized.currentTitle,
+      professionalDomain: normalized.professionalDomain,
+      seniority: normalized.seniority,
+      summary: normalized.summary,
+      targetRoles: normalized.targetRoles.map((role) => role.title),
+      skills: normalized.allSkills,
+      normalizedLocation: normalized.normalizedLocation,
+      totalExperienceMonths: normalized.totalExperienceMonths,
+      experienceEvidence: normalized.experienceEvidence,
+      normalizedPastRoles: normalized.roles.map((role) => role.normalizedTitle),
+      domains: [
+        ...new Set(
+          [
+            normalized.professionalDomain,
+            ...normalized.roles.map((role) => role.domain),
+          ].filter((value): value is string => Boolean(value)),
+        ),
+      ],
+      experienceByDomain: normalized.experienceByDomain,
+      languages,
+      qualifications: normalized.qualifications,
+      confidence: normalized.confidence,
+    });
+    diagnostics = {
+      ...diagnostics,
+      stage: "complete",
+      structuredParserStatus: "succeeded",
+      updatedAt: Date.now(),
+    };
+    await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
+      resumeId: resume._id,
+      userId,
+      diagnostics,
+    });
+    if (env.DEV_TOOLS_ENABLED === "true")
+      console.info("resume_processing_complete", diagnostics);
+    return null;
+  } catch (error) {
+    const errorData: unknown = error instanceof ConvexError ? error.data : null;
+    const code =
+      error instanceof ResumeProcessingError
+        ? error.code
+        : errorData && typeof errorData === "object" && "code" in errorData
+          ? String(errorData.code)
+          : stage === "structured_parsing"
+            ? "CV_AI_PARSE_FAILED"
+            : "RESUME_PROCESSING_FAILED";
+    diagnostics = {
+      ...diagnostics,
+      stage,
+      extractionStatus:
+        diagnostics.extractionStatus === "succeeded"
+          ? "succeeded"
+          : stage === "storage_retrieval"
+            ? "not_started"
+            : "failed",
+      structuredParserStatus:
+        stage === "structured_parsing" ? "failed" : "not_started",
+      updatedAt: Date.now(),
+    };
+    await ctx.runMutation(internal.resumes.recordProcessingDiagnostics, {
+      resumeId: resume._id,
+      userId,
+      diagnostics,
+    });
+    if (!profileUpdate)
       await ctx.runMutation(internal.resumes.failProcessing, {
         resumeId: resume._id,
         userId,
         failureCode: code,
       });
-      if (env.DEV_TOOLS_ENABLED === "true")
-        console.error("resume_processing_failed", {
-          resumeId: resume._id,
-          code,
-          ...diagnostics,
-        });
-      throw new ConvexError({ code });
-    }
-  },
-});
+    if (env.DEV_TOOLS_ENABLED === "true")
+      console.error("resume_processing_failed", {
+        resumeId: resume._id,
+        code,
+        ...diagnostics,
+      });
+    throw new ConvexError({ code });
+  }
+}
