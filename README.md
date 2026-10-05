@@ -24,15 +24,18 @@ The Convex setup creates the local environment configuration used by `NEXT_PUBLI
 ## Analytics
 
 PostHog captures page views, a reviewed allowlist of product events, and
-privacy-masked session replays only after the visitor accepts optional analytics
+session replays only after the visitor accepts optional analytics
 in the cookie banner. It captures client-side navigation when
 `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` are set in the
 ignored `.env.local` file. Set the same variables in the Next.js hosting
 environment for deployment. Restart or rebuild Next.js after changing them.
-Automatic interaction capture remains disabled. Replay masks all text, inputs,
-and element attributes and blocks images, video, canvas, and iframes; console
-logs, network bodies, performance capture, query strings, and arbitrary event
-properties are not sent. Authenticated users are identified with their opaque
+Automatic interaction event capture remains disabled. Replay preserves layout,
+CSS, fonts, visible text/images, ordinary form values, clicks and scrolling.
+Passwords are masked; embedded documents, canvas, hidden/file inputs and regions
+marked `data-analytics-private` or `ph-no-capture` are blocked.
+Use `data-analytics-mask`/`ph-mask` for individual text regions. Console logs,
+network headers/bodies, performance capture, navigation query strings and
+arbitrary semantic event properties are not sent. Authenticated users are identified with their opaque
 Convex user ID, never an email address or profile field. Visitors can reject
 optional analytics or change their choice from the footer. The PostHog client is
 loaded lazily after opt-in and uses memory-only persistence.
@@ -49,18 +52,37 @@ URLs, or arbitrary client payloads in the analytics tables.
 
 ## Error monitoring
 
-Sentry captures browser and Next.js server errors when `NEXT_PUBLIC_SENTRY_DSN`
-is configured. Error events are scrubbed before sending: user, request,
-breadcrumbs, arbitrary messages and extras are removed. It does not collect
-session replays or performance traces. The
-temporary `/sentry-test` page has a button that throws and reports one controlled
-error, then displays its event ID for lookup in Sentry. Remove that route after
-verifying deployment.
+Sentry captures browser and original Next.js server errors when
+`NEXT_PUBLIC_SENTRY_DSN` is configured. Node and Edge initialize through
+`src/instrumentation.ts`; `onRequestError` forwards the original exception and
+digest through `captureRequestError`. Route, root-layout and profile boundaries
+also report client failures, including Convex function/request IDs when present.
+Authenticated events attach only a verified internal user ID and clear it on
+logout; no email, name or profile attributes are attached.
+
+The privacy allowlist retains redacted exception messages, stack locations,
+source-map debug IDs, safe URL paths, route metadata and digests. It strips
+query strings/fragments, request headers/cookies/bodies, breadcrumbs, arbitrary
+contexts/extras, stack locals and validation payloads. Sentry does not collect
+session replay or performance traces. Production Vercel builds upload browser
+and server maps using `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN`.
+The 2026-10-05 production build logs confirm successful artifact-bundle uploads.
+Actual event symbolication must still be checked in Sentry after deploying these
+changes: a source map cannot repair stack frames removed by the previous scrubber.
+
+The temporary `/sentry-test` page reports one controlled client error and displays
+its event ID. Remove that route after verification. Convex runs separately from
+Next.js: client query failures retain their function/request identifiers, but
+Next's server hook cannot capture a Convex platform timeout's backend stack.
+For original Convex backend events in Sentry, configure the native Sentry
+exception integration under production deployment Settings → Integrations
+(requires Convex Pro): [Convex exception reporting](https://docs.convex.dev/production/integrations/exception-reporting).
+Its current production configuration has not been verified.
 
 ## Launch documents and consent
 
 Bilingual terms, privacy, cookie, accessibility and contact pages have stable
-`/he/...` and `/en/...` URLs. Their displayed version is `2026-09-23`. Sign-in
+`/he/...` and `/en/...` URLs. Their displayed version is `2026-10-06`. Sign-in
 shows compact links to the terms and privacy policy without blocking the user,
 and CV upload has no separate legal gate. Optional analytics remains disabled
 until the visitor chooses it in the compact cookie banner; the footer reopens

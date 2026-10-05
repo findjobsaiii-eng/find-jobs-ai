@@ -465,3 +465,18 @@ it("returns saved personal education only to its owner and recognizes public bil
     t.query(api.referenceIdentity.searchEducation, { search: "" }),
   ).rejects.toThrow();
 });
+
+it("bounds education lookup text without rejecting an imported long credential", async () => {
+  const t = convexTest(schema, modules);
+  const userId = await t.run((ctx) =>
+    ctx.db.insert("users", { email: "candidate@example.com" }),
+  );
+  const user = t.withIdentity({ subject: `${userId}|test-session` });
+  const result = await user.query(api.referenceIdentity.searchEducation, {
+    search: "Software Engineering ".repeat(30),
+  });
+  expect(result).toEqual([]);
+  await expect(
+    t.query(api.referenceIdentity.searchEducation, { search: "a".repeat(200) }),
+  ).rejects.toThrow(/UNAUTHENTICATED/u);
+});

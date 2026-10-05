@@ -1,4 +1,4 @@
-export const legalVersion = "2026-09-23";
+export const legalVersion = "2026-10-06";
 
 type Section = { heading: string; body: string };
 type Page = { title: string; introduction: string; sections: Section[] };
@@ -63,7 +63,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "ספקים והעברות",
-          body: "Vercel מארחת את האתר; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה והצעות מיקום; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות ומדווחת אירועי מסירה ומעורבות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח מוצר ולהקלטת שימוש מטושטשת בכפוף להסכמה. ספקים אלה עשויים לעבד מידע מחוץ לישראל בהתאם לתנאים ולאמצעי ההגנה שלהם.",
+          body: "Vercel מארחת את האתר; Convex מספקת מסד נתונים, אחסון קבצים ואימות; Google מספקת כניסה והצעות מיקום; OpenAI מעבדת תכנים לצורכי ניתוח קורות חיים ומשרות; Resend שולחת עדכוני משרות ומדווחת אירועי מסירה ומעורבות; Sentry משמשת לדיווח תקלות; PostHog משמשת לניתוח מוצר ולהקלטת שימוש בכפוף להסכמה. ספקים אלה עשויים לעבד מידע מחוץ לישראל בהתאם לתנאים ולאמצעי ההגנה שלהם.",
         },
         {
           heading: "שמירה ומחיקה",
@@ -90,7 +90,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "ניתוח שימוש אופציונלי",
-          body: "ניתוח שימוש נטען רק לאחר אישור מפורש. הוא מתעד צפיות בעמודים ומספר מצומצם של אירועי מוצר תחת מזהה חשבון אטום, ללא איסוף אוטומטי של לחיצות. הקלטת השימוש האופציונלית מטשטשת את כל הטקסט והשדות, מסווה מאפייני רכיבים וחוסמת תמונות, וידאו, canvas ומסגרות מוטמעות; לוגים ותוכן רשת אינם מוקלטים. החיבור עשוי להעביר מידע טכני כגון כתובת IP; בחירת דחייה מונעת את טעינתו וביטול הסכמה מפסיק איסוף נוסף. פרטי הספק מופיעים במדיניות הפרטיות.",
+          body: "ניתוח שימוש נטען רק לאחר אישור מפורש. הוא מתעד צפיות בעמודים ומספר מצומצם של אירועי מוצר תחת מזהה חשבון אטום, ללא איסוף אוטומטי של לחיצות. הקלטת השימוש האופציונלית מתעדת את מראה העמוד, טקסט, תמונות, ערכי שדות רגילים, לחיצות, גלילה ומעבר בין עמודים. סיסמאות מטושטשות; מסמכים מוטמעים ואזורים שסומנו כפרטיים אינם מוקלטים. לוגים, כותרות ותוכן בקשות רשת אינם מוקלטים. החיבור עשוי להעביר מידע טכני כגון כתובת IP; בחירת דחייה מונעת את טעינתו וביטול הסכמה מפסיק איסוף נוסף. פרטי הספק מופיעים במדיניות הפרטיות.",
         },
         {
           heading: "ניהול הבחירה",
@@ -183,7 +183,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Providers and transfers",
-          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides sign-in and location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications and reports delivery and engagement events; Sentry reports errors; PostHog provides consent-based product analytics and privacy-masked session replay. These providers may process information outside Israel under their terms and safeguards.",
+          body: "Vercel hosts the website; Convex provides database, file storage and authentication; Google provides sign-in and location suggestions; OpenAI processes content for resume and job analysis; Resend sends job notifications and reports delivery and engagement events; Sentry reports errors; PostHog provides consent-based product analytics and session replay. These providers may process information outside Israel under their terms and safeguards.",
         },
         {
           heading: "Retention and deletion",
@@ -210,7 +210,7 @@ export const legalPages: Record<"he" | "en", LegalLocale> = {
         },
         {
           heading: "Optional analytics",
-          body: "Analytics loads only after an explicit opt-in. It records page views and a small set of product events under an opaque account identifier. Automatic click capture is disabled. Optional session replay masks all text and inputs, masks element attributes, and blocks images, video, canvas and embedded frames; console logs and network bodies are not recorded. The connection may transmit technical data such as an IP address. Rejecting keeps it unloaded and revoking consent stops further capture. Provider details appear in the privacy policy.",
+          body: "Analytics loads only after an explicit opt-in. It records page views and a small set of product events under an opaque account identifier. Automatic click capture is disabled. Optional session replay records the page layout, text, images, ordinary form values, clicks, scrolling and navigation. Passwords are masked; embedded documents and explicitly private regions are excluded. Console logs, network headers and request/response bodies are not recorded. The connection may transmit technical data such as an IP address. Rejecting keeps it unloaded and revoking consent stops further capture. Provider details appear in the privacy policy.",
         },
         {
           heading: "Managing your choice",

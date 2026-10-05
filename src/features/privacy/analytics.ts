@@ -1,6 +1,34 @@
+import type { SessionRecordingOptions } from "posthog-js";
 import { readCookieConsent } from "./cookie-consent";
 
 type PostHogClient = typeof import("posthog-js").default;
+
+// Preserve the UI's actual appearance and normal form interactions. Only
+// credentials, embedded documents and explicitly private regions are excluded.
+export const SESSION_REPLAY_OPTIONS = {
+  blockClass: "ph-no-capture",
+  maskTextClass: "ph-mask",
+  maskAllInputs: false,
+  maskInputOptions: { password: true },
+  maskTextSelector: "[data-analytics-mask]",
+  maskAllElementAttributes: false,
+  blockSelector:
+    'iframe, object, embed, canvas, input[type="file"], input[type="hidden"], [data-analytics-private]',
+  inlineStylesheet: true,
+  collectFonts: true,
+  recordCrossOriginIframes: false,
+  recordHeaders: false,
+  recordBody: false,
+  maskCapturedNetworkRequestFn: (request) => {
+    // Preserve navigation context without storing OAuth codes/signed URL queries.
+    try {
+      const url = new URL(request.name, window.location.origin);
+      return { ...request, name: `${url.origin}${url.pathname}` };
+    } catch {
+      return null;
+    }
+  },
+} satisfies SessionRecordingOptions;
 
 export type ProductAnalyticsEvent =
   | "job_feed_viewed"
@@ -80,15 +108,7 @@ export async function syncAnalyticsConsent(analytics: boolean) {
       disable_session_recording: false,
       enable_recording_console_log: false,
       capture_performance: false,
-      session_recording: {
-        maskAllInputs: true,
-        maskTextSelector: "*",
-        maskAllElementAttributes: true,
-        blockSelector: "img, video, canvas, iframe, [data-analytics-private]",
-        recordCrossOriginIframes: false,
-        recordHeaders: false,
-        recordBody: false,
-      },
+      session_recording: SESSION_REPLAY_OPTIONS,
       before_send: (event) => {
         if (!event) return null;
         if (event.event === "$snapshot" || event.event === "$identify") {

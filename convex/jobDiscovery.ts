@@ -1777,19 +1777,15 @@ async function feedItem(
   job: Doc<"jobs">,
   profile: SearchProfile,
 ) {
+  // Reject stale lifecycle rows before doing any profile scoring.
+  if (!isDisplayEligibleJob(job) || !job.bestSourceId) return null;
   const quality = evaluateJobQuality(job, profile);
   const freshness = evaluateSuggestionFreshness({
     postedAt: job.postedAt,
     lifecycleStatus: job.lifecycleStatus,
     relevanceScore: quality.relevanceScore,
   });
-  if (
-    !isDisplayEligibleJob(job) ||
-    quality.outcome !== "eligible" ||
-    !freshness.eligible ||
-    !job.bestSourceId
-  )
-    return null;
+  if (quality.outcome !== "eligible" || !freshness.eligible) return null;
   const source = await ctx.db.get("jobSources", job.bestSourceId);
   if (
     !source ||
@@ -1894,21 +1890,25 @@ function deepReviewView(
   };
 }
 
-/** The same inventory policy drives the feed, notifications, and admin counts.
+/** The same inventory policy drives the feed, notifications, and admin previews.
  * Quality is an index partition so high-scoring near-matches cannot obscure
  * stronger eligible jobs outside the first score window. */
-export async function loadSuggestionMatches(
+async function loadSuggestionEntries(
   ctx: QueryCtx | MutationCtx,
   userId: Id<"users">,
   profileRevision: number,
   suppliedProfile?: SearchProfile,
-): Promise<Doc<"jobMatches">[]> {
+) {
   const profile = suppliedProfile ?? (await loadSearchProfile(ctx, userId));
   const loadPartition = async (
     matchQuality: "strong" | "partial",
     limit: number,
   ) => {
-    const valid: Doc<"jobMatches">[] = [];
+    const valid: {
+      match: Doc<"jobMatches">;
+      job: Doc<"jobs">;
+      item: NonNullable<Awaited<ReturnType<typeof feedItem>>>;
+    }[] = [];
     let scanned = 0;
     const rows = ctx.db
       .query("jobMatches")
@@ -1935,7 +1935,8 @@ export async function loadSuggestionMatches(
       ]);
       if (job && (!application?.status || application.status === "saved")) {
         const item = await feedItem(ctx, job, profile);
-        if (item?.matchQuality === matchQuality) valid.push(row);
+        if (item?.matchQuality === matchQuality)
+          valid.push({ match: row, job, item });
       }
       if (valid.length >= limit || scanned >= 500) break;
     }
@@ -1945,6 +1946,17 @@ export async function loadSuggestionMatches(
   if (strong.length >= 5) return strong;
   const partial = await loadPartition("partial", 5 - strong.length);
   return [...strong, ...partial];
+}
+
+export async function loadSuggestionMatches(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+  profileRevision: number,
+  suppliedProfile?: SearchProfile,
+): Promise<Doc<"jobMatches">[]> {
+  return (
+    await loadSuggestionEntries(ctx, userId, profileRevision, suppliedProfile)
+  ).map(({ match }) => match);
 }
 
 async function suggestionFeedForUser(
@@ -1959,18 +1971,14 @@ async function suggestionFeedForUser(
     ReturnType<typeof timelineEventView>[]
   >,
 ) {
-  const matches = await loadSuggestionMatches(
+  const entries = await loadSuggestionEntries(
     ctx,
     userId,
     profileRevision,
     profile,
   );
   const jobs = [];
-  for (const match of matches) {
-    const job = await ctx.db.get("jobs", match.jobId);
-    if (!job) continue;
-    const item = await feedItem(ctx, job, profile);
-    if (!item) continue;
+  for (const { job, item } of entries) {
     const application = applicationsByJob.get(job._id);
     jobs.push({
       ...item,
@@ -2136,7 +2144,12 @@ export async function loadUserJobsFeed(
   );
   const emptyState = jobs.length
     ? null
-    : emptyStateFromAudit(await buildMatchAudit(ctx, userId));
+    : await loadFeedEmptyState(
+        ctx,
+        userId,
+        profileRecord.updatedAt,
+        profile.location.radiusKm,
+      );
   return { jobs, plan, emptyState, discoveryState };
 }
 
@@ -2379,20 +2392,51 @@ export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
   };
 }
 
-function emptyStateFromAudit(
-  audit: Awaited<ReturnType<typeof buildMatchAudit>>,
+async function loadFeedEmptyState(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  revision: number,
+  radiusKm: number,
 ) {
-  const outsideRadiusCount =
-    audit.rejectionReasons.find(({ reason }) => reason === "outside_radius")
-      ?.count ?? 0;
+  // Diagnostics are explicit tools, not part of an ordinary reactive feed read.
+  const [excluded, verified, probable] = await Promise.all([
+    ctx.db
+      .query("jobMatches")
+      .withIndex("by_user_revision_outcome_score", (q) =>
+        q
+          .eq("userId", userId)
+          .eq("profileRevision", revision)
+          .eq("outcome", "excluded"),
+      )
+      .order("desc")
+      .take(20),
+    ctx.db
+      .query("jobs")
+      .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+        q.eq("lifecycleStatus", "verified_active"),
+      )
+      .first(),
+    ctx.db
+      .query("jobs")
+      .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
+        q.eq("lifecycleStatus", "probably_active"),
+      )
+      .first(),
+  ]);
+  const outsideRadiusCount = excluded.filter(
+    (match) =>
+      match.freshnessEligible &&
+      match.exclusionReasons.length === 1 &&
+      match.exclusionReasons[0] === "location_conflict",
+  ).length;
   return {
     reason:
-      audit.counts.activityEligible === 0
+      !verified && !probable
         ? ("no_active_jobs" as const)
-        : audit.counts.outsideRadiusRelevant > 0
+        : outsideRadiusCount
           ? ("location" as const)
           : ("relevance" as const),
-    radiusKm: audit.profile.location.radiusKm,
+    radiusKm,
     outsideRadiusCount,
   };
 }

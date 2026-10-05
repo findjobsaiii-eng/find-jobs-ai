@@ -1102,6 +1102,12 @@ const schema = defineSchema({
       "displayEligible",
       "relevanceScore",
     ])
+    .index("by_user_revision_outcome_score", [
+      "userId",
+      "profileRevision",
+      "outcome",
+      "relevanceScore",
+    ])
     .index("by_user_revision_eligible_quality_score", [
       "userId",
       "profileRevision",

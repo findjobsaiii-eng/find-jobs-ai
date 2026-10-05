@@ -7,7 +7,7 @@ This log contains decisions that can be verified from committed files. Unresolve
 - Legal operator identity and address have not been provided. The owner reports that the service is free and there is no registered business at present.
 - Retention periods, backup purge windows, data export method, and full account deletion workflow are not decided. Legal drafts describe these limits instead of inventing commitments.
 - The contact address is `info@jobmiter.com`; mailbox monitoring and response ownership remain unverified.
-- PostHog is opt-in product analytics with a reviewed event allowlist and privacy-masked session replay; Convex remains the authoritative beta metric store. Sentry event content is reduced to error category and event ID. Production network verification remains pending.
+- PostHog is opt-in product analytics with a reviewed event allowlist and session replay with targeted exclusions (D-053); Convex remains the authoritative beta metric store. Sentry uses a diagnostic allowlist with payload redaction (superseded by D-052); live event verification remains pending.
 - Legal drafts use version `2026-09-23-draft-2` and require Israeli counsel approval before launch.
 
 ## Verified decisions
@@ -698,9 +698,11 @@ claims or a substitute for willingness-to-pay research.
 
 PostHog remains optional and consent-gated. It receives page views, the same
 reviewed semantic events, and an opaque Convex user ID for trend and funnel
-exploration. Autocapture is disabled. Session replay masks all text, inputs, and
-attributes; blocks media, canvases, and iframes; and excludes console logs,
-performance data, query strings, and arbitrary properties. Resend open and click
+exploration. Autocapture is disabled. Session replay originally masked all text,
+inputs and attributes and blocked media/canvases/iframes. D-053 supersedes that
+replay scope with readable recordings and targeted exclusions. Console logs,
+performance data, navigation query strings and arbitrary semantic event properties
+remain excluded. Resend open and click
 events are displayed as directional signals because privacy scanners and mail
 clients make them unsuitable as exact human engagement counts.
 
@@ -1100,3 +1102,50 @@ owner's explicit authorization. Consolidation removed 120 redundant private rows
 including 22 on the owner's account, preserving remaining personal options. The
 post-repair bounded audit found zero matching private duplicates and zero dangling
 profile/resume references. This is reference repair, not historical CV reprocessing.
+
+### D-052: Preserve error diagnostics and bound reactive read work
+
+Status: Accepted; production rollout of these changes is pending.
+
+Keep Sentry exception messages, stack locations, source-map debug IDs, safe route
+paths, digests and verified internal user IDs. Remove application payloads,
+request secrets and profile/identity attributes. Report original Next server
+errors through `onRequestError`, independently of client fallback reporting.
+Convex is a separate runtime; its client failures provide function/request IDs
+for correlation with Convex logs, not original platform timeout stacks. Native
+Convex-to-Sentry exception reporting is a separate Pro deployment integration;
+its production configuration is pending verification.
+
+Deleting a document or changing document selection preserves the profile's
+matching revision. Completed profiles do not depend on the resume-review query.
+The normal jobs feed scores selected entries once and derives empty-state hints
+from a bounded sample of current materialized exclusions plus indexed lifecycle
+existence checks. It does not run the full inventory audit. Exact diagnostics
+remain explicit detail/development tools. Admin user summaries paginate twenty
+users and show bounded stored-match counts, not freshly recomputed visible-job
+counts; the selected user's preview retains the exact feed.
+
+Education autocomplete bounds lookup text without rejecting long imported
+credentials or truncating the actual editable/saved field. Profile-save
+validation still enforces its own data constraints. The consent prompt stays
+compact, with equally available accept/essential-only actions and a policy link;
+optional analytics/replay remains off until consent.
+
+### D-053: Keep session replay visually useful
+
+Status: Accepted (2026-10-06); production rollout pending.
+
+The owner requested readable, faithful replays rather than blanket masking.
+Remove `maskTextSelector: "*"` and attribute-wide masking: the latter hides
+CSS classes, inline styles, SVG attributes and asset URLs, destroying layout.
+Record ordinary text, form values and images, preserving stylesheets and fonts.
+Keep password masking, blocked embedded documents/canvas/hidden/file inputs,
+and explicit per-region `data-analytics-private`/`ph-no-capture` blocking.
+Keep optional tracking consent, navigation URL query stripping and disabled
+console/network body/header capture. Semantic event autocapture remains off;
+replay itself captures clicks, scrolls and DOM changes.
+
+Update bilingual policy disclosures and consent version to 2026-10-06 so that
+the broader recording scope receives a fresh choice. Previously captured
+masked text/attributes cannot be reconstructed. Validate a newly recorded
+session after rollout; browser verification remains with the owner.

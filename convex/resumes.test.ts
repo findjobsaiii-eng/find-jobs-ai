@@ -375,6 +375,7 @@ describe("CV-derived effective profiles", () => {
     ).profile;
     expect(profileAfterSourceDeletion?.activeResumeId).toBeUndefined();
     expect(profileAfterSourceDeletion).toMatchObject({
+      updatedAt: profileBeforeSourceDeletion?.updatedAt,
       targetJobTitleIds: profileBeforeSourceDeletion?.targetJobTitleIds,
       skillIds: profileBeforeSourceDeletion?.skillIds,
       professionalSummary: profileBeforeSourceDeletion?.professionalSummary,

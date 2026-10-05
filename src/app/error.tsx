@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import * as Sentry from "@sentry/nextjs";
+import { captureBoundaryError } from "@/lib/sentry-errors";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/features/auth/auth-shell";
 
-export default function GlobalError({
+export default function RouteError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   const { t } = useTranslation();
 
   useEffect(() => {
-    Sentry.captureException(error);
+    captureBoundaryError(error, "route");
   }, [error]);
 
   return (
@@ -31,7 +31,7 @@ export default function GlobalError({
         <p className="text-muted-foreground mt-3 leading-7 text-pretty">
           {t("errors.description")}
         </p>
-        <Button className="mt-6" onClick={reset}>
+        <Button className="mt-6" onClick={retry}>
           {t("errors.retry")}
         </Button>
       </section>

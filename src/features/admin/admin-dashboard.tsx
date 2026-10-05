@@ -37,6 +37,7 @@ import { AuthBoundary } from "@/features/auth/auth-gate";
 import { SignInScreen } from "@/features/auth/sign-in-screen";
 import { Brand } from "@/features/auth/brand";
 import { Button } from "@/components/ui/button";
+import { useAdminUsers } from "./use-admin-users";
 import { CatalogReview } from "./catalog-review";
 import { cn } from "@/lib/utils";
 
@@ -354,10 +355,15 @@ function Overview({ dateKey }: { dateKey: string }) {
   const range = useMemo(() => dateRange(dateKey), [dateKey]);
   const data = useQuery(api.admin.overview, { dayKey: dateKey, ...range });
   const decision = useQuery(api.admin.decisionMetrics, { now: range.end });
-  const users = useQuery(api.admin.listUsers);
-  if (!data || !decision || !users) return <LoadingBlock />;
+  const {
+    results: users,
+    status: usersStatus,
+    loadMore: loadMoreUsers,
+  } = useAdminUsers();
+  if (!data || !decision || usersStatus === "LoadingFirstPage")
+    return <LoadingBlock />;
   const usersWithoutJobs = users.filter(
-    (user) => user.onboardingCompleted && user.visibleJobs === 0,
+    (user) => user.onboardingCompleted && user.indexedMatches === 0,
   );
   return (
     <div className="space-y-6">
@@ -651,6 +657,7 @@ function Overview({ dateKey }: { dateKey: string }) {
             </p>
           ) : null}
         </div>
+        <UsersLoadMore status={usersStatus} loadMore={loadMoreUsers} />
       </section>
     </div>
   );
@@ -1253,11 +1260,37 @@ function TokenUsage({ dateKey }: { dateKey: string }) {
   );
 }
 
+function UsersLoadMore({
+  status,
+  loadMore,
+}: {
+  status: string;
+  loadMore: (count: number) => void;
+}) {
+  const { t } = useTranslation();
+  if (status !== "CanLoadMore" && status !== "LoadingMore") return null;
+  return (
+    <div className="p-4">
+      <Button
+        variant="outline"
+        disabled={status === "LoadingMore"}
+        onClick={() => loadMore(20)}
+      >
+        {t("admin.users.loadMore")}
+      </Button>
+    </div>
+  );
+}
+
 function UsersSection() {
   const { t, i18n } = useTranslation();
-  const users = useQuery(api.admin.listUsers);
-  const recordView = useMutation(api.admin.recordUserView);
   const [search, setSearch] = useState("");
+  const {
+    results: users,
+    status: usersStatus,
+    loadMore: loadMoreUsers,
+  } = useAdminUsers(search);
+  const recordView = useMutation(api.admin.recordUserView);
   const [selected, setSelected] = useState<Id<"users"> | null>(null);
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
@@ -1268,7 +1301,7 @@ function UsersSection() {
         .includes(term),
     );
   }, [search, users]);
-  if (!users) return <LoadingBlock />;
+  if (usersStatus === "LoadingFirstPage") return <LoadingBlock />;
   const openUser = (userId: Id<"users">) => {
     setSelected(userId);
     void recordView({ subjectUserId: userId });
@@ -1310,7 +1343,7 @@ function UsersSection() {
                   {t("admin.users.savedCount", { count: item.savedJobs })}
                 </p>
                 <p className="text-muted-foreground">
-                  {t("admin.users.jobCount", { count: item.visibleJobs })}
+                  {t("admin.users.jobCount", { count: item.indexedMatches })}
                 </p>
               </div>
               <div className="text-muted-foreground text-xs sm:min-w-32 sm:text-end">
@@ -1321,10 +1354,12 @@ function UsersSection() {
               </div>
             </button>
           ))}
-          {!filtered.length ? (
+          {!filtered.length &&
+          (!search.trim() || usersStatus === "Exhausted") ? (
             <EmptyBlock>{t("admin.users.noResults")}</EmptyBlock>
           ) : null}
         </div>
+        <UsersLoadMore status={usersStatus} loadMore={loadMoreUsers} />
       </section>
       <aside className="border-border bg-card h-fit rounded-2xl border p-5 shadow-sm xl:sticky xl:top-6">
         {selected ? (
@@ -1477,10 +1512,14 @@ function JobsSection() {
 
 function Inspector() {
   const { t } = useTranslation();
-  const users = useQuery(api.admin.listUsers);
   const [userSearch, setUserSearch] = useState("");
-  const [jobSearch, setJobSearch] = useState("");
   const [userId, setUserId] = useState<Id<"users"> | null>(null);
+  const {
+    results: users,
+    status: usersStatus,
+    loadMore: loadMoreUsers,
+  } = useAdminUsers(userId ? "" : userSearch);
+  const [jobSearch, setJobSearch] = useState("");
   const [jobId, setJobId] = useState<Id<"jobs"> | null>(null);
   const {
     jobs,
@@ -1493,7 +1532,7 @@ function Inspector() {
     api.admin.explainUserJob,
     userId && jobId ? { userId, jobId, now: evaluationNow } : "skip",
   );
-  if (!users) return <LoadingBlock />;
+  if (usersStatus === "LoadingFirstPage") return <LoadingBlock />;
   const userOptions = users
     .filter(({ user }) =>
       `${user.name ?? ""} ${user.email ?? ""}`
@@ -1539,6 +1578,7 @@ function Inspector() {
                     </span>
                   </button>
                 ))}
+                <UsersLoadMore status={usersStatus} loadMore={loadMoreUsers} />
               </div>
             ) : null}
           </div>

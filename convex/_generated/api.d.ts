@@ -67,6 +67,7 @@ import type * as resumeProfileModel from "../resumeProfileModel.js";
 import type * as resumes from "../resumes.js";
 import type * as skillIdentity from "../skillIdentity.js";
 import type * as sourceYieldAudit from "../sourceYieldAudit.js";
+import type * as telemetry from "../telemetry.js";
 
 import type {
   ApiFromModules,
@@ -134,6 +135,7 @@ declare const fullApi: ApiFromModules<{
   resumes: typeof resumes;
   skillIdentity: typeof skillIdentity;
   sourceYieldAudit: typeof sourceYieldAudit;
+  telemetry: typeof telemetry;
 }>;
 
 /**

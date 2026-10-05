@@ -35,9 +35,11 @@ it("keeps every admin query closed to ordinary signed-in users", async () => {
       end: 1,
     }),
   ).rejects.toThrow(/ADMIN_REQUIRED/u);
-  await expect(user.query(api.admin.listUsers)).rejects.toThrow(
-    /ADMIN_REQUIRED/u,
-  );
+  await expect(
+    user.query(api.admin.listUsers, {
+      paginationOpts: { cursor: null, numItems: 20 },
+    }),
+  ).rejects.toThrow(/ADMIN_REQUIRED/u);
   await expect(
     user.query(api.admin.searchJobs, {
       search: "Frontend Engineer",
@@ -687,4 +689,50 @@ it("bootstraps an admin by exact normalized email and audits user views", async 
       action: "user.read_only_view_started",
     });
   });
+});
+
+it("paginates user summaries without invoking job matching on incomplete or invalid profiles", async () => {
+  const t = convexTest(schema, modules);
+  const adminId = await t.run(async (ctx) => {
+    const adminId = await ctx.db.insert("users", {
+      email: "admin@example.com",
+    });
+    await ctx.db.insert("adminMemberships", {
+      userId: adminId,
+      role: "admin",
+      active: true,
+      grantedBy: "test",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    for (let i = 0; i < 30; i++) {
+      const userId = await ctx.db.insert("users", {
+        email: `user${i}@example.com`,
+      });
+      await ctx.db.insert("candidateProfiles", {
+        userId,
+        email: `user${i}@example.com`,
+        onboardingCompleted: true,
+        onboardingStep: 4,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    }
+    return adminId;
+  });
+  const admin = asUser(t, adminId);
+  const first = await admin.query(api.admin.listUsers, {
+    paginationOpts: { cursor: null, numItems: 100 },
+  });
+  expect(first.page).toHaveLength(20);
+  expect(first.page.every((row) => row.indexedMatches === 0)).toBe(true);
+  expect(first.isDone).toBe(false);
+  const second = await admin.query(api.admin.listUsers, {
+    paginationOpts: { cursor: first.continueCursor, numItems: 20 },
+  });
+  expect(second.page).toHaveLength(11);
+  expect(second.isDone).toBe(true);
+  expect(
+    new Set([...first.page, ...second.page].map((row) => row.user.userId)).size,
+  ).toBe(31);
 });

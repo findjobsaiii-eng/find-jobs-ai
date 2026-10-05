@@ -1104,11 +1104,10 @@ export const deleteResume = mutation({
     if (resume?.userId !== userId)
       throw new ConvexError({ code: "RESUME_NOT_FOUND" });
     const deletingSourceResume = profile?.activeResumeId === resume._id;
-    const now = Date.now();
     if (profile && deletingSourceResume)
       await ctx.db.patch("candidateProfiles", profile._id, {
+        // Document selection does not change the matching profile revision.
         activeResumeId: undefined,
-        updatedAt: now,
       });
     await ctx.storage.delete(resume.storageId);
     await ctx.db.delete("resumeDocuments", resume._id);

@@ -1,17 +1,23 @@
 "use client";
 
+import { useEffect } from "react";
+import { captureBoundaryError } from "@/lib/sentry-errors";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
 export default function AdminJobsPreviewError({
-  reset,
+  error,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   const { t } = useTranslation();
+  useEffect(() => {
+    captureBoundaryError(error, "admin-jobs-preview");
+  }, [error]);
 
   return (
     <div className="bg-brand-snow grid min-h-svh place-items-center p-6">
@@ -33,7 +39,7 @@ export default function AdminJobsPreviewError({
           {t("admin.preview.loadErrorDescription")}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Button onClick={reset}>
+          <Button onClick={retry}>
             <RefreshCw aria-hidden="true" />
             {t("admin.preview.retry")}
           </Button>

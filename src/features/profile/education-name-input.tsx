@@ -16,7 +16,7 @@ export function EducationNameInput({
 }) {
   const { t, i18n } = useTranslation();
   const id = useId();
-  const search = useDeferredValue(value);
+  const search = useDeferredValue(value.slice(0, 160));
   const results = useQuery(api.referenceIdentity.searchEducation, { search });
   const options: Option[] = (results ?? []).map((item) => ({
     id: item.id,

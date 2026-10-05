@@ -1,5 +1,5 @@
 const STORAGE_KEY = "jobmiter-cookie-consent";
-export const COOKIE_CONSENT_VERSION = "2026-09-22";
+export const COOKIE_CONSENT_VERSION = "2026-10-06";
 
 export type CookieConsent = {
   version: string;

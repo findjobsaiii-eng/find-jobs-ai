@@ -64,7 +64,7 @@ export function CookieConsentManager({ children }: { children: ReactNode }) {
       {ready && (!consent || preferencesOpen) ? (
         <section
           aria-label={t("cookieConsent.title")}
-          className="bg-card text-foreground border-border fixed inset-x-4 bottom-4 z-40 mx-auto max-w-xl rounded-2xl border p-3 shadow-xl sm:p-4"
+          className="bg-card text-foreground border-border fixed inset-x-4 bottom-4 z-40 mx-auto max-w-sm rounded-2xl border p-3 shadow-xl"
         >
           <p className="text-sm leading-6">
             {t("cookieConsent.description")}{" "}
@@ -75,7 +75,7 @@ export function CookieConsentManager({ children }: { children: ReactNode }) {
               {t("cookieConsent.policy")}
             </Link>
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => choose(true)}>
               {t("cookieConsent.acceptAll")}
             </Button>

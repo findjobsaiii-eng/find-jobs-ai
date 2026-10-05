@@ -1,5 +1,6 @@
 "use client";
 
+import { captureBoundaryError } from "@/lib/sentry-errors";
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -28,8 +29,8 @@ class ProfileErrorBoundary extends Component<
     return { hasError: true };
   }
 
-  componentDidCatch(_error: Error, _info: ErrorInfo) {
-    // Convex reports query failures to the console with request context.
+  componentDidCatch(error: Error, _info: ErrorInfo) {
+    captureBoundaryError(error, "profile");
   }
 
   render() {
@@ -48,16 +49,21 @@ function ProfileRoute({
   const [replacementSourceId, setReplacementSourceId] =
     useState<Id<"resumeDocuments"> | null>(null);
   const profileState = useQuery(api.candidateProfiles.getCurrent);
-  const resume = useQuery(api.resumes.getCurrent);
-  if (profileState === undefined || resume === undefined) {
+  const profileComplete = Boolean(
+    profileState?.profile?.onboardingCompleted &&
+    !profileState.profile.cvReviewPending,
+  );
+  const resume = useQuery(
+    api.resumes.getCurrent,
+    profileComplete ? "skip" : {},
+  );
+  if (profileState === undefined) {
     return loading;
   }
-  if (
-    profileState.profile?.onboardingCompleted &&
-    !profileState.profile.cvReviewPending
-  ) {
+  if (profileComplete) {
     return children(profileState);
   }
+  if (resume === undefined) return loading;
 
   const resumeReady =
     resume?.status === "ready" || resume?.status === "needs_confirmation";

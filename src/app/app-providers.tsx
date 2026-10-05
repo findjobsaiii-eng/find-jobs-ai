@@ -8,6 +8,7 @@ import { MotionConfig } from "motion/react";
 import { I18nextProvider } from "react-i18next";
 import { AuthConfigurationErrorScreen } from "@/features/auth/auth-configuration-error-screen";
 import { AuthFlowProvider } from "@/features/auth/auth-flow-provider";
+import { SentryUserSync } from "@/features/auth/sentry-user-sync";
 import { ReminderLanguageSync } from "@/features/auth/reminder-language-sync";
 import { CookieConsentManager } from "@/features/privacy/cookie-consent-manager";
 import { InterfaceSoundsProvider } from "@/features/interface-sounds/interface-sounds-provider";
@@ -49,6 +50,7 @@ export function AppProviders({
     <I18nextProvider i18n={i18n}>
       <ConvexAuthNextjsProvider client={convex}>
         <AuthFlowProvider>
+          <SentryUserSync />
           <ReminderLanguageSync />
           {content}
         </AuthFlowProvider>

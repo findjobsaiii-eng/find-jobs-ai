@@ -19,6 +19,7 @@ import {
 } from "./jobQuality";
 import { globalDayKey } from "./jobSearchPolicy";
 import schema from "./schema";
+import { loadUserJobsFeed } from "./jobDiscovery";
 
 const modules = import.meta.glob("./**/*.ts");
 afterEach(() => vi.unstubAllEnvs());
@@ -1895,4 +1896,72 @@ describe("combined AI and server activity", () => {
       }).aiAssessment.status,
     ).toBe("unknown");
   });
+});
+
+it("reads an empty feed without scanning the job/source inventory or running a match audit", async () => {
+  const t = convexTest(schema, modules);
+  const userId = await createUser(t);
+  await addCompletedProfile(t, userId);
+  await t.run(async (ctx) => {
+    const reads = vi.spyOn(ctx.db, "query");
+    const feed = await loadUserJobsFeed(ctx, userId, "suggestions");
+    expect(feed.emptyState?.reason).toBe("no_active_jobs");
+    // A full audit reads the entire jobSources table and reloads the catalog.
+    expect(reads.mock.calls.map(([table]) => table)).not.toContain(
+      "jobSources",
+    );
+    expect(
+      reads.mock.calls.filter(([table]) => table === "catalogSkillAliases"),
+    ).toHaveLength(1);
+    reads.mockRestore();
+  });
+});
+
+it("keeps a completed profile and its existing suggestions after deleting the active source resume", async () => {
+  const t = convexTest(schema, modules);
+  const userId = await createUser(t);
+  await addCompletedProfile(t, userId);
+  await ingestCandidates(t, userId, [
+    { job: normalizedJob(), verification: verification() },
+  ]);
+  const resumeId = await t.run(async (ctx) => {
+    const storageId = await ctx.storage.store(
+      new Blob(["old CV"], { type: "application/pdf" }),
+    );
+    const resumeId = await ctx.db.insert("resumeDocuments", {
+      userId,
+      storageId,
+      fileName: "old.pdf",
+      mimeType: "application/pdf",
+      size: 6,
+      status: "ready",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    await ctx.db.patch("candidateProfiles", profile!._id, {
+      activeResumeId: resumeId,
+    });
+    return resumeId;
+  });
+  await t.mutation(internal.jobMatching.reconcileUserPage, {
+    userId,
+    lifecycleStatus: "verified_active",
+    cursor: null,
+  });
+  const user = asUser(t, userId);
+  const before = await user.query(api.jobDiscovery.listCurrentUserJobs, {});
+  expect(before.jobs).toHaveLength(1);
+  await user.mutation(api.resumes.deleteResume, { resumeId });
+  const after = await user.query(api.jobDiscovery.listCurrentUserJobs, {});
+  expect(after.jobs.map((job) => job.id)).toEqual(
+    before.jobs.map((job) => job.id),
+  );
+  expect(
+    (await user.query(api.candidateProfiles.getCurrent)).profile,
+  ).toMatchObject({ onboardingCompleted: true, updatedAt: 1 });
+  expect(await user.query(api.resumes.getCurrent)).toBeNull();
 });

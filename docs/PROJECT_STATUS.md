@@ -4,7 +4,7 @@ Last repository audit: 2026-09-28
 
 ## Production readiness work in progress
 
-- Implemented on the current branch: consent-gated PostHog page views, reviewed product events and privacy-masked session replay; authoritative Convex beta engagement metrics and per-user activity; Resend delivery/engagement ingestion; Sentry event scrubbing; bilingual draft legal routes and shared footer; skip link; sitemap/robots; noindex on protected routes; and a web-to-Convex health endpoint.
+- Implemented on the current branch: consent-gated PostHog page views, reviewed product events and session replay with targeted exclusions (D-053); authoritative Convex beta engagement metrics and per-user activity; Resend delivery/engagement ingestion; Sentry event scrubbing; bilingual draft legal routes and shared footer; skip link; sitemap/robots; noindex on protected routes; and a web-to-Convex health endpoint.
 - Implemented: Resend service notifications after automatic searches that produce visible matches, with Hebrew RTL content, daily/weekly/never user controls, duplicate-send protection, removal of email state during account deletion, and a separate public HTTPS origin that prevents local authentication URLs from leaking into outbound links.
 - Incomplete: comprehensive accessibility remediation and axe/Lighthouse audit; verified data export; retention and backup deletion policy; complete security and production configuration verification; full browser journey tests. Self-service deletion now removes user-linked Convex data and files in scheduled batches, but shared job data, vendor logs and backups remain outside that automatic path. Data-copy requests use the owner-supplied email.
 - Unknown outside the repository: production deployment of the analytics changes, Resend webhook secret/configuration, tracking-subdomain DNS verification, other vendor settings and callback URLs, hosting countries, backup/restore results, mailbox monitoring, and legal operator identity. See `docs/LAUNCH_OWNER_CHECKLIST.md`.
@@ -145,8 +145,10 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 - A Next.js App Router application with a neutral root layout, a separate public
   landing experience, a protected route-group layout, Convex providers, and Motion.
 - Optional PostHog page views, a reviewed semantic event allowlist, opaque
-  authenticated identity, and aggressively masked session replay. Automatic
-  interaction capture is disabled; production ingestion remains unverified.
+  authenticated identity, and session replay with targeted exclusions (D-053). Automatic
+  interaction event capture is disabled. The owner-provided PostHog screenshot
+  confirms production replay ingestion; the D-053 fidelity fix still needs a new
+  live recording after rollout.
 - Convex-owned beta analytics with weekly active and core-value users, rolling
   and signup-cohort retention, seven-day activation, active-day frequency,
   last-seen timestamps, semantic activity, Resend delivery events, a guarded
@@ -155,7 +157,8 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
   activity is not reconstructed.
 - Sentry browser and Next.js server error capture is wired, with a temporary
   `/sentry-test` button for a controlled verification event. Vercel configuration,
-  source-map uploads, and live event delivery remain unverified.
+  browser/server source-map uploads were confirmed in the 2026-10-05 production
+  build logs. Live event delivery/symbolication remains unverified.
 - Google-only OAuth wiring through Convex Auth, including a first-party Next.js auth proxy, HTTP callback routes, and auth tables in the Convex schema.
 - Server-only Google provider credentials with required environment validation for `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `JWT_PRIVATE_KEY`, `JWKS`, and `SITE_URL`.
 - A validated public Convex client URL that rejects credentials, unexpected paths, queries, fragments, and insecure non-local origins.
@@ -609,3 +612,43 @@ and paid AI testing were deliberately left to the owner as requested.
 
 Convex reported that the project is above Free plan limits during deployment;
 the owner should resolve capacity/plan limits before advertising traffic.
+
+## Error diagnostics and query fixes (2026-10-05, local changes)
+
+Implemented: paginated admin user summaries using stored matches; removal of the
+full job/source audit from ordinary empty-feed reads; reuse of scored feed entries;
+cheap lifecycle rejection before scoring stale matches; preservation of the
+matching revision on active-resume deletion; completed-profile independence from
+resume review; bounded education lookup text; compact bilingual cookie prompt.
+
+Sentry now retains useful redacted exception/stack/route/digest/debug-ID data and
+verified opaque user identity, clearing it on logout. Original Next server
+reporting, root-layout and profile/admin-preview client reporting are covered.
+The native Convex Sentry integration (Pro) still needs a production settings
+check/setup to report original backend exceptions; this is separate from Next
+instrumentation. Production build logs confirm the
+existing browser/server source-map upload path works. Reading Sentry events with
+the available token returned HTTP 403, so live event contents remain unverified.
+
+Validation: `npm run check`, the full 503-test suite, `npm run build`
+(Turbopack), and React Doctor passed; React Doctor reported no issues. A
+subsequent focused test verifies automatic SDK captures retain the server digest.
+Development deployment `glorious-mallard-885` accepted the backend changes.
+Production rollout, commits and browser validation of these changes are pending.
+
+## Session replay fidelity (2026-10-06, local changes)
+
+Removed blanket text/attribute masking, restored ordinary form values and
+images, and explicitly enabled inline stylesheets/font collection. Passwords,
+embedded documents, canvas, hidden/file inputs and designated private regions
+remain protected. Analytics still requires consent and excludes console logs,
+network bodies/headers and navigation query strings. Policy/consent version
+2026-10-06 reflects the recording change. Existing masked recordings cannot be
+repaired. Production rollout and live replay validation remain pending.
+
+Validation: the actual rrweb recorder preserves CSS, class/style attributes,
+ordinary text/input values and images in a DOM snapshot while excluding password
+values and private/embedded document contents. Consent regression tests cover
+missing/declined/superseded consent, withdrawal and a deferred SDK-load race.
+`npm run check`, all 510 tests, `npm run build` (Turbopack), and React Doctor
+passed (no reported issues).

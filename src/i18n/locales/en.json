@@ -43,10 +43,10 @@
   },
   "cookieConsent": {
     "title": "Cookie choices",
-    "description": "Allow privacy-masked product analytics and session replay, or continue with essential cookies only.",
+    "description": "Allow optional cookies?",
     "policy": "Cookie policy",
-    "acceptAll": "Accept all",
-    "rejectOptional": "Reject non-essential cookies",
+    "acceptAll": "Accept",
+    "rejectOptional": "Essential only",
     "manage": "Manage preferences",
     "storageError": "We could not save your choice in this browser. Analytics remains off."
   },
@@ -1007,9 +1007,9 @@
       "operations": "Operations",
       "truncated": "One or more totals reached the 1,000-record safety limit. Narrow the date or add aggregate counters before using this as a billing report.",
       "attention": "Needs attention",
-      "attentionDescription": "Completed profiles that currently have no visible job suggestions.",
-      "noVisibleJobs": "No visible jobs",
-      "allHealthy": "Every completed profile currently has at least one visible job."
+      "attentionDescription": "Loaded users who finished setup but have no stored matches.",
+      "noVisibleJobs": "No stored matches",
+      "allHealthy": "No users in this list need attention."
     },
     "decision": {
       "eyebrow": "Beta decision",
@@ -1084,8 +1084,8 @@
     },
     "users": {
       "search": "Search name or email",
-      "jobCount_one": "{{count}} visible job",
-      "jobCount_other": "{{count}} visible jobs",
+      "jobCount_one": "{{count}} stored matches",
+      "jobCount_other": "{{count}} stored matches",
       "savedCount_one": "{{count}} saved job",
       "savedCount_other": "{{count}} saved jobs",
       "lastSeen": "Last seen",
@@ -1131,7 +1131,8 @@
         "professional": "Professional fit",
         "threshold": "Above threshold",
         "displayed": "Displayed"
-      }
+      },
+      "loadMore": "Load more users"
     },
     "jobs": {
       "search": "Search title or company",

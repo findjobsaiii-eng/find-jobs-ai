@@ -170,8 +170,9 @@ export const searchEducation = query({
   handler: async (ctx, { search }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
-    if (search.length > 160) throw new ConvexError({ code: "INVALID_SEARCH" });
-    const clean = search.trim();
+    // Imported/free-text credentials can be longer than the search budget.
+    // Bound the lookup without truncating the saved or editable credential.
+    const clean = search.slice(0, 160).trim();
     const catalog = await ctx.db
       .query("educationConcepts")
       .withIndex("by_kind")

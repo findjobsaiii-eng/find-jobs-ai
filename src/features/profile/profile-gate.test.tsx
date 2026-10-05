@@ -12,10 +12,12 @@ const state = vi.hoisted(() => ({
 vi.mock("convex/react", async () => {
   const { getFunctionName } = await import("convex/server");
   return {
-    useQuery: (reference: never) =>
+    useQuery: (reference: never, args: unknown) =>
       getFunctionName(reference) === "candidateProfiles:getCurrent"
         ? state.profile
-        : state.resume,
+        : args === "skip"
+          ? undefined
+          : state.resume,
   };
 });
 vi.mock("./resume-onboarding", () => ({
@@ -61,6 +63,15 @@ describe("onboarding draft source", () => {
   beforeEach(() => {
     state.profile = initialData;
     state.resume = null;
+  });
+  it("opens a completed profile without depending on the deleted resume query", () => {
+    state.profile = {
+      ...initialData,
+      profile: { ...initialData.profile, onboardingCompleted: true },
+    };
+    state.resume = undefined;
+    render(content());
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
   it("prefills fresh CV education after moving from a manual draft to resume review", () => {
     const view = render(content());

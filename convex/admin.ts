@@ -753,14 +753,14 @@ export const listSearches = query({
 });
 
 export const listUsers = query({
-  args: {},
-  returns: v.array(
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
     v.object({
       user: userSummary,
       createdAt: v.number(),
       onboardingCompleted: v.boolean(),
       profileUpdatedAt: v.union(v.number(), v.null()),
-      visibleJobs: v.number(),
+      indexedMatches: v.number(),
       lastSearchAt: v.union(v.number(), v.null()),
       lastSearchStatus: v.union(v.string(), v.null()),
       lastSeenAt: v.union(v.number(), v.null()),
@@ -769,11 +769,17 @@ export const listUsers = query({
       isAdmin: v.boolean(),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const users = await ctx.db.query("users").order("desc").take(200);
-    return await Promise.all(
-      users.map(async (user) => {
+    const users = await ctx.db
+      .query("users")
+      .order("desc")
+      .paginate({
+        ...args.paginationOpts,
+        numItems: Math.min(args.paginationOpts.numItems, 20),
+      });
+    const page = await Promise.all(
+      users.page.map(async (user) => {
         const [profile, lastRun, membership, activity, applications] =
           await Promise.all([
             ctx.db
@@ -800,9 +806,37 @@ export const listUsers = query({
               .withIndex("by_userId_and_jobId", (q) => q.eq("userId", user._id))
               .take(101),
           ]);
-        const visibleJobs = profile?.onboardingCompleted
-          ? await loadSuggestionMatches(ctx, user._id, profile.updatedAt)
-          : [];
+        // List summaries use persisted matches; only the selected user runs
+        // exact feed validation. Never reload the identity catalog per row.
+        const partitions = profile?.onboardingCompleted
+          ? await Promise.all(
+              (["strong", "partial"] as const).map((quality) =>
+                ctx.db
+                  .query("jobMatches")
+                  .withIndex("by_user_revision_eligible_quality_score", (q) =>
+                    q
+                      .eq("userId", user._id)
+                      .eq("profileRevision", profile.updatedAt)
+                      .eq("displayEligible", true)
+                      .eq("matchQuality", quality),
+                  )
+                  .order("desc")
+                  .take(quality === "strong" ? 50 : 5),
+              ),
+            )
+          : [[], []];
+        const matches = partitions.flat();
+        const tracked = new Set(
+          applications
+            .filter((a) => a.status && a.status !== "saved")
+            .map((a) => a.jobId),
+        );
+        const strong = matches.filter(
+          (m) => m.matchQuality === "strong" && !tracked.has(m.jobId),
+        );
+        const partial = matches.filter(
+          (m) => m.matchQuality === "partial" && !tracked.has(m.jobId),
+        );
         return {
           user: {
             userId: user._id,
@@ -812,7 +846,10 @@ export const listUsers = query({
           createdAt: user._creationTime,
           onboardingCompleted: profile?.onboardingCompleted ?? false,
           profileUpdatedAt: profile?.updatedAt ?? null,
-          visibleJobs: Math.min(visibleJobs.length, 100),
+          indexedMatches:
+            strong.length >= 5
+              ? strong.length
+              : strong.length + Math.min(partial.length, 5 - strong.length),
           lastSearchAt: lastRun?.startedAt ?? null,
           lastSearchStatus: lastRun?.status ?? null,
           lastSeenAt: activity?.lastSeenAt ?? null,
@@ -826,6 +863,7 @@ export const listUsers = query({
         };
       }),
     );
+    return { ...users, page };
   },
 });
 
