@@ -1,3 +1,4 @@
+import { canonicalCatalogIds } from "./catalogReconciliation";
 import { cancelOnboardingReminders } from "./onboardingReminders";
 import { observeReferenceTerms } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -688,7 +689,17 @@ export const saveCurrent = mutation({
     }
     const merged: EditableProfilePatch = { ...existing, ...normalized };
     await assertReferences(ctx, userId, merged);
-    if (args.complete) assertComplete(merged);
+    const [canonicalTitles, canonicalSkills] = await Promise.all([
+      normalized.targetJobTitleIds
+        ? canonicalCatalogIds(ctx, normalized.targetJobTitleIds, userId)
+        : undefined,
+      normalized.skillIds
+        ? canonicalCatalogIds(ctx, normalized.skillIds, userId)
+        : undefined,
+    ]);
+    if (canonicalTitles) normalized.targetJobTitleIds = canonicalTitles;
+    if (canonicalSkills) normalized.skillIds = canonicalSkills;
+    if (args.complete) assertComplete({ ...merged, ...normalized });
 
     const skillItems = await Promise.all(
       (normalized.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import i18n, { initializeI18n } from "@/i18n";
+import { getFunctionName } from "convex/server";
 import { ExperienceDomainsPicker } from "./experience-domains-picker";
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -16,7 +17,16 @@ const mocks = vi.hoisted(() => ({
   ],
 }));
 vi.mock("convex/react", () => ({
-  useQuery: () => mocks.results,
+  useQuery: (
+    reference: Parameters<typeof getFunctionName>[0],
+    args: { labels?: string[] },
+  ) =>
+    getFunctionName(reference).includes("classifyExperienceDomains")
+      ? args.labels?.map((label) => ({
+          label,
+          isCustom: label !== "Insurance" && label !== "ביטוח",
+        }))
+      : mocks.results,
   useMutation: () => mocks.create,
 }));
 function Harness() {
@@ -105,3 +115,29 @@ it("keeps selected areas when Escape is pressed in a closed picker", async () =>
     '["Software development and insurance customer service"]',
   );
 });
+
+it.each(["en", "he"])(
+  "marks private selected areas as Yours and removes the badge once an area is shared in %s",
+  async (language) => {
+    await i18n.changeLanguage(language);
+    const user = userEvent.setup();
+    render(<Harness />);
+    expect(screen.getByText(i18n.t("onboarding.custom"))).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", {
+        name: i18n.t("onboarding.removeItem", {
+          item: "Software development and insurance customer service",
+        }),
+      }),
+    );
+    await user.click(screen.getByRole("combobox"));
+    await user.click(
+      screen.getByRole("option", {
+        name: language === "he" ? "ביטוח" : "Insurance",
+      }),
+    );
+    expect(
+      screen.queryByText(i18n.t("onboarding.custom")),
+    ).not.toBeInTheDocument();
+  },
+);

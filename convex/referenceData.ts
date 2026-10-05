@@ -1,3 +1,8 @@
+import { internal } from "./_generated/api";
+import {
+  findPublicCatalogItem,
+  publicEquivalent,
+} from "./catalogReconciliation";
 import { seedEducationCatalog } from "./referenceIdentity";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
@@ -94,7 +99,7 @@ export const searchCatalog = query({
               .eq("visibility", "public")
               .eq("active", true),
           )
-          .take(12)
+          .take(30)
       : await ctx.db
           .query("catalogItems")
           .withIndex("by_kind_and_visibility_and_active_and_priority", (q) =>
@@ -104,7 +109,7 @@ export const searchCatalog = query({
               .eq("active", true),
           )
           .order("desc")
-          .take(12);
+          .take(30);
 
     const privateItems = search
       ? await ctx.db
@@ -117,13 +122,13 @@ export const searchCatalog = query({
               .eq("ownerUserId", userId)
               .eq("active", true),
           )
-          .take(8)
+          .take(20)
       : await ctx.db
           .query("catalogItems")
           .withIndex("by_ownerUserId_and_kind_and_normalizedKey", (q) =>
             q.eq("ownerUserId", userId).eq("kind", args.kind),
           )
-          .take(8)
+          .take(20)
           .then((items) => items.filter((item) => item.active));
 
     const exactSkill =
@@ -132,7 +137,9 @@ export const searchCatalog = query({
         : null;
     const ordered = [
       ...(exactSkill ? [exactSkill] : []),
-      ...privateItems,
+      ...(await Promise.all(
+        privateItems.map((item) => publicEquivalent(ctx, item)),
+      )),
       ...publicItems,
     ];
     return [...new Map(ordered.map((item) => [item._id, item])).values()].map(
@@ -173,27 +180,7 @@ export const addCustomCatalogItem = mutation({
 
     const key =
       args.kind === "skill" ? normalizeSkillTerm(label) : normalizedKey(label);
-    const exactSkill =
-      args.kind === "skill"
-        ? await findPublicSkillCatalogItem(ctx, label)
-        : null;
-    if (exactSkill) return toCatalogOption(exactSkill);
-    const likelyPublicMatches =
-      args.kind === "skill"
-        ? []
-        : await ctx.db
-            .query("catalogItems")
-            .withSearchIndex("search_catalog", (q) =>
-              q
-                .search("searchText", label)
-                .eq("kind", args.kind)
-                .eq("visibility", "public")
-                .eq("active", true),
-            )
-            .take(20);
-    const publicMatch = likelyPublicMatches.find((item) =>
-      item.normalizedLabels.includes(key),
-    );
+    const publicMatch = await findPublicCatalogItem(ctx, args.kind, label);
     if (publicMatch) return toCatalogOption(publicMatch);
 
     const existing = await ctx.db
@@ -256,12 +243,17 @@ export const seedCatalog = internalMutation({
     let inserted = 0;
     let updated = 0;
     for (const item of CATALOG_SEED) {
-      const seeded = await ctx.db
+      const seededBySlug = await ctx.db
         .query("catalogItems")
         .withIndex("by_source_and_externalId", (q) =>
           q.eq("source", "curated").eq("externalId", item.slug),
         )
         .unique();
+      const seeded =
+        seededBySlug ??
+        (item.kind === "skill"
+          ? await findPublicSkillCatalogItem(ctx, item.labelEn)
+          : null);
       const retainedAliases = [
         ...new Set([...(seeded?.aliases ?? []), ...(item.aliases ?? [])]),
       ];
@@ -286,12 +278,7 @@ export const seedCatalog = internalMutation({
         active: true,
         updatedAt: Date.now(),
       };
-      const existing = await ctx.db
-        .query("catalogItems")
-        .withIndex("by_source_and_externalId", (q) =>
-          q.eq("source", "curated").eq("externalId", item.slug),
-        )
-        .unique();
+      const existing = seeded;
       let catalogItemId: Id<"catalogItems">;
       if (existing) {
         await ctx.db.patch("catalogItems", existing._id, values);
@@ -308,7 +295,9 @@ export const seedCatalog = internalMutation({
         const conceptKey = resolveSkillIdentity(item.labelEn).key;
         const existingAliases = await ctx.db
           .query("catalogSkillAliases")
-          .withIndex("by_conceptKey", (q) => q.eq("conceptKey", conceptKey))
+          .withIndex("by_conceptKey", (q) =>
+            q.eq("conceptKey", seeded?.conceptKey ?? conceptKey),
+          )
           .take(80);
         const normalizedTerms = [...new Set(labels.map(normalizeSkillTerm))];
         for (const alias of existingAliases) {
@@ -323,7 +312,11 @@ export const seedCatalog = internalMutation({
               q.eq("normalizedTerm", normalizedTerm),
             )
             .unique();
-          if (alias && alias.conceptKey !== conceptKey)
+          if (
+            alias &&
+            alias.conceptKey !== conceptKey &&
+            alias.catalogItemId !== catalogItemId
+          )
             throw new Error(`Conflicting skill alias: ${normalizedTerm}`);
           const aliasValues = { normalizedTerm, conceptKey, catalogItemId };
           if (alias)
@@ -333,6 +326,36 @@ export const seedCatalog = internalMutation({
       }
     }
     await seedEducationCatalog(ctx);
+    await ctx.scheduler.runAfter(
+      0,
+      internal.catalogReconciliation.reconcilePage,
+      {
+        phase: "profiles",
+        cursor: null,
+      },
+    );
     return { inserted, updated, total: CATALOG_SEED.length };
+  },
+});
+
+// Experience areas are saved as user-chosen strings, so classify the exact
+// selected labels independently of the current dropdown search and locale.
+export const classifyExperienceDomains = query({
+  args: { labels: v.array(v.string()) },
+  returns: v.array(v.object({ label: v.string(), isCustom: v.boolean() })),
+  handler: async (ctx, { labels }) => {
+    await requireUserId(ctx);
+    if (labels.length > 20 || labels.some((label) => label.length > 160))
+      throw new ConvexError({ code: "INVALID_SEARCH" });
+    return Promise.all(
+      labels.map(async (label) => ({
+        label,
+        isCustom: !(await findPublicCatalogItem(
+          ctx,
+          "experienceDomain",
+          label,
+        )),
+      })),
+    );
   },
 });

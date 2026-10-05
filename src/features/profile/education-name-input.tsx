@@ -1,11 +1,12 @@
 import { useDeferredValue, useId } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import { useQuery } from "convex/react";
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { ChevronsUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
+import { normalizeEducationTerm } from "../../../convex/referenceIdentityModel";
 
-type Option = { id: string; label: string; custom?: boolean };
+type Option = { id: string; label: string; isCustom: boolean; terms: string[] };
 export function EducationNameInput({
   value,
   onChange,
@@ -20,14 +21,29 @@ export function EducationNameInput({
   const options: Option[] = (results ?? []).map((item) => ({
     id: item.id,
     label: i18n.language.startsWith("he") ? item.labelHe : item.labelEn,
+    isCustom: item.isCustom,
+    terms: [item.labelEn, item.labelHe, ...item.aliases],
   }));
   if (
     value.trim() &&
-    !options.some(
-      (item) => item.label.toLowerCase() === value.trim().toLowerCase(),
+    !options.some((item) =>
+      item.terms.some(
+        (term) =>
+          normalizeEducationTerm(term) === normalizeEducationTerm(value),
+      ),
     )
   )
-    options.push({ id: "custom", label: value.trim(), custom: true });
+    options.push({
+      id: "custom",
+      label: value.trim(),
+      isCustom: true,
+      terms: [value.trim()],
+    });
+  const selected = options.find((item) =>
+    item.terms.some(
+      (term) => normalizeEducationTerm(term) === normalizeEducationTerm(value),
+    ),
+  );
   return (
     <div>
       <label htmlFor={id} className="mb-2 block text-sm font-medium">
@@ -35,6 +51,7 @@ export function EducationNameInput({
       </label>
       <Combobox.Root<Option>
         items={options}
+        value={selected ?? null}
         filter={null}
         inputValue={value}
         itemToStringLabel={(item) => item.label}
@@ -54,6 +71,11 @@ export function EducationNameInput({
             placeholder={t("qualifications.credentialPlaceholder")}
             className="placeholder:text-muted-foreground w-full min-w-0 flex-1 rounded-xl bg-transparent px-3 py-2 text-sm outline-none"
           />
+          {selected?.isCustom ? (
+            <span className="text-muted-foreground flex items-center pe-2 text-xs">
+              {t("onboarding.custom")}
+            </span>
+          ) : null}
           <Combobox.Trigger
             aria-label={t("qualifications.browse")}
             className="text-muted-foreground focus-visible:ring-ring rounded-xl px-3 outline-none focus-visible:ring-2"
@@ -76,14 +98,14 @@ export function EducationNameInput({
                     value={item}
                     className="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-10 cursor-default items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none"
                   >
-                    {item.custom ? (
-                      <Plus aria-hidden="true" className="size-4" />
-                    ) : null}
-                    <span>
-                      {item.custom
-                        ? t("onboarding.addMissing", { value: item.label })
-                        : item.label}
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.label}
                     </span>
+                    {item.isCustom ? (
+                      <span className="text-muted-foreground shrink-0 text-xs">
+                        {t("onboarding.custom")}
+                      </span>
+                    ) : null}
                   </Combobox.Item>
                 )}
               </Combobox.List>

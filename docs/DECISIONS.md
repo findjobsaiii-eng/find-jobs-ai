@@ -1067,6 +1067,36 @@ and source evidence, checks owner identity and the original profile revision,
 and refreshes discovery. Cancellation and intermediate review steps do not
 write profile fields. Selecting a default document preserves career preferences.
 
-Implementation and tests do not authorize production deployment or a historical
-resume migration. This change is validated against the existing development
-backend; no automatic reprocessing of old documents is introduced.
+Initially validated against the existing development backend. The subsequent
+owner-authorized catalog release (D-051) deployed the committed backend to
+production on 2026-10-05. No automatic reprocessing of old documents is introduced.
+
+### D-051: Shared catalog identities supersede equivalent private entries
+
+Status: Accepted.
+
+A private catalog entry represents an unapproved personal option. Once an exact
+label or approved skill alias resolves to an active shared entry, searches return
+the shared identity and profile saves reuse it after validating ownership.
+Seed publication and approved skill curation schedule bounded, restartable passes
+over profile references, resume references, and finally redundant private rows.
+Rewrite and deduplicate references before deleting private duplicates. Do not
+infer equivalence from similar names; React/React Native, Java/JavaScript and
+C/C#/C++ stay distinct. Preserve profile revision, preferences and saved CV text
+when only catalog IDs change.
+
+Experience areas remain user-chosen strings. Classify selected labels against
+the current shared dictionary independently of the search and interface language.
+Education remains free text plus shared suggestions: typing already sets the
+value, so there is no separate Add action. Include saved personal education names
+only for the authenticated owner. Both selected values and menu options show
+“Yours” for personal names, and public bilingual labels/aliases have no badge.
+
+The expanded bootstrap contains 216 skills, 103 job titles, 34 experience areas,
+and 57 education fields/qualifications, with English and Hebrew coverage.
+
+Production `famous-badger-815` was deployed and seeded on 2026-10-05 under the
+owner's explicit authorization. Consolidation removed 120 redundant private rows,
+including 22 on the owner's account, preserving remaining personal options. The
+post-repair bounded audit found zero matching private duplicates and zero dangling
+profile/resume references. This is reference repair, not historical CV reprocessing.

@@ -159,31 +159,93 @@ export const searchEducation = query({
   args: { search: v.string() },
   returns: v.array(
     v.object({
-      id: v.id("educationConcepts"),
+      id: v.string(),
       kind: v.union(v.literal("field"), v.literal("qualification")),
       labelEn: v.string(),
       labelHe: v.string(),
+      aliases: v.array(v.string()),
+      isCustom: v.boolean(),
     }),
   ),
   handler: async (ctx, { search }) => {
-    if (!(await getAuthUserId(ctx)))
-      throw new ConvexError({ code: "UNAUTHENTICATED" });
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
     if (search.length > 160) throw new ConvexError({ code: "INVALID_SEARCH" });
     const clean = search.trim();
+    const catalog = await ctx.db
+      .query("educationConcepts")
+      .withIndex("by_kind")
+      .take(201);
+    if (catalog.length > 200)
+      throw new ConvexError({ code: "CATALOG_CAPACITY_REACHED" });
     const rows = clean
       ? await ctx.db
           .query("educationConcepts")
           .withSearchIndex("search_education", (q) =>
             q.search("searchText", clean),
           )
-          .take(12)
-      : await ctx.db.query("educationConcepts").withIndex("by_kind").take(12);
-    return rows.map(({ _id, kind, labelEn, labelHe }) => ({
-      id: _id,
-      kind,
-      labelEn,
-      labelHe,
-    }));
+          .take(30)
+      : [
+          ...catalog.filter((row) => row.kind === "field").slice(0, 20),
+          ...catalog.filter((row) => row.kind === "qualification").slice(0, 10),
+        ];
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const options = new Map(
+      rows.map((row) => [
+        row._id as string,
+        {
+          id: row._id as string,
+          kind: row.kind,
+          labelEn: row.labelEn,
+          labelHe: row.labelHe,
+          aliases: row.aliases,
+          isCustom: false,
+        },
+      ]),
+    );
+    const saved =
+      profile?.qualifications?.education.flatMap((row) => [
+        row.credential,
+        row.field,
+      ]) ?? [];
+    const labels = [
+      ...new Set(saved.filter((label): label is string => Boolean(label))),
+    ];
+    for (const label of labels) {
+      if (
+        clean &&
+        !normalizeEducationTerm(label).includes(normalizeEducationTerm(clean))
+      )
+        continue;
+      const shared = catalog.find((row) =>
+        [row.labelEn, row.labelHe, ...row.aliases].some(
+          (term) =>
+            normalizeEducationTerm(term) === normalizeEducationTerm(label),
+        ),
+      );
+      if (shared)
+        options.set(shared._id, {
+          id: shared._id,
+          kind: shared.kind,
+          labelEn: shared.labelEn,
+          labelHe: shared.labelHe,
+          aliases: shared.aliases,
+          isCustom: false,
+        });
+      else
+        options.set("private:" + normalizeEducationTerm(label), {
+          id: "private:" + normalizeEducationTerm(label),
+          kind: "qualification",
+          labelEn: label,
+          labelHe: label,
+          aliases: [],
+          isCustom: true,
+        });
+    }
+    return [...options.values()];
   },
 });
 
@@ -358,6 +420,15 @@ export async function applyCandidateProposal(
     status: "approved",
     updatedAt: Date.now(),
   });
+  if (proposal.kind === "skill")
+    await ctx.scheduler.runAfter(
+      0,
+      internal.catalogReconciliation.reconcilePage,
+      {
+        phase: "profiles",
+        cursor: null,
+      },
+    );
   return true;
 }
 

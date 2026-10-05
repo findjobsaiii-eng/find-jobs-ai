@@ -40,14 +40,29 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
-- Implemented locally: resume-library uploads save original files and complete
+- Implemented: expanded bilingual reference catalogs (216 skills, 103 roles,
+  34 experience areas, 57 education/qualification options); shared identities
+  supersede equivalent private entries in search and profile saves. Seed/approved
+  skill publication schedules paginated reference consolidation before removing
+  private duplicates. Custom badges are shown on dropdown rows and selected
+  experience areas/education. Saved personal education names are owner-only
+  suggestions, with no redundant Add action. Production backend `famous-badger-815`
+  was deployed and seeded on 2026-10-05. The repair consolidated 120 private
+  duplicates, including 22 on the owner's account. A bounded production audit
+  found zero matching private duplicates and zero dangling profile/resume catalog
+  references; the owner's authenticated React search returns one shared React
+  option. Validation: 486 tests, `npm run check`, Webpack production build, and
+  React Doctor without findings.
+
+- Implemented: resume-library uploads save original files and complete
   extracted text without changing completed profiles or running ordinary-file AI
   profile analysis. Scanned PDF transcription is saved for deep review. The
   inferred-details disclosure is removed. Explicit profile import opens editable
   onboarding fields and writes only on final approval, with ownership and
   profile-revision checks. Deep review uses every usable cached resume within
-  documented account/input limits. Production deployment and historical document
-  reprocessing are not part of this change.
+  documented account/input limits. The committed backend was deployed to
+  production alongside the catalog fixes on 2026-10-05. Historical document
+  reprocessing remains outside this change.
   Validation: all 473 tests, `npm run check`, the Webpack production build,
   React Doctor with no findings, and deployment to development
   `glorious-mallard-885` passed. Ordinary extraction, saved OCR text, isolated

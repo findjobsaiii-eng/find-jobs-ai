@@ -11,12 +11,14 @@ const state = vi.hoisted(() => ({
       kind: "field",
       labelEn: "Computer Science",
       labelHe: "מדעי המחשב",
+      aliases: ["CS", "מדמ״ח"],
+      isCustom: false,
     },
   ],
 }));
 vi.mock("convex/react", () => ({ useQuery: () => state.results }));
-function Editor() {
-  const [value, setValue] = useState("");
+function Editor({ initialValue = "" }: { initialValue?: string }) {
+  const [value, setValue] = useState(initialValue);
   return (
     <>
       <EducationNameInput value={value} onChange={setValue} />
@@ -56,7 +58,7 @@ describe("searchable education name", () => {
     await user.click(save);
     expect(input).toHaveValue("Bachelor of Meteorology ");
   });
-  it("offers an explicit add-your-own option without forcing an existing subject", async () => {
+  it("accepts a personal name without forcing an existing subject", async () => {
     const user = userEvent.setup();
     render(<Editor />);
     const input = screen.getByRole("combobox");
@@ -64,4 +66,41 @@ describe("searchable education name", () => {
     await user.click(screen.getByRole("option", { name: /Astronomy/ }));
     expect(input).toHaveValue("Astronomy");
   });
+  it.each(["en", "he"])(
+    "keeps a personal credential on reopen without an Add action in %s",
+    async (language) => {
+      await i18n.changeLanguage(language);
+      const user = userEvent.setup();
+      render(<Editor initialValue="Advanced Meteorology Certificate" />);
+      await user.click(screen.getByRole("combobox"));
+      expect(
+        screen.getByRole("option", {
+          name: new RegExp(
+            "Advanced Meteorology Certificate.*" + i18n.t("onboarding.custom"),
+          ),
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: /Add |הוספת/ }),
+      ).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(screen.getByRole("combobox")).toHaveValue(
+        "Advanced Meteorology Certificate",
+      );
+      expect(screen.getByText(i18n.t("onboarding.custom"))).toBeInTheDocument();
+    },
+  );
+  it.each(["CS", "Computer-Science", 'מדמ"ח'])(
+    "recognizes public alias %s in the other interface language",
+    async (initialValue) => {
+      await i18n.changeLanguage("he");
+      const user = userEvent.setup();
+      render(<Editor initialValue={initialValue} />);
+      await user.click(screen.getByRole("combobox"));
+      expect(
+        screen.queryByText(i18n.t("onboarding.custom")),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByRole("option")).toHaveLength(1);
+    },
+  );
 });

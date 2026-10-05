@@ -242,6 +242,10 @@ and the full structured extraction remain server-only.
 
 ### Onboarding options
 
+The shared bilingual catalog contains 216 skills, 103 job titles, 34 experience
+areas, and 57 study fields/qualifications. Dropdowns offer up to 30 shared and
+20 owner-private search results, within a scrollable menu.
+
 Job titles and skills use a searchable bilingual catalog. If a value is missing,
 an authenticated user can add a normalized custom value that is visible only to
 that user. Private custom values are capped, URLs and control characters are
@@ -249,7 +253,7 @@ rejected, and exact duplicates are reused. This keeps the MVP useful without
 publishing unreviewed input or creating a manual moderation queue.
 
 Experience areas use the same searchable chip picker in onboarding and profile.
-The `experienceDomain` catalog starts with 14 bilingual suggestions; users can
+The `experienceDomain` catalog contains 34 bilingual suggestions; users can
 add private suggestions. CV-extracted areas prefill the picker.
 CV extraction receives public and owner-private experience-area suggestions
 alongside roles and skills, and is instructed to reuse equivalent canonical
@@ -274,7 +278,15 @@ The radius slider supports 5–200 km in 5 km increments and defaults to 25 km.
 Bootstrap job titles, skills, study fields, and credentials can be seeded idempotently with
 `npm run catalog:seed`. Curated job-title rows also store editable bilingual
 aliases used by discovery. Private titles added by users deliberately have no
-shared aliases.
+shared aliases. Seeding and approved skill curation also schedule bounded
+`catalogReconciliation:reconcilePage` passes: rewrite profile and resume references
+to equivalent shared IDs, deduplicate selections, then remove redundant private
+rows. Searches prefer shared identities immediately; profile saves canonicalize
+owned references after checking authorization. Equivalence requires exact labels
+or approved skill aliases, never fuzzy similarity. Personal preferences, cached
+resume text and unrelated private values remain intact. Selected experience-area
+strings are classified separately from the current search/locale so their “Yours”
+badge stays accurate.
 
 ### Daily job discovery
 
@@ -555,7 +567,9 @@ matching does not fall back to them.
 
 `educationConcepts` stores bilingual study subjects and specific credentials,
 with aliases. The existing degree/qualification name field is a searchable
-combobox, with free-text and an explicit add-for-me option. Selecting a subject
+combobox with free text. Saved personal names are available only to their owner
+and display a “Yours” badge; typed names need no separate Add action. Confirmed
+public labels and aliases do not receive that badge. Selecting a subject
 never guesses a degree level or completion. The level/status controls stay
 independent. Matching recognizes confirmed subject aliases inside requirement
 text, including Hebrew prefixes, and distinguishes CS from CSS and Computer

@@ -16,6 +16,7 @@ import type * as auth from "../auth.js";
 import type * as authEnvironment from "../authEnvironment.js";
 import type * as candidateProfiles from "../candidateProfiles.js";
 import type * as candidateQualifications from "../candidateQualifications.js";
+import type * as catalogReconciliation from "../catalogReconciliation.js";
 import type * as companySourceMemory from "../companySourceMemory.js";
 import type * as crons from "../crons.js";
 import type * as dailyDiscovery from "../dailyDiscovery.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   authEnvironment: typeof authEnvironment;
   candidateProfiles: typeof candidateProfiles;
   candidateQualifications: typeof candidateQualifications;
+  catalogReconciliation: typeof catalogReconciliation;
   companySourceMemory: typeof companySourceMemory;
   crons: typeof crons;
   dailyDiscovery: typeof dailyDiscovery;

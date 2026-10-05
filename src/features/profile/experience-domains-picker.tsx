@@ -25,6 +25,10 @@ export function ExperienceDomainsPicker({
     kind: "experienceDomain",
     search: deferredSearch,
   });
+  const classifications = useQuery(
+    api.referenceData.classifyExperienceDomains,
+    { labels: values },
+  );
   const addCustom = useMutation(api.referenceData.addCustomCatalogItem);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -38,7 +42,19 @@ export function ExperienceDomainsPicker({
     <SharedPicker
       label={t("onboarding.fields.experienceDomains")}
       placeholder={t("onboarding.placeholders.experienceDomain")}
-      values={values.map((label) => pickerValue(label))}
+      values={values.map((label) =>
+        pickerValue(
+          label,
+          classifications?.find((item) => item.label === label)?.isCustom ??
+            !results?.some(
+              (item) =>
+                !item.isCustom &&
+                [item.labelEn, item.labelHe].some(
+                  (term) => term && termKey(term) === termKey(label),
+                ),
+            ),
+        ),
+      )}
       results={results?.map((option) =>
         pickerValue(catalogLabel(option, i18n.language), option.isCustom),
       )}

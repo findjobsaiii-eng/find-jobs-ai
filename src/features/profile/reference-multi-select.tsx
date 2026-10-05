@@ -265,6 +265,11 @@ export function SharedPicker({
                         ? t("onboarding.addMissing", { value: item.label })
                         : item.label}
                     </span>
+                    {item.isCustom && !item.create ? (
+                      <span className="text-muted-foreground shrink-0 text-xs">
+                        {t("onboarding.custom")}
+                      </span>
+                    ) : null}
                     {item.kindLabel ? (
                       <span className="text-muted-foreground shrink-0 text-xs">
                         {item.kindLabel}

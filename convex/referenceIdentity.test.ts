@@ -95,7 +95,7 @@ describe("database career identities", () => {
       }),
     ).toBeNull();
   });
-  it("learns a skill alias without changing private profile items and survives reseeding", async () => {
+  it("learns an approved skill alias and survives reseeding", async () => {
     const t = await setup();
     const candidate = await frequent(t, "skill", "Expressing ideas verbally");
     const batch = await t.mutation(
@@ -409,4 +409,59 @@ describe("database career identities", () => {
       ]),
     ).toEqual([]);
   });
+});
+
+it("returns saved personal education only to its owner and recognizes public bilingual aliases", async () => {
+  const t = await setup();
+  const userId = await t.run((ctx) =>
+    ctx.db.insert("users", { email: "personal@example.com" }),
+  );
+  const otherId = await t.run((ctx) =>
+    ctx.db.insert("users", { email: "other@example.com" }),
+  );
+  const user = t.withIdentity({ subject: `${userId}|test` });
+  await user.mutation(api.candidateProfiles.saveCurrent, {
+    values: {
+      qualifications: {
+        academicDegreeStatus: "none",
+        education: [
+          {
+            level: "certificate",
+            status: "completed",
+            field: null,
+            credential: "Advanced Meteorology Certificate",
+          },
+          {
+            level: "bachelor",
+            status: "in_progress",
+            field: "CS",
+            credential: null,
+          },
+        ],
+      },
+    },
+    onboardingStep: 3,
+    complete: false,
+  });
+  const found = await user.query(api.referenceIdentity.searchEducation, {
+    search: "Meteorology",
+  });
+  expect(
+    found.filter((item) => item.labelEn === "Advanced Meteorology Certificate"),
+  ).toHaveLength(1);
+  expect(found[0].isCustom).toBe(true);
+  const other = t.withIdentity({ subject: `${otherId}|test` });
+  expect(
+    await other.query(api.referenceIdentity.searchEducation, {
+      search: "Meteorology",
+    }),
+  ).toEqual([]);
+  expect(
+    await user.query(api.referenceIdentity.searchEducation, { search: "CS" }),
+  ).toContainEqual(
+    expect.objectContaining({ labelEn: "Computer Science", isCustom: false }),
+  );
+  await expect(
+    t.query(api.referenceIdentity.searchEducation, { search: "" }),
+  ).rejects.toThrow();
 });
