@@ -126,19 +126,25 @@ it("attributes metered calls without double-counting stored search totals", asyn
     end: now + 10_000,
   });
   expect(report.rows).toHaveLength(4);
-  expect(report.totals[0]).toMatchObject({
+  expect(
+    report.totals.find((total) => total.operation === "job_search"),
+  ).toMatchObject({
     operation: "job_search",
     requests: 3,
     inputTokens: 210,
     outputTokens: 80,
     webSearchCalls: 3,
   });
-  expect(report.totals[1]).toMatchObject({
+  expect(
+    report.totals.find((total) => total.operation === "deep_review"),
+  ).toMatchObject({
     operation: "deep_review",
     requests: 1,
     webSearchCalls: 2,
   });
-  expect(report.totals[2]).toMatchObject({
+  expect(
+    report.totals.find((total) => total.operation === "resume_extraction"),
+  ).toMatchObject({
     operation: "resume_extraction",
     unpricedRequests: 1,
   });

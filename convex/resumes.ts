@@ -191,6 +191,11 @@ export const createFromUpload = mutation({
       event: "resume_uploaded",
       occurredAt: now,
     });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.resumeActions.processQueuedResume,
+      { resumeId: id },
+    );
     return id;
   },
 });
@@ -422,7 +427,12 @@ export const saveExtractedText = internalMutation({
     await ctx.db.patch("resumeDocuments", resume._id, {
       extractedText: args.text,
       ...(args.finalize
-        ? { status: "ready" as const, processedAt: Date.now() }
+        ? {
+            status: "ready" as const,
+            processedAt: Date.now(),
+            processingLeaseUntil: undefined,
+            failureCode: undefined,
+          }
         : {}),
       updatedAt: Date.now(),
     });
@@ -846,6 +856,8 @@ export const completeProcessing = internalMutation({
       });
     }
     await ctx.db.patch("resumeDocuments", resume._id, {
+      processingLeaseUntil: undefined,
+      failureCode: undefined,
       status: args.draftOnly
         ? resume.status
         : usable
@@ -929,6 +941,7 @@ export const failProcessing = internalMutation({
     if (resume?.userId === args.userId)
       await ctx.db.patch("resumeDocuments", resume._id, {
         status: "failed",
+        processingLeaseUntil: undefined,
         failureCode: args.failureCode.slice(0, 100),
         updatedAt: Date.now(),
       });
@@ -1181,5 +1194,166 @@ export const finishReview = mutation({
       userId,
     });
     return null;
+  },
+});
+
+/** Ownership is derived at the public boundary; cached text is retained on retry. */
+export const retryProcessing = mutation({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId } = await requireUser(ctx);
+    const resume = await ctx.db.get("resumeDocuments", args.resumeId);
+    if (!resume || resume.userId !== userId)
+      throw new ConvexError({ code: "RESUME_NOT_FOUND" });
+    if (resume.status !== "failed")
+      throw new ConvexError({ code: "RESUME_NOT_FAILED" });
+    await ctx.db.patch("resumeDocuments", resume._id, {
+      status: "processing",
+      failureCode: undefined,
+      processingLeaseUntil: undefined,
+      processingAttempts: 0,
+      updatedAt: Date.now(),
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.resumeActions.processQueuedResume,
+      args,
+    );
+    return null;
+  },
+});
+
+export const claimProcessing = internalMutation({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.union(schema.doc("resumeDocuments"), v.null()),
+  handler: async (ctx, args) => {
+    const resume = await ctx.db.get("resumeDocuments", args.resumeId);
+    const now = Date.now();
+    if (
+      !resume ||
+      resume.status !== "processing" ||
+      (resume.processingLeaseUntil ?? 0) > now
+    )
+      return null;
+    await ctx.db.patch("resumeDocuments", resume._id, {
+      processingLeaseUntil: now + 10 * 60_000,
+      processingAttempts: (resume.processingAttempts ?? 0) + 1,
+      updatedAt: now,
+    });
+    return resume;
+  },
+});
+
+export const recoverStalledProcessing = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const resumes = await ctx.db
+      .query("resumeDocuments")
+      .withIndex("by_status_and_updatedAt", (q) =>
+        q.eq("status", "processing").lt("updatedAt", now - 10 * 60_000),
+      )
+      .take(20);
+    let recovered = 0;
+    for (const resume of resumes) {
+      if ((resume.processingLeaseUntil ?? 0) > now) continue;
+      if ((resume.processingAttempts ?? 0) >= 3) {
+        await ctx.db.patch("resumeDocuments", resume._id, {
+          status: "failed",
+          failureCode: "PROCESSING_TIMEOUT",
+          processingLeaseUntil: undefined,
+          updatedAt: now,
+        });
+      } else {
+        await ctx.db.patch("resumeDocuments", resume._id, { updatedAt: now });
+        await ctx.scheduler.runAfter(
+          0,
+          internal.resumeActions.processQueuedResume,
+          { resumeId: resume._id },
+        );
+        recovered++;
+      }
+    }
+    return recovered;
+  },
+});
+
+// Explicit repair requested after the production audit. Never imports approved profile data.
+export const repairMissingTextPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("resumeDocuments")
+      .paginate({ cursor: args.cursor, numItems: 20 });
+    for (const resume of page.page) {
+      if (
+        !["ready", "needs_confirmation", "replaced"].includes(resume.status) ||
+        resume.extractedText?.trim()
+      )
+        continue;
+      await ctx.db.patch("resumeDocuments", resume._id, {
+        status: "processing",
+        activateOnSuccess: false,
+        processingAttempts: 0,
+        updatedAt: Date.now(),
+      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.resumeActions.processQueuedResume,
+        { resumeId: resume._id },
+      );
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.resumes.repairMissingTextPage, {
+        cursor: page.continueCursor,
+      });
+    return null;
+  },
+});
+
+/** Targeted recovery; old extraction failures are repaired as documents only. */
+export const repairFailedExtractions = internalMutation({
+  args: { resumeIds: v.array(v.id("resumeDocuments")) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    if (args.resumeIds.length > 10)
+      throw new ConvexError({ code: "REPAIR_BATCH_TOO_LARGE" });
+    let queued = 0;
+    for (const resumeId of args.resumeIds) {
+      const resume = await ctx.db.get("resumeDocuments", resumeId);
+      const oldExtractionFailure =
+        resume &&
+        ["CV_AI_PARSE_FAILED", "SCANNED_PDF"].includes(
+          resume.failureCode ?? "",
+        );
+      if (
+        !resume ||
+        resume.status !== "failed" ||
+        (!oldExtractionFailure &&
+          !(
+            resume.failureCode === "CV_SCHEMA_INVALID" &&
+            resume.extractedText?.trim()
+          ))
+      )
+        continue;
+      await ctx.db.patch("resumeDocuments", resume._id, {
+        status: "processing",
+        failureCode: undefined,
+        processingLeaseUntil: undefined,
+        processingAttempts: 0,
+        ...(oldExtractionFailure ? { activateOnSuccess: false } : {}),
+        updatedAt: Date.now(),
+      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.resumeActions.processQueuedResume,
+        { resumeId },
+      );
+      queued++;
+    }
+    return queued;
   },
 });

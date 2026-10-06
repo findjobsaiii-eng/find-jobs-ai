@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { FileText, Sparkles, Upload } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -109,7 +109,7 @@ export function ResumeOnboarding({
   const { t, i18n } = useTranslation();
   const generateUploadUrl = useMutation(api.resumes.generateUploadUrl);
   const createFromUpload = useMutation(api.resumes.createFromUpload);
-  const processResume = useAction(api.resumeActions.processResume);
+  const retryProcessing = useMutation(api.resumes.retryProcessing);
   const inputRef = useRef<HTMLInputElement>(null);
   const [replacementForId] = useState(() =>
     replaceMode ? resume?.id : undefined,
@@ -147,7 +147,7 @@ export function ResumeOnboarding({
       });
       if (!response.ok) throw new Error("upload_failed");
       const { storageId } = (await response.json()) as { storageId: string };
-      const resumeId = await createFromUpload({
+      await createFromUpload({
         storageId: storageId as never,
         fileName: file.name,
         mimeType: file.type,
@@ -155,7 +155,6 @@ export function ResumeOnboarding({
         ...(replacementForId ? { replacementForId } : {}),
       });
       void captureProductEvent("resume_uploaded");
-      await processResume({ resumeId });
     } catch (cause) {
       setError(processingErrorKey(cause));
     } finally {
@@ -258,6 +257,26 @@ export function ResumeOnboarding({
               <p role="alert" className="text-destructive mt-4 text-sm">
                 {t(`resume.errors.${visibleError}`)}
               </p>
+            ) : null}
+            {visibleResume?.status === "failed" ? (
+              <Button
+                type="button"
+                className="mt-4 min-h-11 w-full"
+                disabled={uploading}
+                onClick={async () => {
+                  setUploading(true);
+                  setError(null);
+                  try {
+                    await retryProcessing({ resumeId: visibleResume.id });
+                  } catch (cause) {
+                    setError(processingErrorKey(cause));
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
+              >
+                {t("resumeLibrary.retry")}
+              </Button>
             ) : null}
             {onManualEntry ? (
               <Button

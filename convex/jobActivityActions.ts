@@ -1,5 +1,6 @@
 "use node";
 
+import { normalizeVerifiedRequirements } from "./jobRequirementActions";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -44,6 +45,7 @@ export const verifyDueSources = internalAction({
     const verified: Array<{
       source: (typeof claimed)[number]["source"];
       verification: Awaited<ReturnType<typeof verifyJobSource>>;
+      job: Doc<"jobs">;
     }> = [];
     const verifyRateLimited = createRateLimitedVerifier();
     let cursor = 0;
@@ -53,6 +55,7 @@ export const verifyDueSources = internalAction({
         const { source, job } = claimed[index];
         verified[index] = {
           source,
+          job,
           verification: await verifyRateLimited({
             title: job.title,
             companyName: job.companyName,
@@ -66,12 +69,32 @@ export const verifyDueSources = internalAction({
     await Promise.all(
       Array.from({ length: Math.min(3, claimed.length) }, () => worker()),
     );
-    for (const { source, verification } of verified) {
-      await ctx.runMutation(internal.jobActivity.recordVerification, {
-        sourceId: source._id,
-        verification,
-      });
+    let normalizedCursor = 0;
+    async function normalizeWorker() {
+      while (normalizedCursor < verified.length) {
+        const { source, verification, job } = verified[normalizedCursor++];
+        const owner = await ctx.runQuery(
+          internal.jobActivity.getNormalizationOwner,
+          { jobId: job._id },
+        );
+        const requirementFacts = owner
+          ? await normalizeVerifiedRequirements(ctx, job, verification, {
+              userId: owner,
+              jobId: job._id,
+            })
+          : null;
+        await ctx.runMutation(internal.jobActivity.recordVerification, {
+          sourceId: source._id,
+          verification,
+          ...(requirementFacts ? { requirementFacts } : {}),
+        });
+      }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(3, verified.length) }, () =>
+        normalizeWorker(),
+      ),
+    );
     if (claimed.length === 20) {
       await ctx.scheduler.runAfter(
         60_000,
@@ -118,9 +141,20 @@ export const reverifySpecificSources = internalAction({
         sourceType:
           source.sourceTier === "aggregator" ? "other" : source.sourceTier,
       });
+      const owner = await ctx.runQuery(
+        internal.jobActivity.getNormalizationOwner,
+        { jobId: job._id },
+      );
+      const requirementFacts = owner
+        ? await normalizeVerifiedRequirements(ctx, job, verification, {
+            userId: owner,
+            jobId: job._id,
+          })
+        : null;
       await ctx.runMutation(internal.jobActivity.recordVerification, {
         sourceId: source._id,
         verification,
+        ...(requirementFacts ? { requirementFacts } : {}),
       });
       results.push({
         sourceId: source._id,
@@ -163,7 +197,7 @@ export const reverifyVisibleCatalog = internalAction({
       }>;
     } = await ctx.runMutation(
       internal.jobActivity.claimVisibleSourcesForEvidenceRecheck,
-      { limit: args.limit },
+      { limit: Math.min(20, args.limit) },
     );
     const verifyRateLimited = createRateLimitedVerifier();
     let cursor = 0;
@@ -181,9 +215,20 @@ export const reverifyVisibleCatalog = internalAction({
               source.sourceTier === "aggregator" ? "other" : source.sourceTier,
           });
           sourcesChecked += 1;
+          const owner = await ctx.runQuery(
+            internal.jobActivity.getNormalizationOwner,
+            { jobId: job._id },
+          );
+          const requirementFacts = owner
+            ? await normalizeVerifiedRequirements(ctx, job, verification, {
+                userId: owner,
+                jobId: job._id,
+              })
+            : null;
           await ctx.runMutation(internal.jobActivity.recordVerification, {
             sourceId: source._id,
             verification,
+            ...(requirementFacts ? { requirementFacts } : {}),
           });
           if (verification.activityStatus === "verified_active") break;
         }

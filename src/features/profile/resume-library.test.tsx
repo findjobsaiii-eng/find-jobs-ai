@@ -73,9 +73,10 @@ describe("resume library uploads", () => {
     await user.click(screen.getByRole("button", { name: "Upload resume" }));
 
     await waitFor(() => {
-      expect(hooks.processResume).toHaveBeenCalledWith({
-        resumeId: "resumeDocuments:resume-1",
-      });
+      expect(hooks.mutation).toHaveBeenCalledWith(
+        expect.objectContaining({ fileName: "product-resume.pdf" }),
+      );
+      expect(hooks.processResume).not.toHaveBeenCalled();
     });
     expect(hooks.mutation).toHaveBeenCalledWith(
       expect.objectContaining({

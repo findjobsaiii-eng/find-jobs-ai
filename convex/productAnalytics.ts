@@ -1,3 +1,4 @@
+import { refreshUserSearchText } from "./adminUserSearch";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -53,6 +54,8 @@ export async function recordProductEvent(
   ctx: MutationCtx,
   input: ProductEventInput,
 ) {
+  if (input.event === "profile_saved" || input.event === "onboarding_completed")
+    await refreshUserSearchText(ctx, input.userId);
   const occurredAt = input.occurredAt ?? Date.now();
   const meaningful = input.meaningful ?? input.event !== "app_visited";
   const activity = await loadActivity(ctx, input.userId);

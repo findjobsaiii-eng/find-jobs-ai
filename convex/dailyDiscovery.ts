@@ -284,7 +284,17 @@ export const claimDailyRole = internalMutation({
       nextRoleIndex: (index + 1) % args.roles.length,
     };
     if (attempt)
-      await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, values);
+      await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
+        ...values,
+        ...(attempt.dayKey !== dayKey
+          ? {
+              dayKey,
+              lastAttemptAt: now,
+              lastOutcome: "queued",
+              attemptCount: 1,
+            }
+          : {}),
+      });
     else
       await ctx.db.insert("dailyDiscoveryAttempts", {
         userId: args.userId,
@@ -295,5 +305,38 @@ export const claimDailyRole = internalMutation({
         ...values,
       });
     return args.roles[index];
+  },
+});
+
+/** One support retry per user/day, only after the latest non-manual run failed. */
+export const claimFailedCoverageRetry = internalMutation({
+  args: { userId: v.id("users"), runId: v.id("jobSearchRuns") },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get("jobSearchRuns", args.runId);
+    const dayKey = globalDayKey(Date.now());
+    const attempt = await ctx.db
+      .query("dailyDiscoveryAttempts")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+    if (
+      !run ||
+      run.userId !== args.userId ||
+      run.manual ||
+      run.status !== "failed" ||
+      globalDayKey(run.startedAt) !== dayKey ||
+      !attempt ||
+      attempt.failureRetryDayKey === dayKey
+    )
+      return false;
+    await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {
+      failureRetryDayKey: dayKey,
+      dayKey,
+      lastAttemptAt: Date.now(),
+      lastOutcome: "queued",
+      attemptCount:
+        (attempt.dayKey === dayKey ? (attempt.attemptCount ?? 1) : 1) + 1,
+    });
+    return true;
   },
 });

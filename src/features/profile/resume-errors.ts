@@ -13,7 +13,11 @@ export function processingErrorKey(error: unknown) {
   if (code === "UPLOAD_RATE_LIMITED") return "rateLimited";
   if (code === "SCANNED_PDF") return "parsing";
   if (code === "EMPTY_FILE" || code === "EMPTY_EXTRACTED_TEXT") return "empty";
-  if (code === "CV_AI_PARSE_FAILED" || code === "CV_SCHEMA_INVALID")
+  if (
+    code === "CV_AI_PARSE_FAILED" ||
+    code === "CV_SCHEMA_INVALID" ||
+    code === "PROCESSING_TIMEOUT"
+  )
     return "parsing";
   if (
     code === "PDF_PARSE_FAILED" ||

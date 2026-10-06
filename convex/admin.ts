@@ -1,5 +1,10 @@
+import { internal } from "./_generated/api";
+import {
+  overviewValidator,
+  decisionMetricsValidator,
+} from "./adminMetricsModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { ConvexError, v } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import {
   paginationOptsValidator,
   paginationResultValidator,
@@ -36,25 +41,6 @@ import { productEventValidator } from "./productAnalytics";
 import { estimateOpenAiUsd } from "./aiUsageModel";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
-const WEEK_MS = 7 * DAY_MS;
-const DECISION_COHORT_COUNT = 8;
-const DECISION_EVENT_LIMIT = 5_001;
-const DECISION_USER_LIMIT = 1_001;
-const CORE_PRODUCT_EVENTS = new Set([
-  "job_source_clicked",
-  "job_saved",
-  "application_status_changed",
-  "deep_review_requested",
-]);
-
-function isCoreProductEvent(event: string) {
-  return CORE_PRODUCT_EVENTS.has(event);
-}
-
-function percentage(numerator: number, denominator: number) {
-  return denominator ? Math.round((numerator / denominator) * 100) : null;
-}
-
 const userSummary = v.object({
   userId: v.id("users"),
   email: v.union(v.string(), v.null()),
@@ -233,441 +219,71 @@ export const revokeAdminByEmail = internalMutation({
 
 export const overview = query({
   args: { dayKey: v.string(), start: v.number(), end: v.number() },
-  returns: v.object({
-    totalUsers: v.number(),
-    newUsers: v.number(),
-    scheduledUsers: v.number(),
-    searchesAttempted: v.number(),
-    searchesSkipped: v.number(),
-    jobsFound: v.number(),
-    jobsInserted: v.number(),
-    matchesCreated: v.number(),
-    failures: v.number(),
-    weeklyActiveUsers: v.number(),
-    weeklyEngagedUsers: v.number(),
-    jobsSaved: v.number(),
-    applicationUpdates: v.number(),
-    jobSourceClicks: v.number(),
-    emailsDelivered: v.number(),
-    emailsOpened: v.number(),
-    emailsClicked: v.number(),
-    truncated: v.boolean(),
-  }),
+  returns: v.union(overviewValidator, v.null()),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const limit = 1_001;
-    const weekStart = args.end - 7 * 24 * 60 * 60 * 1_000;
-    const [
-      users,
-      newUsers,
-      runs,
-      audits,
-      discoveries,
-      jobs,
-      matches,
-      activeUsers,
-      engagedUsers,
-      jobsSaved,
-      applicationUpdates,
-      jobSourceClicks,
-      emailsDelivered,
-      emailsOpened,
-      emailsClicked,
-      adminMemberships,
-    ] = await Promise.all([
-      ctx.db.query("users").order("desc").take(limit),
-      ctx.db
-        .query("users")
-        .withIndex("by_creation_time", (q) =>
-          q.gte("_creationTime", args.start).lt("_creationTime", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("jobSearchRuns")
-        .withIndex("by_startedAt", (q) =>
-          q.gte("startedAt", args.start).lt("startedAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("dailyDiscoveryAudits")
-        .withIndex("by_dayKey_and_status", (q) => q.eq("dayKey", args.dayKey))
-        .take(limit),
-      ctx.db
-        .query("jobDiscoveries")
-        .withIndex("by_discoveredAt", (q) =>
-          q.gte("discoveredAt", args.start).lt("discoveredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("jobs")
-        .withIndex("by_firstDiscoveredAt", (q) =>
-          q
-            .gte("firstDiscoveredAt", args.start)
-            .lt("firstDiscoveredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("jobMatches")
-        .withIndex("by_creation_time", (q) =>
-          q.gte("_creationTime", args.start).lt("_creationTime", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("userActivity")
-        .withIndex("by_lastSeenAt", (q) =>
-          q.gte("lastSeenAt", weekStart).lt("lastSeenAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("userActivity")
-        .withIndex("by_lastMeaningfulActionAt", (q) =>
-          q
-            .gte("lastMeaningfulActionAt", weekStart)
-            .lt("lastMeaningfulActionAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("productEvents")
-        .withIndex("by_event_and_occurredAt", (q) =>
-          q
-            .eq("event", "job_saved")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("productEvents")
-        .withIndex("by_event_and_occurredAt", (q) =>
-          q
-            .eq("event", "application_status_changed")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("productEvents")
-        .withIndex("by_event_and_occurredAt", (q) =>
-          q
-            .eq("event", "job_source_clicked")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("emailDeliveryEvents")
-        .withIndex("by_type_and_occurredAt", (q) =>
-          q
-            .eq("type", "delivered")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("emailDeliveryEvents")
-        .withIndex("by_type_and_occurredAt", (q) =>
-          q
-            .eq("type", "opened")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db
-        .query("emailDeliveryEvents")
-        .withIndex("by_type_and_occurredAt", (q) =>
-          q
-            .eq("type", "clicked")
-            .gte("occurredAt", args.start)
-            .lt("occurredAt", args.end),
-        )
-        .take(limit),
-      ctx.db.query("adminMemberships").take(limit),
-    ]);
-    const adminIds = new Set(
-      adminMemberships
-        .filter((membership) => membership.active)
-        .map((membership) => membership.userId),
-    );
-    return {
-      totalUsers: Math.min(users.length, 1_000),
-      newUsers: Math.min(newUsers.length, 1_000),
-      scheduledUsers: Math.min(audits.length, 1_000),
-      searchesAttempted: Math.min(runs.length, 1_000),
-      searchesSkipped: audits.filter((item) => item.status === "skipped")
-        .length,
-      jobsFound: new Set(discoveries.map((item) => item.jobId)).size,
-      jobsInserted: Math.min(jobs.length, 1_000),
-      matchesCreated: Math.min(matches.length, 1_000),
-      failures:
-        runs.filter((item) => item.status === "failed").length +
-        audits.filter((item) => item.status === "failed").length,
-      weeklyActiveUsers: activeUsers.filter(
-        (activity) => !adminIds.has(activity.userId),
-      ).length,
-      weeklyEngagedUsers: engagedUsers.filter(
-        (activity) => !adminIds.has(activity.userId),
-      ).length,
-      jobsSaved: jobsSaved.filter((event) => !adminIds.has(event.userId))
-        .length,
-      applicationUpdates: applicationUpdates.filter(
-        (event) => !adminIds.has(event.userId),
-      ).length,
-      jobSourceClicks: jobSourceClicks.filter(
-        (event) => !adminIds.has(event.userId),
-      ).length,
-      emailsDelivered: emailsDelivered.filter(
-        (event) => !adminIds.has(event.userId),
-      ).length,
-      emailsOpened: emailsOpened.filter((event) => !adminIds.has(event.userId))
-        .length,
-      emailsClicked: emailsClicked.filter(
-        (event) => !adminIds.has(event.userId),
-      ).length,
-      truncated: [
-        users,
-        newUsers,
-        runs,
-        audits,
-        discoveries,
-        jobs,
-        matches,
-        activeUsers,
-        engagedUsers,
-        jobsSaved,
-        applicationUpdates,
-        jobSourceClicks,
-        emailsDelivered,
-        emailsOpened,
-        emailsClicked,
-        adminMemberships,
-      ].some((items) => items.length === limit),
-    };
+    const snapshot = await ctx.db
+      .query("adminMetricSnapshots")
+      .withIndex("by_key", (q) => q.eq("key", args.dayKey))
+      .unique();
+    return snapshot?.overviewJson
+      ? (JSON.parse(snapshot.overviewJson) as Infer<typeof overviewValidator>)
+      : null;
+  },
+});
+export const decisionMetrics = query({
+  args: { now: v.number() },
+  returns: v.union(decisionMetricsValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const snapshot = await ctx.db
+      .query("adminMetricSnapshots")
+      .withIndex("by_end", (q) => q.eq("end", args.now))
+      .first();
+    return snapshot?.decisionJson
+      ? (JSON.parse(snapshot.decisionJson) as Infer<
+          typeof decisionMetricsValidator
+        >)
+      : null;
   },
 });
 
-const decisionCohort = v.object({
-  start: v.number(),
-  end: v.number(),
-  signups: v.number(),
-  activated: v.number(),
-  retained: v.number(),
-  activationRate: v.union(v.number(), v.null()),
-  retentionRate: v.union(v.number(), v.null()),
-  activationMatured: v.boolean(),
-  retentionMatured: v.boolean(),
-});
-
-export const decisionMetrics = query({
-  args: { now: v.number() },
-  returns: v.object({
-    trackingStartedAt: v.union(v.number(), v.null()),
-    decision: v.union(
-      v.literal("collecting"),
-      v.literal("promising"),
-      v.literal("mixed"),
-      v.literal("weak"),
-    ),
-    weeklyActiveUsers: v.number(),
-    weeklyCoreUsers: v.number(),
-    priorWeekCoreUsers: v.number(),
-    retainedCoreUsers: v.number(),
-    rollingRetentionRate: v.union(v.number(), v.null()),
-    coreActions: v.number(),
-    averageActiveDays: v.union(v.number(), v.null()),
-    maturedSignups: v.number(),
-    activatedSignups: v.number(),
-    activationRate: v.union(v.number(), v.null()),
-    retentionEligibleActivated: v.number(),
-    retainedUsers: v.number(),
-    cohortRetentionRate: v.union(v.number(), v.null()),
-    cohorts: v.array(decisionCohort),
-    truncated: v.boolean(),
-  }),
+export const requestMetrics = mutation({
+  args: { dayKey: v.string(), start: v.number(), end: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const [firstEvent, adminMemberships] = await Promise.all([
-      ctx.db
-        .query("productEvents")
-        .withIndex("by_occurredAt")
-        .order("asc")
-        .first(),
-      ctx.db.query("adminMemberships").take(DECISION_USER_LIMIT),
-    ]);
-    const trackingStartedAt = firstEvent?.occurredAt ?? null;
-    const historyStart = args.now - (DECISION_COHORT_COUNT + 1) * WEEK_MS;
-    const currentWeekStart = args.now - WEEK_MS;
-    const priorWeekStart = args.now - 2 * WEEK_MS;
-    const [events, users, activeUsers] = await Promise.all([
-      ctx.db
-        .query("productEvents")
-        .withIndex("by_occurredAt", (q) =>
-          q.gte("occurredAt", historyStart).lt("occurredAt", args.now),
-        )
-        .take(DECISION_EVENT_LIMIT),
-      trackingStartedAt === null
-        ? []
-        : ctx.db
-            .query("users")
-            .withIndex("by_creation_time", (q) =>
-              q
-                .gte("_creationTime", trackingStartedAt)
-                .lt("_creationTime", args.now),
-            )
-            .take(DECISION_USER_LIMIT),
-      ctx.db
-        .query("userActivity")
-        .withIndex("by_lastSeenAt", (q) =>
-          q.gte("lastSeenAt", currentWeekStart).lt("lastSeenAt", args.now),
-        )
-        .take(DECISION_USER_LIMIT),
-    ]);
-    const adminIds = new Set(
-      adminMemberships
-        .filter((membership) => membership.active)
-        .map((membership) => membership.userId),
-    );
-    const betaUsers = users.filter((user) => !adminIds.has(user._id));
-    const coreEvents = events.filter(
-      (event) => !adminIds.has(event.userId) && isCoreProductEvent(event.event),
-    );
-    const currentCoreEvents = coreEvents.filter(
-      (event) => event.occurredAt >= currentWeekStart,
-    );
-    const priorCoreEvents = coreEvents.filter(
-      (event) =>
-        event.occurredAt >= priorWeekStart &&
-        event.occurredAt < currentWeekStart,
-    );
-    const currentCoreUsers = new Set(
-      currentCoreEvents.map((event) => event.userId),
-    );
-    const priorCoreUsers = new Set(
-      priorCoreEvents.map((event) => event.userId),
-    );
-    const retainedCoreUsers = [...currentCoreUsers].filter((userId) =>
-      priorCoreUsers.has(userId),
-    ).length;
-    const activeDays = new Map<string, Set<number>>();
-    for (const event of currentCoreEvents) {
-      const days = activeDays.get(event.userId) ?? new Set<number>();
-      days.add(Math.floor((event.occurredAt - currentWeekStart) / DAY_MS));
-      activeDays.set(event.userId, days);
-    }
-    const coreEventsByUser = new Map<Id<"users">, typeof coreEvents>();
-    for (const event of coreEvents) {
-      const userEvents = coreEventsByUser.get(event.userId) ?? [];
-      userEvents.push(event);
-      coreEventsByUser.set(event.userId, userEvents);
-    }
-    const cohorts = Array.from(
-      { length: DECISION_COHORT_COUNT },
-      (_, index) => {
-        const start = args.now - (index + 1) * WEEK_MS;
-        const end = args.now - index * WEEK_MS;
-        const cohortUsers = betaUsers.filter(
-          (user) => user._creationTime >= start && user._creationTime < end,
-        );
-        let activated = 0;
-        let retained = 0;
-        for (const user of cohortUsers) {
-          const activationEnd = user._creationTime + WEEK_MS;
-          const retentionEnd = activationEnd + WEEK_MS;
-          const userEvents = coreEventsByUser.get(user._id) ?? [];
-          const userActivated = userEvents.some(
-            (event) =>
-              event.occurredAt >= user._creationTime &&
-              event.occurredAt < activationEnd,
-          );
-          if (userActivated) activated += 1;
-          if (
-            userActivated &&
-            userEvents.some(
-              (event) =>
-                event.occurredAt >= activationEnd &&
-                event.occurredAt < retentionEnd,
-            )
-          ) {
-            retained += 1;
-          }
-        }
-        return {
-          start,
-          end,
-          signups: cohortUsers.length,
-          activated,
-          retained,
-          activationRate: percentage(activated, cohortUsers.length),
-          retentionRate: percentage(retained, activated),
-          activationMatured: end + WEEK_MS <= args.now,
-          retentionMatured: end + 2 * WEEK_MS <= args.now,
-        };
-      },
-    );
-    const activationCohorts = cohorts.filter(
-      (cohort) => cohort.activationMatured,
-    );
-    const retentionCohorts = cohorts.filter(
-      (cohort) => cohort.retentionMatured,
-    );
-    const maturedSignups = activationCohorts.reduce(
-      (sum, cohort) => sum + cohort.signups,
-      0,
-    );
-    const activatedSignups = activationCohorts.reduce(
-      (sum, cohort) => sum + cohort.activated,
-      0,
-    );
-    const retentionEligibleActivated = retentionCohorts.reduce(
-      (sum, cohort) => sum + cohort.activated,
-      0,
-    );
-    const retainedUsers = retentionCohorts.reduce(
-      (sum, cohort) => sum + cohort.retained,
-      0,
-    );
-    const activationRate = percentage(activatedSignups, maturedSignups);
-    const cohortRetentionRate = percentage(
-      retainedUsers,
-      retentionEligibleActivated,
-    );
-    const decision: "collecting" | "promising" | "mixed" | "weak" =
-      maturedSignups < 10 || retentionEligibleActivated < 5
-        ? "collecting"
-        : (activationRate ?? 0) >= 40 && (cohortRetentionRate ?? 0) >= 25
-          ? "promising"
-          : (activationRate ?? 0) < 20 || (cohortRetentionRate ?? 0) < 10
-            ? "weak"
-            : "mixed";
-    const totalActiveDays = [...activeDays.values()].reduce(
-      (sum, days) => sum + days.size,
-      0,
-    );
-    return {
-      trackingStartedAt,
-      decision,
-      weeklyActiveUsers: activeUsers.filter(
-        (activity) => !adminIds.has(activity.userId),
-      ).length,
-      weeklyCoreUsers: currentCoreUsers.size,
-      priorWeekCoreUsers: priorCoreUsers.size,
-      retainedCoreUsers,
-      rollingRetentionRate: percentage(retainedCoreUsers, priorCoreUsers.size),
-      coreActions: currentCoreEvents.length,
-      averageActiveDays: currentCoreUsers.size
-        ? Math.round((totalActiveDays / currentCoreUsers.size) * 10) / 10
-        : null,
-      maturedSignups,
-      activatedSignups,
-      activationRate,
-      retentionEligibleActivated,
-      retainedUsers,
-      cohortRetentionRate,
-      cohorts,
-      truncated:
-        events.length === DECISION_EVENT_LIMIT ||
-        users.length === DECISION_USER_LIMIT ||
-        activeUsers.length === DECISION_USER_LIMIT ||
-        adminMemberships.length === DECISION_USER_LIMIT,
-    };
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/u.test(args.dayKey) ||
+      args.end <= args.start ||
+      args.end - args.start > 26 * 60 * 60_000
+    )
+      throw new ConvexError({ code: "INVALID_DATE_RANGE" });
+    const previous = await ctx.db
+      .query("adminMetricSnapshots")
+      .withIndex("by_key", (q) => q.eq("key", args.dayKey))
+      .unique();
+    const now = Date.now();
+    if (
+      previous &&
+      (previous.generatedAt > now - 5 * 60_000 ||
+        (previous.refreshingAt ?? 0) > now - 10 * 60_000)
+    )
+      return null;
+    if (previous)
+      await ctx.db.patch("adminMetricSnapshots", previous._id, {
+        refreshingAt: now,
+      });
+    else
+      await ctx.db.insert("adminMetricSnapshots", {
+        key: args.dayKey,
+        start: args.start,
+        end: args.end,
+        generatedAt: 0,
+        refreshingAt: now,
+      });
+    await ctx.scheduler.runAfter(0, internal.adminMetrics.refresh, args);
+    return null;
   },
 });
 
@@ -753,7 +369,10 @@ export const listSearches = query({
 });
 
 export const listUsers = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: {
+    paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+  },
   returns: paginationResultValidator(
     v.object({
       user: userSummary,
@@ -771,13 +390,23 @@ export const listUsers = query({
   ),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const users = await ctx.db
-      .query("users")
-      .order("desc")
-      .paginate({
-        ...args.paginationOpts,
-        numItems: Math.min(args.paginationOpts.numItems, 20),
-      });
+    const search = args.search?.normalize("NFKC").trim().slice(0, 100);
+    const opts = {
+      ...args.paginationOpts,
+      numItems: Math.min(args.paginationOpts.numItems, 20),
+    };
+    const users = search
+      ? await ctx.db
+          .query("users")
+          .withSearchIndex("search_name_email", (q) =>
+            q.search("searchText", search),
+          )
+          .paginate(opts)
+      : await ctx.db
+          .query("users")
+          .withIndex("by_creation_time")
+          .order("desc")
+          .paginate(opts);
     const page = await Promise.all(
       users.page.map(async (user) => {
         const [profile, lastRun, membership, activity, applications] =
@@ -1088,6 +717,7 @@ function adminJobSummaryView(job: Doc<"jobs">) {
 
 const usageOperation = v.union(
   v.literal("job_search"),
+  v.literal("job_normalization"),
   v.literal("deep_review"),
   v.literal("resume_extraction"),
 );
@@ -1233,6 +863,7 @@ export const tokenUsage = query({
     );
     const operations = [
       "job_search",
+      "job_normalization",
       "deep_review",
       "resume_extraction",
     ] as const;

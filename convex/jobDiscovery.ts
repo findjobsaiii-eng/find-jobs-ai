@@ -6,7 +6,7 @@ import {
   identityCatalogValidator,
   educationObservationTerms,
 } from "./referenceIdentityModel";
-import {
+import schema, {
   aiActivityAssessment,
   applicationStatus,
   applicationTimelineEvent,
@@ -190,6 +190,12 @@ const jobInputValidator = v.object({
     v.literal("other"),
   ),
   descriptionText: v.union(v.string(), v.null()),
+  requirementsSourceHash: v.optional(v.string()),
+  requirementsNormalizedAt: v.optional(v.number()),
+  requirementsStatus: v.optional(
+    v.union(v.literal("complete"), v.literal("incomplete")),
+  ),
+  additionalRequirements: v.optional(v.array(v.string())),
   requirementsText: v.union(v.string(), v.null()),
   responsibilities: v.array(v.string()),
   requiredSkills: v.array(v.string()),
@@ -401,7 +407,8 @@ export const feedEmptyStateValidator = v.union(
   }),
 );
 export const discoveryStateValidator = v.union(
-  v.literal("pending"),
+  v.literal("waiting"),
+  v.literal("queued"),
   v.literal("running"),
   v.literal("complete"),
   v.literal("failed"),
@@ -560,6 +567,7 @@ async function currentPlan(
 export async function loadSearchProfile(
   ctx: QueryCtx | MutationCtx,
   userId: Id<"users">,
+  sharedIdentityCatalog?: SearchProfile["identityCatalog"],
 ): Promise<SearchProfile> {
   const profile = await getProfile(ctx, userId);
   if (
@@ -584,7 +592,7 @@ export async function loadSearchProfile(
     Promise.all(
       (profile.skillIds ?? []).map((id) => ctx.db.get("catalogItems", id)),
     ),
-    loadIdentityCatalog(ctx),
+    sharedIdentityCatalog ?? loadIdentityCatalog(ctx),
   ]);
   const label = (item: Doc<"catalogItems"> | null) =>
     item?.active &&
@@ -741,6 +749,24 @@ export const getUserPlan = internalQuery({
   handler: (ctx, args) => currentPlan(ctx, args.userId, args.now),
 });
 
+export const recoverStalledSearches = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const runs = await ctx.db
+      .query("jobSearchRuns")
+      .withIndex("by_status_and_startedAt", (q) =>
+        q
+          .eq("status", "running")
+          .lt("startedAt", now - JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS),
+      )
+      .take(10);
+    for (const run of runs) await recoverStaleRun(ctx, run, now);
+    return runs.length;
+  },
+});
+
 async function hasVisibleMatchesForCurrentProfile(
   ctx: QueryCtx | MutationCtx,
   userId: Id<"users">,
@@ -760,6 +786,19 @@ export const hasVisibleJobsForUser = internalQuery({
   args: { userId: v.id("users") },
   returns: v.boolean(),
   handler: (ctx, args) => hasVisibleMatchesForCurrentProfile(ctx, args.userId),
+});
+
+export const getLatestFailedRun = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.union(schema.doc("jobSearchRuns"), v.null()),
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("jobSearchRuns")
+      .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .first();
+    return run?.status === "failed" && !run.manual ? run : null;
+  },
 });
 
 export const beginSearch = internalMutation({
@@ -801,12 +840,23 @@ export const beginSearch = internalMutation({
         ? await ctx.db.get("jobSearchRuns", record.lastAttemptRunId)
         : null;
       if (
-        claimedRun?.status === "running" ||
-        claimedRun?.status === "completed"
-      ) {
+        claimedRun?.status === "completed" ||
+        (claimedRun?.status === "running" &&
+          claimedRun.startedAt >= now - JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS)
+      )
         return null;
-      }
+      if (claimedRun?.status === "running")
+        await recoverStaleRun(ctx, claimedRun, now);
     }
+    const health = await ctx.db
+      .query("jobSearchProviderHealth")
+      .withIndex("by_key", (q) => q.eq("key", "openai"))
+      .unique();
+    if (health && health.blockedUntil > now)
+      throw new ConvexError({
+        code: "JOB_DISCOVERY_FAILED",
+        category: health.reason,
+      });
     const active = await ctx.db
       .query("jobSearchRuns")
       .withIndex("by_userId_and_status", (q) =>
@@ -1428,6 +1478,8 @@ export const completeSearch = internalMutation({
     let insertedCount = 0;
     let deduplicatedCount = 0;
     let eligibleCount = 0;
+    let strongMatchCount = 0;
+    let partialMatchCount = 0;
     let qualityRejectedCount = 0;
     const identityCatalog = await loadIdentityCatalog(ctx);
     const seenJobs = new Set<Id<"jobs">>();
@@ -1458,6 +1510,27 @@ export const completeSearch = internalMutation({
       const { aiAssessment, ...jobDetails } = job;
       const storedJob = {
         ...jobDetails,
+        // A secondary search summary must not erase already verified primary facts.
+        ...(centralJob?.requirementsStatus === "complete" &&
+        !(
+          verification.identityMatched &&
+          verification.activityStatus === "verified_active" &&
+          ["employer", "ats"].includes(verification.sourceTier)
+        )
+          ? {
+              requirementsStatus: centralJob.requirementsStatus,
+              requirementsSourceHash: centralJob.requirementsSourceHash,
+              requirementsNormalizedAt: centralJob.requirementsNormalizedAt,
+              requirementsText: centralJob.requirementsText,
+              requiredExperienceYearsMin: centralJob.requiredExperienceYearsMin,
+              requiredExperienceYearsMax: centralJob.requiredExperienceYearsMax,
+              requiredSkills: centralJob.requiredSkills,
+              preferredSkills: centralJob.preferredSkills,
+              languages: centralJob.languages,
+              educationRequirements: centralJob.educationRequirements,
+              additionalRequirements: centralJob.additionalRequirements,
+            }
+          : {}),
         postedAt: selectedPosting.postedAt ?? null,
         datePostedProvenance: selectedPosting.datePostedProvenance,
       };
@@ -1581,9 +1654,15 @@ export const completeSearch = internalMutation({
       }
       const alreadySeen = seenJobs.has(jobId);
       if (!alreadySeen) {
-        if (quality.outcome === "eligible" && freshness.eligible)
+        if (
+          quality.outcome === "eligible" &&
+          quality.matchQuality !== "possible" &&
+          freshness.eligible
+        ) {
           eligibleCount += 1;
-        else qualityRejectedCount += 1;
+          if (quality.matchQuality === "strong") strongMatchCount += 1;
+          else partialMatchCount += 1;
+        } else qualityRejectedCount += 1;
       }
       if (alreadySeen) continue;
       seenJobs.add(jobId);
@@ -1626,6 +1705,8 @@ export const completeSearch = internalMutation({
       webSearchToolCallCount: args.webSearchToolCallCount,
       returnedCandidateCount: args.returnedCandidateCount,
       acceptedCount: eligibleCount,
+      strongMatchCount,
+      partialMatchCount,
       rejectedCount: totalRejected,
       insertedCount,
       deduplicatedCount,
@@ -1669,6 +1750,28 @@ export const failSearch = internalMutation({
     const run = await ctx.db.get("jobSearchRuns", args.runId);
     if (run?.userId !== userId || run.status !== "running") return null;
     const now = Date.now();
+    if (
+      args.errorCategory === "provider_billing" ||
+      args.errorCategory === "provider_authentication"
+    ) {
+      const health = await ctx.db
+        .query("jobSearchProviderHealth")
+        .withIndex("by_key", (q) => q.eq("key", "openai"))
+        .unique();
+      const values = {
+        key: "openai",
+        blockedUntil: now + 60 * 60_000,
+        reason: args.errorCategory,
+        updatedAt: now,
+      };
+      if (health)
+        await ctx.db.patch("jobSearchProviderHealth", health._id, values);
+      else await ctx.db.insert("jobSearchProviderHealth", values);
+      console.error("job_search_provider_unavailable", {
+        category: args.errorCategory,
+        blockedUntil: values.blockedUntil,
+      });
+    }
     const usage = await ctx.db
       .query("jobSearchUsage")
       .withIndex("by_reservationId", (q) =>
@@ -2153,7 +2256,7 @@ export async function loadUserJobsFeed(
   return { jobs, plan, emptyState, discoveryState };
 }
 
-function currentDiscoveryState(
+export function currentDiscoveryState(
   attempt: Doc<"dailyDiscoveryAttempts"> | null,
   recentRuns: Doc<"jobSearchRuns">[],
   now: number,
@@ -2164,13 +2267,36 @@ function currentDiscoveryState(
     (run) => globalDayKey(run.startedAt) === dayKey,
   );
   if (
-    todaysAttempt?.lastOutcome === "queued" ||
-    todaysRuns.some((run) => run.status === "running")
+    todaysRuns.some(
+      (run) =>
+        run.status === "running" &&
+        run.startedAt >= now - JOB_SEARCH_ACTIVE_RUN_TIMEOUT_MS,
+    )
   ) {
     return "running" as const;
   }
+  const latestRun = [...todaysRuns].sort(
+    (a, b) => b.startedAt - a.startedAt,
+  )[0];
   if (
-    todaysAttempt?.lastOutcome === "completed" ||
+    todaysAttempt?.lastOutcome === "queued" &&
+    (!latestRun || todaysAttempt.lastAttemptAt > latestRun.startedAt)
+  )
+    return "queued" as const;
+  if (latestRun?.status === "failed" || latestRun?.status === "running")
+    return "failed" as const;
+  if (
+    todaysAttempt &&
+    !["queued", "completed", "completed_empty", "reused", "no_search"].includes(
+      todaysAttempt.lastOutcome,
+    )
+  )
+    return "failed" as const;
+  if (
+    (attempt !== null &&
+      ["completed", "completed_empty", "reused", "no_search"].includes(
+        attempt.lastOutcome,
+      )) ||
     todaysRuns.some(
       (run) => run.status === "completed" || run.status === "reused",
     )
@@ -2180,7 +2306,7 @@ function currentDiscoveryState(
   if (todaysRuns.some((run) => run.status === "failed")) {
     return "failed" as const;
   }
-  return "pending" as const;
+  return "waiting" as const;
 }
 
 export async function buildMatchAudit(ctx: QueryCtx, userId: Id<"users">) {
@@ -2401,12 +2527,9 @@ async function loadFeedEmptyState(
   // Diagnostics are explicit tools, not part of an ordinary reactive feed read.
   const [excluded, verified, probable] = await Promise.all([
     ctx.db
-      .query("jobMatches")
-      .withIndex("by_user_revision_outcome_score", (q) =>
-        q
-          .eq("userId", userId)
-          .eq("profileRevision", revision)
-          .eq("outcome", "excluded"),
+      .query("jobMatchExclusions")
+      .withIndex("by_userId_and_profileRevision_and_score", (q) =>
+        q.eq("userId", userId).eq("profileRevision", revision),
       )
       .order("desc")
       .take(20),
@@ -2423,12 +2546,7 @@ async function loadFeedEmptyState(
       )
       .first(),
   ]);
-  const outsideRadiusCount = excluded.filter(
-    (match) =>
-      match.freshnessEligible &&
-      match.exclusionReasons.length === 1 &&
-      match.exclusionReasons[0] === "location_conflict",
-  ).length;
+  const outsideRadiusCount = excluded.length;
   return {
     reason:
       !verified && !probable

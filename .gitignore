@@ -29,3 +29,5 @@ output/
 *.sw?
 
 next-env.d.ts
+.vercel
+.env*

@@ -3,7 +3,11 @@ import {
   identityTermKey,
 } from "./referenceIdentityModel";
 import type { SearchProfile } from "./jobDiscoveryModel";
-import { skillsEquivalent } from "./skillIdentity";
+import {
+  namedSkillsInText,
+  resolveSkillIdentity,
+  skillsEquivalent,
+} from "./skillIdentity";
 import { matchingEducationFieldKeys } from "./educationIdentity";
 
 export type RequirementAssessment = {
@@ -20,7 +24,63 @@ type RequirementJob = {
   educationRequirements: string[];
   languages: string[];
   requirementsText: string | null;
+  additionalRequirements?: string[];
 };
+
+/** Only explicit OR lists are interchangeable; a slash can name a distinct skill. */
+export function skillAlternatives(value: string) {
+  if (!/(?:\bor\b|\sאו\s)/iu.test(value)) return [value];
+  if (/(?:\band\b|\sוגם\s)/iu.test(value)) return [value];
+  const parts = value
+    .split(/,\s*|\s+(?:or|או)\s+/iu)
+    .map((part) => part.replace(/^(?:or|או)\s+/iu, "").trim())
+    .filter(Boolean);
+  const named = parts.map(namedSkillsInText);
+  // A group with multiple skills is a conjunction unless it is a simple A/B alternative.
+  if (
+    parts.some(
+      (part, index) =>
+        named[index].length > 1 &&
+        !/^[\p{L}\p{N}+#.]+\s*\/\s*[\p{L}\p{N}+#.]+$/u.test(part),
+    )
+  )
+    return [value];
+  return parts.flatMap((part, index) =>
+    named[index].length ? named[index] : [part],
+  );
+}
+
+export function matchingSkill(
+  requirement: string,
+  evidence: string[],
+  profile: Pick<SearchProfile, "identityCatalog">,
+) {
+  // Knowing a technology never proves a certification or professional license.
+  if (
+    /(?:certifi(?:ed|cation|cate)|licen[cs]e|רישיון|תעודה|הסמכה)/iu.test(
+      requirement,
+    )
+  )
+    return evidence.find((skill) =>
+      skillsEquivalent(skill, requirement, profile.identityCatalog),
+    );
+  if (!/(?:\bor\b|\sאו\s)/iu.test(requirement)) {
+    const names = namedSkillsInText(requirement);
+    if (names.length) {
+      const matches = names.map((name) =>
+        evidence.find((skill) =>
+          skillsEquivalent(skill, name, profile.identityCatalog),
+        ),
+      );
+      return matches.every(Boolean) ? matches[0] : undefined;
+    }
+  }
+  return evidence.find((skill) =>
+    skillAlternatives(requirement).some((alternative) =>
+      skillsEquivalent(skill, alternative, profile.identityCatalog),
+    ),
+  );
+}
 
 const academicLevels = { bachelor: 1, master: 2, doctorate: 3 } as const;
 const languageNames: Record<string, string[]> = {
@@ -47,6 +107,26 @@ function normalize(value: string) {
 }
 function preferred(value: string) {
   return /(?:preferred|advantage|nice.to.have|יתרון|עדיפות)/u.test(value);
+}
+
+/** Some sources put a simple technology condition in the miscellaneous list.
+ * Only fully recognized skill lists can use skill evidence here; preserve
+ * clearance, numeric, credential and compound non-skill conditions as unknown. */
+function skillOnlyCondition(value: string, profile: SearchProfile) {
+  const clean = value
+    .replace(
+      /^(?:(?:experience|knowledge|proficiency|familiarity|understanding)(?:\s+(?:of|in|with))?\s+|(?:ניסיון|ידע|שליטה|היכרות)\s+(?:ב[-\s]?|עם\s+)?)/iu,
+      "",
+    )
+    .replace(/\s+(?:required|preferred|חובה|יתרון)\s*[.;:]?$/iu, "")
+    .replace(/[.;:]$/u, "")
+    .trim();
+  const parts = clean.split(/\s+(?:or|and|או|וגם)\s+|,\s*|\s*\/\s*/iu);
+  return parts.every(
+    (part) => resolveSkillIdentity(part.trim(), profile.identityCatalog).known,
+  )
+    ? clean
+    : null;
 }
 function educationAssessment(
   requirement: string,
@@ -252,7 +332,11 @@ export function evaluateRequirements(
       ...profile.skills,
       ...(profile.qualifications?.education
         .filter((item) => item.status === "completed")
-        .flatMap((item) => (item.credential ? [item.credential] : [])) ?? []),
+        .flatMap((item) =>
+          [item.field, item.credential].filter((value): value is string =>
+            Boolean(value),
+          ),
+        ) ?? []),
     ];
     const met = candidateEvidence.some((value) =>
       credential.aliases.some((alias) =>
@@ -281,13 +365,14 @@ export function evaluateRequirements(
             ...profile.skills,
             ...(profile.qualifications?.education
               .filter((item) => item.status === "completed")
-              .flatMap((item) => (item.credential ? [item.credential] : [])) ??
-              []),
+              .flatMap((item) =>
+                [item.field, item.credential].filter((value): value is string =>
+                  Boolean(value),
+                ),
+              ) ?? []),
           ]
         : profile.skills;
-      const matched = evidence.find((skill) =>
-        skillsEquivalent(skill, requirement, profile.identityCatalog),
-      );
+      const matched = matchingSkill(requirement, evidence, profile);
       return {
         requirement,
         importance,
@@ -298,31 +383,69 @@ export function evaluateRequirements(
         nextStep: matched ? null : "jobMatching.nextStep.skill",
       };
     });
+  const languageLevel = (text: string) =>
+    /(?:native|mother tongue|שפת אם)/u.test(text)
+      ? 5
+      : /(?:fluent|fluency|שוטפ)/u.test(text)
+        ? 4
+        : /(?:basic|בסיסי)/u.test(text)
+          ? 1
+          : /(?:conversational|שיחה)/u.test(text)
+            ? 2
+            : /(?:professional|business|proficien|excellent|strong|good|advanced|מקצועי|עסקית|גבוה|שליטה)/u.test(
+                  text,
+                )
+              ? 3
+              : null;
+  const languageCodes = (text: string) =>
+    Object.entries(languageNames)
+      .filter(([, names]) =>
+        names.some((name) =>
+          name.length <= 2 ? text === name : text.includes(name),
+        ),
+      )
+      .map(([code]) => code);
   const languages = job.languages.map((requirement): RequirementAssessment => {
     const text = normalize(requirement);
     const importance = preferred(text)
       ? ("important" as const)
       : ("must_have" as const);
-    const code = Object.entries(languageNames).find(([, names]) =>
-      names.some((name) =>
-        name.length <= 2 ? text === name : text.includes(name),
-      ),
-    )?.[0];
-    const candidate = code
-      ? profile.languages.find((language) => language.languageCode === code)
-      : undefined;
-    const requiredLevel = /(?:native|mother tongue|שפת אם)/u.test(text)
-      ? 5
-      : /(?:fluent|fluency|שוטפ|רמת שפת אם)/u.test(text)
-        ? 4
-        : /(?:professional|business|מקצועי|עסקית)/u.test(text)
-          ? 3
-          : /(?:conversational|שיחה)/u.test(text)
-            ? 2
-            : 1;
-    const level = candidate ? languageLevels[candidate.proficiency] : undefined;
+    const codes = languageCodes(text);
+    const parts = text.split(
+      /[,;]|\s+(?:and|or|או|וגם)\s+|\s+ו(?=(?:ב)?(?:עברית|אנגלית|ערבית|רוסית))/u,
+    );
+    const statuses = codes.map((code) => {
+      const candidate = profile.languages.find(
+        (language) => language.languageCode === code,
+      );
+      const part =
+        parts.find((part) => languageCodes(part).includes(code)) ?? text;
+      const requiredLevel = languageLevel(part) ?? languageLevel(text) ?? 1;
+      const level = candidate
+        ? languageLevels[candidate.proficiency]
+        : undefined;
+      return level === undefined
+        ? ("unknown" as const)
+        : level >= requiredLevel
+          ? ("met" as const)
+          : ("gap" as const);
+    });
+    const any = /(?:\bor\b|\sאו\s)/u.test(text);
+    const mixed = any && /(?:\band\b|\sוגם\s)/u.test(text);
     const status =
-      level === undefined ? "unknown" : level >= requiredLevel ? "met" : "gap";
+      !statuses.length || mixed
+        ? ("unknown" as const)
+        : any
+          ? statuses.includes("met")
+            ? ("met" as const)
+            : statuses.every((s) => s === "gap")
+              ? ("gap" as const)
+              : ("unknown" as const)
+          : statuses.includes("gap")
+            ? ("gap" as const)
+            : statuses.every((s) => s === "met")
+              ? ("met" as const)
+              : ("unknown" as const);
     return {
       requirement,
       importance,
@@ -336,13 +459,78 @@ export function evaluateRequirements(
       nextStep: status === "unknown" ? "jobMatching.nextStep.language" : null,
     };
   });
+  // Some providers put language communication in skills as well as languages.
+  // Assess it with the same proficiency evidence rather than exact skill text.
+  const assessSkills = (
+    values: string[],
+    importance: RequirementAssessment["importance"],
+  ) =>
+    skills(values, importance).map((assessment) => {
+      const text = normalize(assessment.requirement);
+      const code = Object.entries(languageNames).find(([, names]) =>
+        names.some((name) => name.length > 2 && text.includes(name)),
+      )?.[0];
+      if (
+        !code ||
+        !/(?:communication|proficiency|fluency|fluent|english|hebrew|אנגלית|עברית)/u.test(
+          text,
+        )
+      )
+        return assessment;
+      const candidate = profile.languages.find(
+        (item) => item.languageCode === code,
+      );
+      const requiredLevel = /(?:native|mother tongue|שפת אם)/u.test(text)
+        ? 5
+        : /(?:fluent|fluency|שוטפ)/u.test(text)
+          ? 4
+          : 3;
+      const level = candidate
+        ? languageLevels[candidate.proficiency]
+        : undefined;
+      const status =
+        level === undefined
+          ? ("unknown" as const)
+          : level >= requiredLevel
+            ? ("met" as const)
+            : ("gap" as const);
+      return {
+        ...assessment,
+        status,
+        evidence:
+          status === "met"
+            ? "jobMatching.evidence.languageMet"
+            : status === "gap"
+              ? "jobMatching.evidence.languageGap"
+              : "jobMatching.evidence.languageUnknown",
+        nextStep: status === "unknown" ? "jobMatching.nextStep.language" : null,
+      };
+    });
   return [
-    ...skills(job.requiredSkills, "must_have"),
-    ...skills(job.preferredSkills, "important"),
+    ...assessSkills(job.requiredSkills, "must_have"),
+    ...assessSkills(job.preferredSkills, "important"),
     ...job.educationRequirements.map((value) =>
       educationAssessment(value, profile, relevantExperienceYears),
     ),
     ...languages,
     ...qualificationRequirements,
+    ...(job.additionalRequirements ?? []).map(
+      (requirement): RequirementAssessment => {
+        const condition = skillOnlyCondition(requirement, profile);
+        const matched =
+          condition && matchingSkill(condition, profile.skills, profile);
+        return {
+          requirement,
+          status: matched ? "met" : "unknown",
+          importance: preferred(normalize(requirement))
+            ? "important"
+            : "must_have",
+          evidence: matched
+            ? "jobMatching.evidence.skillMet"
+            : "jobMatching.evidence.requirementUnknown",
+          nextStep: matched ? null : "jobMatching.nextStep.requirement",
+        };
+      },
+    ),
   ];
 }

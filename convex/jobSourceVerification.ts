@@ -6,14 +6,34 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import type { IncomingHttpHeaders } from "node:http";
 import type { NormalizedJob } from "./jobDiscoveryModel";
-import { normalizePublicUrl } from "./jobDiscoveryModel";
+import {
+  normalizePublicUrl,
+  normalizeCompanyIdentity,
+} from "./jobDiscoveryModel";
+import { hydrateJobRequirements } from "./jobRequirementEvidence";
 import { classifyJobSource } from "./jobSourceQuality";
-import type { DatePostedProvenance } from "./jobFreshness";
+import {
+  publicationDateLines,
+  type DatePostedProvenance,
+} from "./jobFreshness";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 const DNS_TIMEOUT_MS = 3_000;
 const MAX_REDIRECTS = 3;
-const MAX_RESPONSE_BYTES = 512 * 1_024;
+const MAX_RESPONSE_BYTES = 2 * 1_024 * 1_024;
+
+/** Canonical keys may fold www/slashes; actual redirect requests must preserve them. */
+export function verificationRequestUrl(value: string, base?: string) {
+  try {
+    const url = new URL(value, base);
+    if (!normalizePublicUrl(url.toString()) || url.username || url.password)
+      return null;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export type SourceVerification = {
   activityStatus:
@@ -167,6 +187,9 @@ type PinnedResponse = {
 
 async function requestPinned(url: URL): Promise<PinnedResponse> {
   const target = await resolvePublicHost(url);
+  // Employer pages also embed large client bundles. Transport limits should
+  // stay bounded without depending on our source-classification catalog.
+  const maxBytes = MAX_RESPONSE_BYTES;
   const request = url.protocol === "https:" ? httpsRequest : httpRequest;
   return await new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -192,16 +215,13 @@ async function requestPinned(url: URL): Promise<PinnedResponse> {
       },
       (response) => {
         const declaredLength = Number(response.headers["content-length"]);
-        if (
-          Number.isFinite(declaredLength) &&
-          declaredLength > MAX_RESPONSE_BYTES
-        ) {
+        if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
           response.destroy(new Error("response_too_large"));
           return;
         }
         response.on("data", (chunk: Buffer) => {
           size += chunk.byteLength;
-          if (size > MAX_RESPONSE_BYTES) {
+          if (size > maxBytes) {
             response.destroy(new Error("response_too_large"));
             return;
           }
@@ -233,11 +253,13 @@ export function visibleText(html: string) {
   return html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu, " ")
+    .replace(/<\/?(?:p|li|h[1-6]|div|section|br)\b[^>]*>/giu, "\n")
     .replace(/<[^>]+>/gu, " ")
     .replace(/&(nbsp|amp|quot|#39|lt|gt);/giu, " ")
     .normalize("NFKC")
     .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, "")
-    .replace(/\s+/gu, " ")
+    .replace(/[ \t]+/gu, " ")
+    .replace(/\n\s*\n/gu, "\n")
     .trim()
     .slice(0, 120_000);
 }
@@ -263,6 +285,8 @@ export function isGenericDestination(url: URL) {
     .replace(/^\/+|\/+$/gu, "")
     .toLocaleLowerCase("en-US");
   if (externalJobId(url)) return false;
+  if (["page", "q", "search"].some((key) => url.searchParams.has(key)))
+    return true;
   if (!path) return true;
   const segments = path.split("/");
   if (
@@ -287,8 +311,10 @@ function sourceTier(
 }
 
 function externalJobId(url: URL) {
-  for (const key of ["gh_jid", "jobId", "job_id", "jid"]) {
-    const value = url.searchParams.get(key)?.trim();
+  for (const [key, candidate] of url.searchParams) {
+    if (!["gh_jid", "jobid", "job_id", "jid"].includes(key.toLowerCase()))
+      continue;
+    const value = candidate.trim();
     if (value && /^[\w-]{4,100}$/u.test(value)) return value;
   }
   const candidates = url.pathname.split("/").filter(Boolean).reverse();
@@ -375,7 +401,9 @@ function parseTimestamp(value: string | null) {
 }
 
 function relativePostedAt(text: string, now: number) {
-  const normalized = text.toLocaleLowerCase("en-US");
+  const normalized = publicationDateLines(text)
+    .join("\n")
+    .toLocaleLowerCase("en-US");
   if (
     /\b(?:posted\s+)?today\b/u.test(normalized) ||
     /(?:^|\s)היום(?:\s|$)/u.test(normalized)
@@ -423,6 +451,15 @@ function jobPostingIdentifier(data: Record<string, unknown>) {
 }
 
 function hasApplicationAction(html: string) {
+  if (
+    [...html.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/giu)].some(
+      (button) =>
+        /^(?:apply(?: now| for this (?:job|position))?|submit application|הגש(?:ת)? מועמדות)$/iu.test(
+          visibleText(button[1]).trim(),
+        ),
+    )
+  )
+    return true;
   if (/"directApply"\s*:\s*true/iu.test(html)) return true;
   if (/data-tracking-control-name=["'][^"']*apply[^"']*["']/iu.test(html)) {
     return true;
@@ -438,9 +475,7 @@ function hasApplicationAction(html: string) {
   for (const link of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/giu)) {
     const attributes = link[1];
     const label = visibleText(link[2]);
-    const href = attributes.match(/href=["']([^"']+)["']/iu)?.[1] ?? "";
     if (
-      /(?:apply|application|candidate|מועמדות)/iu.test(href) &&
       /(?:apply|submit|application|הגש|מועמדות)/iu.test(
         `${label} ${attributes}`,
       )
@@ -468,7 +503,6 @@ function applicationUrl(html: string, baseUrl: string) {
     const label = visibleText(link[2]);
     const href = attributes.match(/href=["']([^"']+)["']/iu)?.[1] ?? "";
     if (
-      !/(?:apply|application|candidate|מועמדות)/iu.test(href) ||
       !/(?:apply|submit|application|הגש|מועמדות)/iu.test(
         `${label} ${attributes}`,
       )
@@ -504,6 +538,7 @@ type StructuredPosting = {
   validThrough: string | null;
   identifier: string | null;
   directApply: boolean;
+  description: string | null;
 };
 
 function structuredPosting(
@@ -518,6 +553,7 @@ function structuredPosting(
     validThrough: null,
     identifier: null,
     directApply: false,
+    description: null,
   };
   for (const script of html.matchAll(
     /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu,
@@ -545,14 +581,28 @@ function structuredPosting(
           expectedEntityPresent(data.title, job.title);
         const companyMatched =
           typeof organization?.name === "string" &&
-          expectedEntityPresent(organization.name, job.companyName);
+          (normalizeCompanyIdentity(organization.name) ===
+            normalizeCompanyIdentity(job.companyName) ||
+            expectedEntityPresent(organization.name, job.companyName));
+        const description =
+          typeof data.description === "string"
+            ? visibleText(data.description)
+            : "";
+        // Bilingual boards can label the employer in Hebrew while its own
+        // vacancy introduction names the same employer in English.
+        const introduction = description.slice(0, 320);
+        const descriptionCompanyMatched =
+          expectedEntityPresent(introduction, job.companyName) &&
+          /(?:seeking|hiring|looking for|מחפשים|מגייסים)/iu.test(introduction);
         const pageCompanyMatched = expectedEntityPresent(
           visibleText(html),
           job.companyName,
         );
         if (
           !titleMatched ||
-          (!companyMatched && !(allowPageCompanyFallback && pageCompanyMatched))
+          (!companyMatched &&
+            !descriptionCompanyMatched &&
+            !(allowPageCompanyFallback && pageCompanyMatched))
         ) {
           continue;
         }
@@ -563,6 +613,7 @@ function structuredPosting(
           typeof data.validThrough === "string" ? data.validThrough : null;
         result.identifier = jobPostingIdentifier(data);
         result.directApply = data.directApply === true;
+        result.description = description || null;
         return result;
       }
     } catch {
@@ -603,6 +654,18 @@ export function classifySourceResponse(args: {
     pageTitle: pageTitle(args.body ?? ""),
     redirected: args.redirected ?? false,
   };
+  if (
+    args.redirected &&
+    common.sourceTier === "ats" &&
+    parsed.searchParams.get("error") === "true" &&
+    externalJobId(new URL(args.job.sourceUrl)) &&
+    !externalJobId(parsed)
+  )
+    return {
+      ...common,
+      activityStatus: "inactive",
+      verificationEvidence: "ats_vacancy_removed",
+    };
   if (args.status === 404 || args.status === 410) {
     return {
       ...common,
@@ -643,7 +706,7 @@ export function classifySourceResponse(args: {
     };
   }
   const text = visibleText(args.body ?? "");
-  const primaryText = primaryPostingText(text);
+  let primaryText = primaryPostingText(text);
   if (
     /\b(?:sign in|log in|captcha|access denied|verify you are human|just a moment)\b/iu.test(
       text,
@@ -681,6 +744,14 @@ export function classifySourceResponse(args: {
     args.job,
     common.sourceTier === "ats",
   );
+  if (
+    structured.matched &&
+    structured.description &&
+    !primaryText
+      .replace(/\s+/gu, " ")
+      .includes(structured.description.replace(/\s+/gu, " "))
+  )
+    primaryText = `${primaryText}\n${structured.description}`;
   const structuredDeadline = parseTimestamp(structured.validThrough);
   const structuredPostedAt = parseTimestamp(structured.datePosted);
   const applicationAvailable = hasApplicationAction(postingHtml);
@@ -743,13 +814,32 @@ export function classifySourceResponse(args: {
     primaryText,
     args.job.companyName,
   );
+  const tenant = parsed.pathname.split("/").filter(Boolean)[0] ?? "";
+  const companyName = normalizeCompanyIdentity(args.job.companyName);
+  const companyKeys = [
+    companyName,
+    companyName.replace(
+      /\b(?:technologies|technology|solutions|group|company)\b/gu,
+      "",
+    ),
+  ].map((name) => name.replace(/[^a-z0-9]/gu, ""));
+  // An exact ATS tenant is independent company evidence when the logo/name is client-rendered.
+  const tenantMatched =
+    common.sourceTier === "ats" &&
+    companyKeys.some(
+      (key) =>
+        key.length >= 3 &&
+        new RegExp(`^${key}(?:io|ai|inc|\\d*)?$`, "u").test(
+          tenant.toLowerCase(),
+        ),
+    );
   const identityMatched =
-    structured.matched || (titleMatched && companyMatched);
+    structured.matched || (titleMatched && (companyMatched || tenantMatched));
   if (structured.anyPosting && !structured.matched) {
     return {
       ...datedEvidence,
-      activityStatus: "inactive",
-      verificationEvidence: "job_identity_replaced",
+      activityStatus: "unknown",
+      verificationEvidence: "structured_identity_unconfirmed",
     };
   }
   if (!identityMatched) {
@@ -821,9 +911,10 @@ export function classifySourceResponse(args: {
 
 export async function verifyJobSource(
   job: VerifiableJob,
+  followPrimary = true,
 ): Promise<SourceVerification> {
   const startedAt = Date.now();
-  let current = normalizePublicUrl(job.sourceUrl);
+  let current = verificationRequestUrl(job.sourceUrl);
   if (!current) return failure(job, "verification_failed", "Unsafe source URL");
   try {
     let redirected = false;
@@ -858,9 +949,7 @@ export async function verifyJobSource(
             current,
           );
         }
-        const nextUrl = normalizePublicUrl(
-          new URL(location, current).toString(),
-        );
+        const nextUrl = verificationRequestUrl(location, current);
         if (!nextUrl) {
           return failure(
             job,
@@ -872,6 +961,24 @@ export async function verifyJobSource(
         current = nextUrl;
         redirected = true;
         continue;
+      }
+      const direct = applicationUrl(response.text, current);
+      if (
+        followPrimary &&
+        (!redirected ||
+          !externalJobId(new URL(job.sourceUrl)) ||
+          externalJobId(new URL(job.sourceUrl)) ===
+            externalJobId(new URL(current))) &&
+        direct &&
+        direct !== current &&
+        classifyJobSource(new URL(direct).hostname).sourceTier === "ats" &&
+        !isGenericDestination(new URL(direct))
+      ) {
+        const primary = await verifyJobSource(
+          { ...job, sourceUrl: direct, sourceType: "ats" },
+          false,
+        );
+        if (primary.identityMatched) return primary;
       }
       return classifySourceResponse({
         job,
@@ -912,9 +1019,10 @@ export async function verifyJobSources(jobs: NormalizedJob[], concurrency = 3) {
       const queue = providerQueues[cursor];
       cursor += 1;
       for (const [position, index] of queue.entries()) {
+        const verification = await verifyJobSource(jobs[index]);
         output[index] = {
-          job: jobs[index],
-          verification: await verifyJobSource(jobs[index]),
+          job: hydrateJobRequirements(jobs[index], verification),
+          verification,
         };
         if (position < queue.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 750));

@@ -418,10 +418,16 @@ it("reports beta activation and retention from core actions without counting adm
     },
   );
 
+  await t.action(internal.adminMetrics.refresh, {
+    dayKey: "2026-10-06",
+    start: base + 20 * day,
+    end: base + 21 * day,
+  });
   const metrics = await asUser(t, adminId).query(api.admin.decisionMetrics, {
     now: base + 21 * day,
   });
 
+  if (!metrics) throw new Error("Metrics snapshot missing");
   expect(metrics).toMatchObject({
     decision: "collecting",
     weeklyActiveUsers: 1,
@@ -736,3 +742,57 @@ it("paginates user summaries without invoking job matching on incomplete or inva
     new Set([...first.page, ...second.page].map((row) => row.user.userId)).size,
   ).toBe(31);
 });
+
+it("paginates background summaries and indexed user search across 10,000 accounts", async () => {
+  const t = convexTest(schema, modules);
+  const now = Date.now();
+  const adminId = await t.run(async (ctx) => {
+    let owner: Id<"users"> | undefined;
+    for (let index = 0; index < 10_000; index++) {
+      const id = await ctx.db.insert("users", {
+        name: `Candidate ${index}`,
+        email: `candidate${index}@example.com`,
+        searchText: `Candidate ${index} candidate${index}@example.com`,
+      });
+      if (index === 0) owner = id;
+    }
+    await ctx.db.insert("adminMemberships", {
+      userId: owner!,
+      role: "admin",
+      active: true,
+      grantedBy: "test",
+      createdAt: now,
+      updatedAt: now,
+    });
+    return owner!;
+  });
+  const page = await t.query(internal.adminMetrics.readPage, {
+    table: "users",
+    cursor: null,
+    start: 0,
+    end: now + 60_000,
+    dayKey: "2026-10-06",
+  });
+  expect(JSON.parse(page.json)).toHaveLength(100);
+  expect(page.done).toBe(false);
+  expect(page.json).not.toContain("@example.com");
+  const admin = asUser(t, adminId);
+  const results = await admin.query(api.admin.listUsers, {
+    search: "candidate9999",
+    paginationOpts: { cursor: null, numItems: 20 },
+  });
+  expect(results.page).toHaveLength(1);
+  expect(results.page[0].user.email).toBe("candidate9999@example.com");
+  await t.action(internal.adminMetrics.refresh, {
+    start: 0,
+    end: now + 60_000,
+    dayKey: "2026-10-06",
+  });
+  expect(
+    await admin.query(api.admin.overview, {
+      start: 0,
+      end: now + 60_000,
+      dayKey: "2026-10-06",
+    }),
+  ).toMatchObject({ totalUsers: 10_000, truncated: false });
+}, 30_000);

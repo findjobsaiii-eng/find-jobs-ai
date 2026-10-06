@@ -56,6 +56,7 @@ const AGGREGATOR_DOMAINS = [
   "secrethunter.io",
   "jooble.org",
   "jobhunt.co.il",
+  "forelandjobs.com",
 ] as const;
 
 export const DISCOVERY_SOURCE_FAMILIES = [
@@ -137,11 +138,17 @@ export function classifyJobSource(
       sourceLabel: host,
     };
   }
-  return {
-    sourceTier: "employer",
-    sourceFamily: "employer_direct",
-    sourceLabel: host,
-  };
+  return declared === "employer"
+    ? {
+        sourceTier: "employer",
+        sourceFamily: "employer_direct",
+        sourceLabel: host,
+      }
+    : {
+        sourceTier: "aggregator",
+        sourceFamily: "aggregator",
+        sourceLabel: host,
+      };
 }
 
 export function sourcePriority(tier: JobSourceTier) {

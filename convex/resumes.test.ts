@@ -1071,3 +1071,126 @@ it("bounds the resume library and rejects oversized extraction without storing p
     }),
   ).rejects.toThrow("RESUME_LIMIT_REACHED");
 });
+
+it("queues uploads atomically and claims only one processing worker", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, resumeId } = await seedUserAndResume(t);
+  const storageId = await t.run((ctx) =>
+    ctx.storage.store(new Blob(["fixture"], { type: "application/pdf" })),
+  );
+  const uploaded = await asUser(t, userId).mutation(
+    api.resumes.createFromUpload,
+    {
+      storageId,
+      fileName: "library.pdf",
+      mimeType: "application/pdf",
+      size: 7,
+      activateOnSuccess: false,
+    },
+  );
+  const pending = await t.run((ctx) =>
+    ctx.db.system.query("_scheduled_functions").collect(),
+  );
+  expect(
+    pending.some(
+      (item) =>
+        item.name === "resumeActions:processQueuedResume" &&
+        item.args[0].resumeId === uploaded,
+    ),
+  ).toBe(true);
+  expect(
+    await t.mutation(internal.resumes.claimProcessing, { resumeId }),
+  ).toMatchObject({ userId });
+  expect(
+    await t.mutation(internal.resumes.claimProcessing, { resumeId }),
+  ).toBeNull();
+});
+
+it("restricts retry ownership, preserves cached text, and recovers a stalled worker without changing the profile", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, resumeId } = await seedUserAndResume(t);
+  const { userId: otherId } = await seedUserAndResume(t, "Other");
+  await t.run((ctx) =>
+    ctx.db.patch("resumeDocuments", resumeId, {
+      status: "failed",
+      failureCode: "CV_SCHEMA_INVALID",
+      extractedText: "Already extracted CV content",
+    }),
+  );
+  await expect(
+    asUser(t, otherId).mutation(api.resumes.retryProcessing, { resumeId }),
+  ).rejects.toThrow("RESUME_NOT_FOUND");
+  await asUser(t, userId).mutation(api.resumes.retryProcessing, { resumeId });
+  await t.run(async (ctx) => {
+    expect((await ctx.db.get("resumeDocuments", resumeId))?.extractedText).toBe(
+      "Already extracted CV content",
+    );
+    await ctx.db.patch("resumeDocuments", resumeId, {
+      updatedAt: Date.now() - 11 * 60_000,
+      processingLeaseUntil: Date.now() - 1,
+      processingAttempts: 1,
+    });
+  });
+  expect(await t.mutation(internal.resumes.recoverStalledProcessing, {})).toBe(
+    1,
+  );
+  await t.run(async (ctx) => {
+    expect((await ctx.db.get("resumeDocuments", resumeId))?.status).toBe(
+      "processing",
+    );
+    await ctx.db.patch("resumeDocuments", resumeId, {
+      updatedAt: Date.now() - 11 * 60_000,
+      processingAttempts: 3,
+    });
+  });
+  await t.mutation(internal.resumes.recoverStalledProcessing, {});
+  expect(
+    await t.run((ctx) => ctx.db.get("resumeDocuments", resumeId)),
+  ).toMatchObject({
+    status: "failed",
+    failureCode: "PROCESSING_TIMEOUT",
+    extractedText: "Already extracted CV content",
+  });
+});
+
+it("repairs old extraction failures as documents without importing them into an approved profile", async () => {
+  const t = convexTest(schema, modules);
+  const { userId, resumeId } = await seedUserAndResume(t);
+  await t.mutation(
+    internal.resumes.completeProcessing,
+    completion(resumeId, userId),
+  );
+  const profile = await t.run(async (ctx) => {
+    const p = (await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique())!;
+    await ctx.db.patch("candidateProfiles", p._id, {
+      onboardingCompleted: true,
+    });
+    await ctx.db.patch("resumeDocuments", resumeId, {
+      status: "failed",
+      failureCode: "CV_AI_PARSE_FAILED",
+      extractedText: undefined,
+      activateOnSuccess: true,
+    });
+    return ctx.db.get("candidateProfiles", p._id);
+  });
+  expect(
+    await t.mutation(internal.resumes.repairFailedExtractions, {
+      resumeIds: [resumeId],
+    }),
+  ).toBe(1);
+  expect(
+    await t.run((ctx) => ctx.db.get("resumeDocuments", resumeId)),
+  ).toMatchObject({ activateOnSuccess: false });
+  await t.mutation(internal.resumes.saveExtractedText, {
+    userId,
+    resumeId,
+    text: "Recovered document text",
+    finalize: true,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.get("candidateProfiles", profile!._id)),
+  ).toEqual(profile);
+});

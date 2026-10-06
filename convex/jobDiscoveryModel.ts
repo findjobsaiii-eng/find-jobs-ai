@@ -1,3 +1,4 @@
+import { CATALOG_SEED } from "./referenceCatalogData";
 import type { IdentityCatalog } from "./referenceIdentityModel";
 import { z } from "zod";
 import type { CandidateQualifications } from "./candidateQualifications";
@@ -103,6 +104,10 @@ export type SearchProfile = {
 };
 
 export type NormalizedJob = OpenAIJob & {
+  requirementsStatus?: "complete" | "incomplete";
+  requirementsSourceHash?: string;
+  requirementsNormalizedAt?: number;
+  additionalRequirements?: string[];
   normalizedSourceUrl: string;
   canonicalKey: string;
   jobFingerprint: string;
@@ -188,10 +193,20 @@ function isPreferredExperienceStatement(text: string) {
   );
 }
 
+export function isEmployerExperienceStatement(text: string) {
+  return /(?:(?:our|the) (?:founder|ceo)\s*[-–—,:]\s*\d|(?:our (?:founder|company|team|ceo)|company|team)\s+(?:has|have|brings|bring|with)\s+(?:over\s+|more than\s+)?\d|we (?:have|bring)\s+(?:over\s+|more than\s+)?\d|(?:founded|established)\s+(?:over\s+|in\s+)?\d|(?:המייסד|מייסד החברה|החברה)\s+(?:בעל|עם)\s+ניסיון)/iu.test(
+    text,
+  );
+}
+
 function parseExperienceRequirements(text: string) {
   const value = normalizeWhitespace(
     experienceStatements(text)
-      .filter((statement) => !isPreferredExperienceStatement(statement))
+      .filter(
+        (statement) =>
+          !isPreferredExperienceStatement(statement) &&
+          !isEmployerExperienceStatement(statement),
+      )
       .join("\n"),
   ).toLocaleLowerCase("en-US");
   const found: ParsedExperienceRequirement[] = [];
@@ -208,7 +223,7 @@ function parseExperienceRequirements(text: string) {
   };
 
   for (const match of value.matchAll(
-    /(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s*(?:experience)?/giu,
+    /(\d{1,2})\s*(?:[-–—]|to)\s*(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s*(?:experience)?/giu,
   )) {
     add(match[1], match[2]);
     rangeSpans.push({
@@ -235,8 +250,15 @@ function parseExperienceRequirements(text: string) {
     add(match[1]);
   for (const match of value.matchAll(
     /(\d{1,2})\s*\+\s*(?:years?|yrs?)(?:\s*['’])?(?:\s+of)?(?:\s+[\p{L}-]+){0,4}\s*(?:experience)?/giu,
-  ))
+  )) {
+    if (
+      rangeSpans.some(
+        ({ start, end }) => match.index >= start && match.index < end,
+      )
+    )
+      continue;
     add(match[1]);
+  }
   for (const match of value.matchAll(
     /(\d{1,2})\s*\+\s*(?:שנות|שנים)\s*(?:ניסיון|נסיון)/gu,
   ))
@@ -272,7 +294,7 @@ function parseExperienceRequirements(text: string) {
 }
 
 /** Reconciles structured provider output with explicit bilingual source text.
- * The stricter explicit minimum wins; unknown requirements remain unknown. */
+ * Explicit candidate conditions win; company biographies do not set a minimum. */
 export function resolveExperienceRequirement(
   source: ExperienceRequirementSource,
 ) {
@@ -288,12 +310,17 @@ export function resolveExperienceRequirement(
         isPreferredExperienceStatement(statement) &&
         /\d{1,2}\s*(?:\+\s*)?(?:years?|yrs?|שנות|שנים)/iu.test(statement),
     );
-  const structuredMin = onlyPreferredExperience
-    ? null
-    : source.requiredExperienceYearsMin;
-  const structuredMax = onlyPreferredExperience
-    ? null
-    : source.requiredExperienceYearsMax;
+  const companyExperienceOnly =
+    parsed.length === 0 &&
+    experienceStatements(requirementText).some(isEmployerExperienceStatement);
+  const structuredMin =
+    onlyPreferredExperience || companyExperienceOnly
+      ? null
+      : source.requiredExperienceYearsMin;
+  const structuredMax =
+    onlyPreferredExperience || companyExperienceOnly
+      ? null
+      : source.requiredExperienceYearsMax;
   const parsedMin = parsed.length
     ? Math.max(...parsed.map((requirement) => requirement.min))
     : null;
@@ -301,12 +328,7 @@ export function resolveExperienceRequirement(
     .filter((requirement) => requirement.min === parsedMin)
     .map((requirement) => requirement.max)
     .filter((value): value is number => value !== null);
-  const min =
-    parsedMin === null
-      ? structuredMin
-      : structuredMin === null
-        ? parsedMin
-        : Math.max(parsedMin, structuredMin);
+  const min = parsedMin ?? structuredMin;
   let max = parsedMaxes.length ? Math.max(...parsedMaxes) : structuredMax;
   if (min !== null && max !== null && max < min) max = null;
   if (min !== null) return { min, max };
@@ -371,19 +393,60 @@ function controlledDiscoveryAliases(title: string) {
   return CONTROLLED_DISCOVERY_ALIASES[normalizeTitleIdentity(title)] ?? [];
 }
 
+const canonicalRoles = new Map<string, string>();
+for (const role of CATALOG_SEED.filter((item) => item.kind === "jobTitle")) {
+  for (const label of [
+    role.labelEn,
+    role.labelHe,
+    `${role.labelEn} ${role.labelHe}`,
+    `${role.labelHe} ${role.labelEn}`,
+    ...(role.aliases ?? []).filter((alias) => !/(?:iOS|Android)/u.test(alias)),
+  ])
+    canonicalRoles.set(normalizeTitleIdentity(label), role.labelEn);
+}
+export function canonicalDiscoveryRole(title: string) {
+  return canonicalRoles.get(normalizeTitleIdentity(title)) ?? title;
+}
+
+/** A small shared facet set, never a paid search identity per address or CV. */
+export function discoveryCoverageFacet(profile: SearchProfile) {
+  const israel = profile.location.countryCode.toUpperCase() === "IL";
+  const { latitude, longitude } = profile.location;
+  const region = !israel
+    ? profile.location.country
+    : profile.location.radiusKm >= 100
+      ? "Israel"
+      : latitude >= 31.5 && latitude < 32 && longitude >= 34.93
+        ? "Jerusalem and Beit Shemesh"
+        : latitude >= 32.6
+          ? "Northern Israel"
+          : latitude < 31.65
+            ? "Southern Israel"
+            : "Central Israel";
+  const level =
+    /(?:entry|junior)/iu.test(profile.seniority ?? "") ||
+    profile.yearsOfExperience < 2
+      ? "entry-level"
+      : /(?:senior|lead|manager|director)/iu.test(profile.seniority ?? "") ||
+          profile.yearsOfExperience >= 5
+        ? "senior"
+        : "experienced";
+  return { region, level };
+}
+
 export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
-  const titles = uniqueNormalized(profile.targetJobTitles, 5).sort((a, b) =>
-    normalizedKey(a).localeCompare(normalizedKey(b)),
-  );
+  const titles = uniqueNormalized(
+    profile.targetJobTitles.map(canonicalDiscoveryRole),
+    5,
+  ).sort((a, b) => normalizedKey(a).localeCompare(normalizedKey(b)));
   const roleVariants = new Map(
     (profile.targetRoleVariants ?? []).map((role) => [
-      normalizeTitleIdentity(role.title),
+      normalizeTitleIdentity(canonicalDiscoveryRole(role.title)),
       role.aliases,
     ]),
   );
-  // Discovery populates one shared national catalog. User-specific distance
-  // belongs to the downstream location gate, not paid provider search identity.
-  const locationScope = ["Israel", "ישראל"];
+  const { region, level } = discoveryCoverageFacet(profile);
+  const locationScope = [region];
   const queryPlans = titles.slice(0, Math.min(maxQueries, 5)).map((title) => {
     const aliases = uniqueNormalized(
       [
@@ -394,16 +457,16 @@ export function buildSearchPlan(profile: SearchProfile, maxQueries = 5) {
       5,
     );
     const generatedQuery = normalizeWhitespace(
-      `Find recent public job vacancies in Israel for "${title}"${aliases.length > 1 ? `. Strong equivalent titles: ${aliases.slice(1).join(", ")}` : ""}. Return exact job-specific URLs and preserve direct employer or ATS URLs when found. ${DISCOVERY_SOURCE_GUIDANCE}`,
+      `Find recent public job vacancies in ${profile.location.countryCode.toUpperCase() === "IL" ? "Israel" : profile.location.countryCode.toUpperCase()} for "${title}"${aliases.length > 1 ? `. Strong equivalent titles: ${aliases.slice(1).join(", ")}` : ""}. Prioritize ${region}, ${level} roles and remotely accessible openings. Search English and Hebrew equivalent titles. For entry-level demand, prioritize no-experience or training-provided postings instead of senior openings. Use Drushim, JobMaster, AllJobs and local employer careers for non-tech demand. Return exact job-specific URLs and preserve direct employer or ATS URLs when found. ${DISCOVERY_SOURCE_GUIDANCE}`,
     );
-    // Discovery is national and shared, so the same role reuses one provider
-    // result across Israeli users regardless of their personal radius.
+    // Coarse region/level facets share cache entries across users. Personal
+    // skills, salary, exact coordinates and commuting radius stay downstream.
     const normalizedCriteria = JSON.stringify({
-      role: normalizeTitleIdentity(title),
-      aliases: aliases.map(normalizeTitleIdentity).sort(),
+      role: normalizeTitleIdentity(canonicalDiscoveryRole(title)),
       locationScope: locationScope.map(normalizedKey).sort(),
       countryCode: profile.location.countryCode.toUpperCase(),
-      coverageVersion: "israel_direct_fresh_v2",
+      level,
+      coverageVersion: "source_requirements_facets_v4",
     });
     return {
       role: title,

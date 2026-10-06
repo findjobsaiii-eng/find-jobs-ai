@@ -1149,3 +1149,67 @@ Update bilingual policy disclosures and consent version to 2026-10-06 so that
 the broader recording scope receives a fresh choice. Previously captured
 masked text/attributes cannot be reconstructed. Validate a newly recorded
 session after rollout; browser verification remains with the owner.
+
+### D-054: Source-backed requirements and explicit preference scope
+
+Status: Accepted (2026-10-06).
+
+Fetch the exact public vacancy, follow at most one validated primary ATS Apply
+link, retain its text, and normalize qualifications once per changed primary
+source. Every normalized fact requires a matching source quote. Truncated,
+unverified or failed normalization stays incomplete and cannot produce a strong
+match. GPA, transcripts, clearance and unprovable conditions remain explicit
+unknowns. Never mark a salary preference satisfied by an undisclosed salary.
+
+Explicit desired roles set the feed's professional scope; CV history supplies
+capability evidence within that scope. Keep mobile and security specialties
+separate and rank large seniority mismatches below comparable-level roles.
+Approved bilingual role identities share daily cache entries. Discovery uses a
+bounded set of coarse region and experience-level facets, rather than exact
+addresses, skills or personal CVs in paid search identities.
+
+### D-055: Durable resume processing and bounded admin reads
+
+Status: Accepted (2026-10-06).
+
+Queue resume processing atomically with upload registration. An internal worker
+claims a ten-minute lease; a five-minute watchdog recovers stalled work and
+ends automatic retries after three attempts. Owner-authorized retries retain
+cached text. Explicit repair of usable documents without cached text extracts
+text only and never imports data into approved profiles.
+
+Admin user search runs against a server index and loads twenty summaries per
+page. Overview/cohort subscriptions read a cached snapshot. Background actions
+assemble summaries through bounded indexed pages, without former 1,001/5,001
+scan caps; refreshed snapshots are shared across admins. This proves bounded
+request-time work, not a 10,000-user concurrency SLA. Monitor refresh cost and
+replace background history scans with incremental counters if volume warrants.
+
+### D-056: Verified source transport and bounded search recovery
+
+Status: Accepted (2026-10-06).
+
+Keep canonical URLs for identity/deduplication separate from HTTP transport URLs:
+transport preserves public `www`, trailing slashes and query parameters while
+validating every redirect. Require explicit posting-date signals; application
+CTAs and company biographies cannot establish freshness or candidate experience.
+Unconfirmed structured identity stays unknown; explicit removal stays closed.
+Combined language requirements check each named language. Technical skill
+experience is not proof of a professional certificate.
+
+Recover search runs older than ten minutes through a bounded five-minute cron,
+release their cache/budget reservations, and persist a failure. Bound primary
+normalization to eight minutes. One failed daily run can receive one explicit
+support retry while preserving normal provider/budget rules. Generic pipeline
+failures retain their original diagnostic stack.
+
+### D-057: Bound matching CPU as well as database reads
+
+Status: Accepted (2026-10-06).
+
+Requirement prose uses one compiled skill-alias pattern, with longer aliases
+first, exact Unicode boundaries and bounded memoization. This preserves the
+existing matching results while avoiding a separate scan per alias. Full-feed
+rebuilds chain eight-job pages; changed-job reconciliation keeps a shared
+identity catalog per profile page. Production scheduler failures, rather than
+synthetic row counts alone, determine whether a page size is safe.

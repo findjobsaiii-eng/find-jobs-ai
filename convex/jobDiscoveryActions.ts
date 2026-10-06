@@ -1,5 +1,6 @@
 "use node";
 
+import { normalizeVerifiedRequirements } from "./jobRequirementActions";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "./_generated/dataModel";
 import OpenAI from "openai";
@@ -11,6 +12,7 @@ import {
   buildSearchPlan,
   JOB_DISCOVERY_LIMITS,
   normalizeTitleIdentity,
+  canonicalDiscoveryRole,
 } from "./jobDiscoveryModel";
 import { getJobSearchRuntimeConfig } from "./jobSearchRuntimeConfig";
 import { verifyJobSources } from "./jobSourceVerification";
@@ -121,7 +123,14 @@ function requireConfiguration(name: string, value: string | undefined) {
   return value.trim();
 }
 
-function classifyProviderError(error: unknown) {
+export function classifyProviderError(error: unknown) {
+  if (
+    error instanceof Error &&
+    /(?:insufficient_quota|exceeded your current quota|no (?:remaining )?credits|out of credits|credit balance)/iu.test(
+      error.message,
+    )
+  )
+    return "provider_billing";
   if (error instanceof JobSearchProviderResponseError)
     return "provider_unparsed_response";
   if (error instanceof OpenAI.APIConnectionTimeoutError)
@@ -134,7 +143,7 @@ function classifyProviderError(error: unknown) {
   return "provider_failure";
 }
 
-function providerFailureDiagnostics(
+export function providerFailureDiagnostics(
   error: unknown,
 ): JobSearchProviderDiagnostics | undefined {
   if (error instanceof JobSearchProviderResponseError) return error.diagnostics;
@@ -152,6 +161,14 @@ function providerFailureDiagnostics(
       rawResponseExcerpt: "",
     };
   }
+  if (error instanceof Error)
+    return {
+      responseStatus: "pipeline_exception",
+      parsed: false,
+      errorCode: error.name,
+      errorMessage: (error.stack || error.message).slice(0, 12_000),
+      rawResponseExcerpt: "",
+    };
   return undefined;
 }
 
@@ -225,12 +242,78 @@ export const discoverRoleForUserDevelopment = internalAction({
   },
 });
 
+/** Support repair uses normal daily claims/budgets and sends no notifications. */
+export const repairCoverageForUser = internalAction({
+  args: { userId: v.id("users"), retryFailed: v.optional(v.boolean()) },
+  returns: resultValidator,
+  handler: async (ctx, args): Promise<DiscoveryResult> => {
+    try {
+      let retryRole: string | undefined;
+      if (args.retryFailed) {
+        const failed = await ctx.runQuery(
+          internal.jobDiscovery.getLatestFailedRun,
+          { userId: args.userId },
+        );
+        if (!failed)
+          throw new ConvexError({ code: "FAILED_RUN_NOT_RETRYABLE" });
+        const profile = await ctx.runQuery(
+          internal.jobDiscovery.getCurrentSearchProfile,
+          { userId: args.userId },
+        );
+        retryRole = buildSearchPlan(profile).queryPlans.find(
+          (plan) => plan.fingerprint === failed.fingerprint,
+        )?.role;
+        if (
+          !retryRole ||
+          !(await ctx.runMutation(
+            internal.dailyDiscovery.claimFailedCoverageRetry,
+            { userId: args.userId, runId: failed._id },
+          ))
+        )
+          throw new ConvexError({ code: "FAILED_RUN_NOT_RETRYABLE" });
+      }
+      const result = await discoverForUser(
+        ctx,
+        args.userId,
+        false,
+        retryRole,
+        Boolean(retryRole),
+      );
+      const visible = await ctx.runQuery(
+        internal.jobDiscovery.hasVisibleJobsForUser,
+        { userId: args.userId },
+      );
+      await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
+        userId: args.userId,
+        outcome:
+          result.generatedQueryCount === 0
+            ? visible
+              ? "reused"
+              : "no_search"
+            : result.acceptedCount === 0
+              ? "completed_empty"
+              : "completed",
+      });
+      return result;
+    } catch (error) {
+      if (convexErrorCode(error) !== "FAILED_RUN_NOT_RETRYABLE")
+        await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
+          userId: args.userId,
+          outcome: discoveryFailureReason(error),
+        });
+      throw error;
+    }
+  },
+});
+
 async function discoverForUser(
   ctx: ActionCtx,
   userId: Id<"users">,
   manual = false,
   requestedRole?: string,
+  skipDailyRoleClaim = false,
 ): Promise<DiscoveryResult> {
+  const normalizationDeadline = Date.now() + 8 * 60_000;
   const plan = await ctx.runQuery(internal.jobDiscovery.getUserPlan, {
     userId,
     now: Date.now(),
@@ -268,7 +351,7 @@ async function discoverForUser(
     "OPENAI_JOB_SEARCH_MODEL",
     env.OPENAI_JOB_SEARCH_MODEL,
   );
-  if (!manual) {
+  if (!manual && !skipDailyRoleClaim) {
     const roles = profile.targetJobTitles.filter(
       (role, index, titles) =>
         titles.findIndex(
@@ -289,7 +372,7 @@ async function discoverForUser(
       : profile,
   ).queryPlans;
   const requestedIdentity = requestedRole
-    ? normalizeTitleIdentity(requestedRole)
+    ? normalizeTitleIdentity(canonicalDiscoveryRole(requestedRole))
     : null;
   const queryPlans = requestedIdentity
     ? allQueryPlans.filter(
@@ -348,6 +431,26 @@ async function discoverForUser(
         },
       );
       const jobs = await verifyJobSources(provider.accepted);
+      // Each batch has at most six postings; normalization is per job, not per matching user.
+      for (const item of jobs) {
+        // Leave evidence incomplete for later re-verification instead of
+        // exceeding the action lifetime and stranding the daily reservation.
+        if (Date.now() > normalizationDeadline) break;
+        const stored = await ctx.runQuery(
+          internal.jobActivity.getStoredJobForSource,
+          {
+            sourceUrl:
+              item.verification.finalUrl ?? item.job.normalizedSourceUrl,
+          },
+        );
+        const facts = await normalizeVerifiedRequirements(
+          ctx,
+          stored ?? item.job,
+          item.verification,
+          { userId, ...(stored ? { jobId: stored._id } : {}) },
+        );
+        if (facts) item.job = { ...item.job, ...facts };
+      }
       result.candidateUrls = [
         ...new Set([...result.candidateUrls, ...provider.candidateUrls]),
       ];

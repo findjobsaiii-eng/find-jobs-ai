@@ -49,6 +49,35 @@ for (const skill of CATALOG_SEED) {
   }
 }
 
+// Match the lexicon in one pass rather than scanning each sentence once per
+// alias. Longer alternatives preserve React Native and other composite skills.
+const skillMentionPattern = new RegExp(
+  `(?<![\\p{L}\\p{N}+#.])(?:${[...identities.keys()]
+    .filter((term) => term.length >= 2)
+    .sort((a, b) => b.length - a.length)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"))
+    .join("|")})(?![\\p{L}\\p{N}+#.])`,
+  "gu",
+);
+const mentionCache = new Map<string, string[]>();
+
+/** Exact named skills in prose; longest overlapping alias wins (React Native, C++). */
+export function namedSkillsInText(value: string) {
+  const text = normalizeSkillTerm(value);
+  const cached = mentionCache.get(text);
+  if (cached) return cached;
+  const names = [
+    ...new Set(
+      [...text.matchAll(skillMentionPattern)].map(
+        (match) => identities.get(match[0])!.labelEn!,
+      ),
+    ),
+  ];
+  if (mentionCache.size >= 500) mentionCache.clear();
+  mentionCache.set(text, names);
+  return names;
+}
+
 /** Unknown terms retain their meaning; similarity never proves equivalence. */
 export function resolveSkillIdentity(
   term: string,

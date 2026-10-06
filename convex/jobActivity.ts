@@ -1,3 +1,4 @@
+import { sourceRequirementPatch } from "./jobRequirementEvidence";
 import { v } from "convex/values";
 import schema from "./schema";
 import {
@@ -672,6 +673,25 @@ export const recordVerification = internalMutation({
   args: {
     sourceId: v.id("jobSources"),
     verification: verificationValidator,
+    requirementFacts: v.optional(
+      v.object({
+        requirementsStatus: v.union(
+          v.literal("complete"),
+          v.literal("incomplete"),
+        ),
+        requirementsSourceHash: v.optional(v.string()),
+        requirementsNormalizedAt: v.optional(v.number()),
+        contentHash: v.string(),
+        requirementsText: v.union(v.string(), v.null()),
+        requiredExperienceYearsMin: v.union(v.number(), v.null()),
+        requiredExperienceYearsMax: v.union(v.number(), v.null()),
+        requiredSkills: v.optional(v.array(v.string())),
+        preferredSkills: v.optional(v.array(v.string())),
+        languages: v.array(v.string()),
+        educationRequirements: v.array(v.string()),
+        additionalRequirements: v.array(v.string()),
+      }),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -699,7 +719,12 @@ export const recordVerification = internalMutation({
       const closed = args.verification.activityStatus === "inactive";
       const preserveClosure =
         source.activityStatus === "inactive" &&
-        args.verification.activityStatus === "unknown";
+        args.verification.activityStatus === "unknown" &&
+        !(
+          source.closureReason === "job_identity_replaced" &&
+          args.verification.verificationEvidence ===
+            "structured_identity_unconfirmed"
+        );
       await ctx.db.patch("jobSources", source._id, {
         finalUrl: args.verification.finalUrl ?? source.finalUrl,
         domain: args.verification.domain,
@@ -743,6 +768,22 @@ export const recordVerification = internalMutation({
             : undefined,
       });
     }
+    if (args.verification.identityMatched && args.verification.rawSourceText) {
+      const job = await ctx.db.get("jobs", source.jobId);
+      if (job) {
+        const patch = args.requirementFacts ?? {
+          ...sourceRequirementPatch(
+            job,
+            args.verification.rawSourceText,
+            args.verification.sourceTier,
+          ),
+          requirementsStatus: "incomplete" as const,
+        };
+        // A secondary source must not replace complete primary requirements.
+        if (args.requirementFacts || job.requirementsStatus !== "complete")
+          await ctx.db.patch("jobs", job._id, patch);
+      }
+    }
     if (args.verification.datePosted) {
       const job = await ctx.db.get("jobs", source.jobId);
       if (job) {
@@ -761,6 +802,21 @@ export const recordVerification = internalMutation({
           });
         }
       }
+    } else if (
+      args.verification.identityMatched &&
+      source.datePostedProvenance === "page_explicit" &&
+      source.rawSourceText &&
+      publicationDateLines(source.rawSourceText).length === 0
+    ) {
+      const job = await ctx.db.get("jobs", source.jobId);
+      if (
+        job?.datePostedProvenance === "page_explicit" &&
+        job.postedAt === source.datePosted
+      )
+        await ctx.db.patch("jobs", job._id, {
+          postedAt: null,
+          datePostedProvenance: undefined,
+        });
     }
     await refreshJobLifecycle(ctx, source.jobId, now);
     const [job, updatedSource] = await Promise.all([
@@ -1218,3 +1274,35 @@ export const getDiagnostics = query({
     };
   },
 });
+
+export const getNormalizationOwner = internalQuery({
+  args: { jobId: v.id("jobs") },
+  returns: v.union(v.id("users"), v.null()),
+  handler: async (ctx, args) =>
+    (
+      await ctx.db
+        .query("jobDiscoveries")
+        .withIndex("by_jobId_and_userId", (q) => q.eq("jobId", args.jobId))
+        .first()
+    )?.userId ?? null,
+});
+
+export const getStoredJobForSource = internalQuery({
+  args: { sourceUrl: v.string() },
+  returns: v.union(schema.doc("jobs"), v.null()),
+  handler: async (ctx, args) => {
+    const source =
+      (await ctx.db
+        .query("jobSources")
+        .withIndex("by_normalizedUrl", (q) =>
+          q.eq("normalizedUrl", args.sourceUrl),
+        )
+        .first()) ??
+      (await ctx.db
+        .query("jobSources")
+        .withIndex("by_finalUrl", (q) => q.eq("finalUrl", args.sourceUrl))
+        .first());
+    return source ? await ctx.db.get("jobs", source.jobId) : null;
+  },
+});
+import { publicationDateLines } from "./jobFreshness";

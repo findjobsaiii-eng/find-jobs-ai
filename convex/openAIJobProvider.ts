@@ -164,6 +164,7 @@ async function requestJobBatch(
         content: [
           "Find current real job vacancies in Israel matching the requested role or its strongest equivalent titles.",
           "Search both English and Hebrew title variants. Prefer vacancies published in the last 60 days when the source shows a date.",
+          "Preserve the exact vacancy title and employer name as displayed on the source, in its original language. Do not translate proper employer names or invent a company name for an anonymous employer. Company/founder biographies are not candidate experience requirements.",
           "Prioritize exact employer career and public ATS pages; exact vacancy pages on major reputable job boards and recruiting agencies are also valid.",
           "Preserve every exact source URL found for the same vacancy, especially an employer or ATS URL. Source quality is a preference, never a requirement.",
           "Assess each exact listing in aiAssessment during this same search: open, closed, or unknown. Open requires an available job-specific application action or a publication date within the last 30 days, with evidenceUrl equal to sourceUrl and a short evidenceText describing what you actually observed. Set evidenceType to application_available or recent_posting; use none for closed/unknown. Include postedAt for recent_posting. A search snippet or HTTP success alone does not prove open. Do not make extra searches solely to determine status; use unknown when the existing search provides insufficient evidence. Never invent facts, dates, or URLs.",

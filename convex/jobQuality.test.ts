@@ -35,6 +35,7 @@ function job(
   overrides: Partial<Parameters<typeof evaluateJobQuality>[0]> = {},
 ) {
   return {
+    requirementsStatus: "complete" as const,
     title: "E-commerce Manager",
     descriptionText: "Manage a retail online store and product catalog",
     requirementsText: null,
@@ -460,9 +461,9 @@ describe("deterministic CV-backed relevance", () => {
   it("uses score bands without turning a sub-58 score into a hard exclusion", () => {
     const result = evaluateJobQuality(
       job({
-        title: "Frontend Content Specialist",
-        descriptionText: "Maintain content in a React website",
-        responsibilities: ["Maintain website content"],
+        title: "Digital Operations Manager",
+        descriptionText: "Coordinate general business operations",
+        responsibilities: ["Coordinate teams"],
         requiredSkills: ["CMS"],
         preferredSkills: [],
       }),

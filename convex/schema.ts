@@ -350,6 +350,30 @@ export const jobFeedItem = v.object({
 
 const schema = defineSchema({
   ...authTables,
+  jobSearchProviderHealth: defineTable({
+    key: v.string(),
+    blockedUntil: v.number(),
+    reason: v.string(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+  adminMetricSnapshots: defineTable({
+    key: v.string(),
+    start: v.number(),
+    end: v.number(),
+    generatedAt: v.number(),
+    refreshingAt: v.optional(v.number()),
+    overviewJson: v.optional(v.string()),
+    decisionJson: v.optional(v.string()),
+  })
+    .index("by_key", ["key"])
+    .index("by_end", ["end"])
+    .index("by_generatedAt", ["generatedAt"]),
+  users: defineTable(
+    authTables.users.validator.extend({ searchText: v.optional(v.string()) }),
+  )
+    .index("email", ["email"])
+    .index("phone", ["phone"])
+    .searchIndex("search_name_email", { searchField: "searchText" }),
   authVerifiers: defineTable({
     sessionId: v.optional(v.id("authSessions")),
     signature: v.optional(v.string()),
@@ -688,10 +712,25 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     processedAt: v.optional(v.number()),
+    processingLeaseUntil: v.optional(v.number()),
+    processingAttempts: v.optional(v.number()),
   })
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
     .index("by_storageId", ["storageId"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"])
     .index("by_userId_and_status", ["userId", "status"]),
+  jobMatchExclusions: defineTable({
+    userId: v.id("users"),
+    jobId: v.id("jobs"),
+    profileRevision: v.number(),
+    score: v.number(),
+  })
+    .index("by_userId_and_jobId", ["userId", "jobId"])
+    .index("by_userId_and_profileRevision_and_score", [
+      "userId",
+      "profileRevision",
+      "score",
+    ]),
   jobApplications: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
@@ -737,6 +776,7 @@ const schema = defineSchema({
     userId: v.id("users"),
     dayKey: v.optional(v.string()),
     roleClaimDayKey: v.optional(v.string()),
+    failureRetryDayKey: v.optional(v.string()),
     nextRoleIndex: v.optional(v.number()),
     attemptCount: v.optional(v.number()),
     lastAttemptAt: v.number(),
@@ -832,7 +872,8 @@ const schema = defineSchema({
   })
     .index("by_providerEventId", ["providerEventId"])
     .index("by_userId_and_occurredAt", ["userId", "occurredAt"])
-    .index("by_type_and_occurredAt", ["type", "occurredAt"]),
+    .index("by_type_and_occurredAt", ["type", "occurredAt"])
+    .index("by_occurredAt", ["occurredAt"]),
   jobSearchQueries: defineTable({
     lastAttemptDay: v.optional(v.string()),
     lastAttemptRunId: v.optional(v.id("jobSearchRuns")),
@@ -859,6 +900,8 @@ const schema = defineSchema({
       }),
     ),
     returnedCandidateCount: v.number(),
+    strongMatchCount: v.optional(v.number()),
+    partialMatchCount: v.optional(v.number()),
     acceptedCount: v.number(),
     rejectedCount: v.number(),
     insertedCount: v.number(),
@@ -876,6 +919,7 @@ const schema = defineSchema({
     .index("by_queryId", ["queryId"])
     .index("by_userId_and_startedAt", ["userId", "startedAt"])
     .index("by_startedAt", ["startedAt"])
+    .index("by_status_and_startedAt", ["status", "startedAt"])
     .index("by_fingerprint_and_status_and_completedAt", [
       "fingerprint",
       "status",
@@ -886,6 +930,7 @@ const schema = defineSchema({
     userId: v.id("users"),
     operation: v.union(
       v.literal("job_search"),
+      v.literal("job_normalization"),
       v.literal("deep_review"),
       v.literal("resume_extraction"),
     ),
@@ -931,6 +976,12 @@ const schema = defineSchema({
       v.literal("other"),
     ),
     descriptionText: nullableString,
+    requirementsSourceHash: v.optional(v.string()),
+    requirementsNormalizedAt: v.optional(v.number()),
+    requirementsStatus: v.optional(
+      v.union(v.literal("complete"), v.literal("incomplete")),
+    ),
+    additionalRequirements: v.optional(v.array(v.string())),
     requirementsText: nullableString,
     responsibilities: v.array(v.string()),
     requiredSkills: v.array(v.string()),

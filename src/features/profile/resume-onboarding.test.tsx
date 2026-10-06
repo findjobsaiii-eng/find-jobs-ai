@@ -123,7 +123,7 @@ describe("resume-first onboarding", () => {
     expect(onManualEntry).toHaveBeenCalledOnce();
   });
 
-  it("uploads the actual file before starting structured processing", async () => {
+  it("uploads and registers the file without relying on a browser processing call", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -137,11 +137,7 @@ describe("resume-first onboarding", () => {
       type: "application/pdf",
     });
     await user.upload(screen.getByLabelText("Upload CV"), file);
-    await waitFor(() =>
-      expect(hooks.process).toHaveBeenCalledWith({
-        resumeId: "resumeDocuments:new",
-      }),
-    );
+    await waitFor(() => expect(hooks.create).toHaveBeenCalled());
     expect(hooks.create).toHaveBeenCalledWith({
       storageId: "_storage:file",
       fileName: "career.pdf",
@@ -164,7 +160,8 @@ describe("resume-first onboarding", () => {
     });
     const pdf = new File(["cv"], "career.pdf", { type: "application/pdf" });
     fireEvent.drop(dropzone, { dataTransfer: { files: [pdf] } });
-    await waitFor(() => expect(hooks.process).toHaveBeenCalledOnce());
+    await waitFor(() => expect(hooks.create).toHaveBeenCalledOnce());
+    expect(hooks.process).not.toHaveBeenCalled();
     view.unmount();
     render(<ResumeOnboarding resume={null} />);
     fireEvent.drop(

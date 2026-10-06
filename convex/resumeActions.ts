@@ -8,7 +8,12 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { openAiResponseUsage } from "./aiUsageModel";
 import { z } from "zod";
-import { action, env, type ActionCtx } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  env,
+  type ActionCtx,
+} from "./_generated/server";
 import {
   normalizeResumeExtraction,
   resumeExtractionSchema,
@@ -248,7 +253,21 @@ export function cleanExtractedResumeText(value: string) {
 export const processResume = action({
   args: { resumeId: v.id("resumeDocuments") },
   returns: v.null(),
-  handler: (ctx, args) => processDocument(ctx, args, false),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
+    const owned = await ctx.runQuery(internal.resumes.getOwnedForProcessing, {
+      ...args,
+      userId,
+    });
+    if (!owned) throw new ConvexError({ code: "RESUME_NOT_PROCESSING" });
+    const claimed = await ctx.runMutation(
+      internal.resumes.claimProcessing,
+      args,
+    );
+    if (claimed) await processDocument(ctx, args, false, userId);
+    return null;
+  },
 });
 
 export const prepareProfileUpdate = action({
@@ -261,8 +280,9 @@ async function processDocument(
   ctx: ActionCtx,
   args: { resumeId: import("./_generated/dataModel").Id<"resumeDocuments"> },
   profileUpdate: boolean,
+  ownerId?: import("./_generated/dataModel").Id<"users">,
 ) {
-  const userId = await getAuthUserId(ctx);
+  const userId = ownerId ?? (await getAuthUserId(ctx));
   if (!userId) throw new ConvexError({ code: "UNAUTHENTICATED" });
   const resume = await ctx.runQuery(internal.resumes.getOwnedForProcessing, {
     resumeId: args.resumeId,
@@ -274,6 +294,7 @@ async function processDocument(
   let stage = "storage_retrieval";
   let diagnostics: {
     stage: string;
+    technicalMessage?: string;
     detectedFileType?: string;
     byteSize?: number;
     pageCount?: number;
@@ -482,7 +503,7 @@ async function processDocument(
       parsed = await client.responses.parse({
         model,
         store: false,
-        max_output_tokens: 7_000,
+        max_output_tokens: 16_000,
         input: [
           {
             role: "system",
@@ -521,7 +542,7 @@ async function processDocument(
     if (!parsed.output_parsed)
       throw new ResumeProcessingError(
         "CV_SCHEMA_INVALID",
-        "Structured response did not contain a validated profile",
+        `Structured response ${parsed.status}; reason: ${parsed.incomplete_details?.reason ?? "no parsed profile"}; response: ${parsed.id}`,
       );
     let normalized;
     try {
@@ -603,6 +624,7 @@ async function processDocument(
             : "RESUME_PROCESSING_FAILED";
     diagnostics = {
       ...diagnostics,
+      technicalMessage: technicalMessage(error),
       stage,
       extractionStatus:
         diagnostics.extractionStatus === "succeeded"
@@ -625,12 +647,29 @@ async function processDocument(
         userId,
         failureCode: code,
       });
-    if (env.DEV_TOOLS_ENABLED === "true")
-      console.error("resume_processing_failed", {
-        resumeId: resume._id,
-        code,
-        ...diagnostics,
-      });
+    console.error("resume_processing_failed", {
+      resumeId: resume._id,
+      code,
+      ...diagnostics,
+    });
     throw new ConvexError({ code });
   }
 }
+
+export const processQueuedResume = internalAction({
+  args: { resumeId: v.id("resumeDocuments") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const claimed = await ctx.runMutation(
+      internal.resumes.claimProcessing,
+      args,
+    );
+    if (!claimed) return null;
+    try {
+      await processDocument(ctx, args, false, claimed.userId);
+    } catch {
+      /* The worker persists a terminal failure, with cached text available for retry. */
+    }
+    return null;
+  },
+});

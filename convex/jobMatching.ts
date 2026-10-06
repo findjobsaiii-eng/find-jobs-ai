@@ -1,3 +1,4 @@
+import { loadIdentityCatalog } from "./referenceIdentity";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -21,6 +22,7 @@ function hidesSuggestion(application: Doc<"jobApplications"> | null) {
 async function loadProfile(
   ctx: MutationCtx,
   userId: Id<"users">,
+  identityCatalog?: SearchProfile["identityCatalog"],
 ): Promise<{ profile: SearchProfile; revision: number } | null> {
   const stored = await ctx.db
     .query("candidateProfiles")
@@ -34,8 +36,52 @@ async function loadProfile(
     return null;
   return {
     revision: stored.updatedAt,
-    profile: await loadSearchProfile(ctx, userId),
+    profile: await loadSearchProfile(ctx, userId, identityCatalog),
   };
+}
+
+/** Keep a small set of actionable location exclusions, not a user × job rejection matrix. */
+async function rememberLocationExclusion(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  jobId: Id<"jobs">,
+  revision: number,
+  quality: ReturnType<typeof evaluateJobQuality>,
+  sourceEligible: boolean,
+) {
+  const existing = await ctx.db
+    .query("jobMatchExclusions")
+    .withIndex("by_userId_and_jobId", (q) =>
+      q.eq("userId", userId).eq("jobId", jobId),
+    )
+    .unique();
+  if (
+    !sourceEligible ||
+    quality.matchQuality === "possible" ||
+    quality.exclusionReasons.length !== 1 ||
+    quality.exclusionReasons[0] !== "location_conflict"
+  ) {
+    if (existing) await ctx.db.delete("jobMatchExclusions", existing._id);
+    return;
+  }
+  const values = {
+    userId,
+    jobId,
+    profileRevision: revision,
+    score: quality.relevanceScore,
+  };
+  if (existing) await ctx.db.patch("jobMatchExclusions", existing._id, values);
+  else await ctx.db.insert("jobMatchExclusions", values);
+  const rows = await ctx.db
+    .query("jobMatchExclusions")
+    .withIndex("by_userId_and_profileRevision_and_score", (q) =>
+      q.eq("userId", userId),
+    )
+    .order("desc")
+    .take(21);
+  for (const row of rows)
+    if (row.profileRevision !== revision || rows.indexOf(row) >= 20)
+      await ctx.db.delete("jobMatchExclusions", row._id);
 }
 
 /**
@@ -73,7 +119,7 @@ export const reconcileUserPage = internalMutation({
       .withIndex("by_lifecycleStatus_and_lastVerifiedAt", (q) =>
         q.eq("lifecycleStatus", args.lifecycleStatus),
       )
-      .paginate({ cursor: args.cursor, numItems: 32 });
+      .paginate({ cursor: args.cursor, numItems: 8 });
     const now = Date.now();
     for (const job of page.page) {
       const quality = evaluateJobQuality(job, loaded.profile);
@@ -102,6 +148,17 @@ export const reconcileUserPage = internalMutation({
         source !== null &&
         isDisplayEligibleSource(source) &&
         source.normalizedUrl,
+      );
+      await rememberLocationExclusion(
+        ctx,
+        args.userId,
+        job._id,
+        loaded.revision,
+        quality,
+        freshness.eligible &&
+          isDisplayEligibleJob(job) &&
+          source !== null &&
+          isDisplayEligibleSource(source),
       );
       const existing = await ctx.db
         .query("jobMatches")
@@ -203,8 +260,13 @@ export const reconcileJobUsers = internalMutation({
       ? await ctx.db.get("jobSources", job.bestSourceId)
       : null;
     const now = Date.now();
+    const identityCatalog = await loadIdentityCatalog(ctx);
     for (const storedProfile of profiles.page) {
-      const loaded = await loadProfile(ctx, storedProfile.userId);
+      const loaded = await loadProfile(
+        ctx,
+        storedProfile.userId,
+        identityCatalog,
+      );
       if (!loaded) continue;
       const quality = evaluateJobQuality(job, loaded.profile);
       const freshness = evaluateSuggestionFreshness({
@@ -229,6 +291,17 @@ export const reconcileJobUsers = internalMutation({
         source !== null &&
         isDisplayEligibleSource(source) &&
         source.normalizedUrl,
+      );
+      await rememberLocationExclusion(
+        ctx,
+        storedProfile.userId,
+        job._id,
+        loaded.revision,
+        quality,
+        freshness.eligible &&
+          isDisplayEligibleJob(job) &&
+          source !== null &&
+          isDisplayEligibleSource(source),
       );
       const existing = await ctx.db
         .query("jobMatches")
@@ -312,6 +385,17 @@ export const reconcileUserJob = internalMutation({
       source !== null &&
       isDisplayEligibleSource(source) &&
       source.normalizedUrl,
+    );
+    await rememberLocationExclusion(
+      ctx,
+      args.userId,
+      job._id,
+      loaded.revision,
+      quality,
+      freshness.eligible &&
+        isDisplayEligibleJob(job) &&
+        source !== null &&
+        isDisplayEligibleSource(source),
     );
     if (!displayEligible) {
       if (existing) await ctx.db.delete("jobMatches", existing._id);

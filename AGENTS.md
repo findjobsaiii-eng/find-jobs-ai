@@ -42,6 +42,9 @@ Before changing any file under `convex/`, read `convex/_generated/ai/guidelines.
 
 # Project control
 
+- Work in the local/development environment by default. Requests to implement, fix, test, or continue work do not authorize production deployment or production data changes; obtain explicit owner approval for those actions.
+- Never deploy through Vercel CLI or another direct Vercel deployment mechanism. Frontend releases must use the repository's Git-triggered deployment workflow: commit and push only when the owner explicitly requests it.
+- Do not commit or push unless explicitly instructed. Approval to deploy the backend does not authorize a frontend release, commit, or push, and approval to commit/push does not authorize separate manual production operations.
 - Keep `docs/PROJECT_STATUS.md` aligned with what the repository can prove. Separate implemented, incomplete, and unknown work.
 - Record durable technical decisions in `docs/DECISIONS.md`. Mark unresolved choices as pending instead of presenting them as settled.
 - Use `.github/pull_request_template.md` for every pull request and report the validation commands actually run.

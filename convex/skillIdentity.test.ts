@@ -1,12 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   canonicalSkillKeys,
+  namedSkillsInText,
   normalizeSkillTerm,
   resolveSkillIdentity,
   skillsEquivalent,
 } from "./skillIdentity";
 
 describe("shared skill identity", () => {
+  it("extracts whole skill aliases in prose without collapsing composite technologies", () => {
+    expect(
+      namedSkillsInText(
+        "React Native, ReactJS, C++, C#, Postgres, JavaScript and כושר ביטוי; JavaScripted is not Java language.",
+      ),
+    ).toEqual([
+      "React Native",
+      "React",
+      "C++",
+      "C#",
+      "PostgreSQL",
+      "JavaScript",
+      "Verbal Communication",
+      "Java",
+    ]);
+    expect(namedSkillsInText("JavaScripted Reactivity postgresqlite")).toEqual(
+      [],
+    );
+  });
   it("matches exact Hebrew and English equivalents", () => {
     for (const alias of [
       "כושר ביטוי",

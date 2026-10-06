@@ -437,7 +437,10 @@
       "reject": "rejected"
     },
     "probablyOpen": "Probably open",
-    "probablyOpenDescription": "Recent evidence suggests this job is open, but the server could not confirm it recently."
+    "probablyOpenDescription": "Recent evidence suggests this job is open, but the server could not confirm it recently.",
+    "queuedTitle": "Your search is queued",
+    "queuedDescription": "We’ll check for matching jobs shortly. You can leave this page.",
+    "outsideRadiusCount": "At least {{count}} opportunities are outside your radius."
   },
   "jobReview": {
     "action": "Deep review",
@@ -919,7 +922,8 @@
     },
     "updateProfile": "Update profile from this resume",
     "approveProfile": "Approve profile update",
-    "reviewProfileDescription": "Review and edit the suggested details. Your profile changes only when you approve."
+    "reviewProfileDescription": "Review and edit the suggested details. Your profile changes only when you approve.",
+    "retry": "Try again"
   },
   "admin": {
     "eyebrow": "Operations console",
@@ -942,7 +946,8 @@
       "operations": {
         "job_search": "Job searches",
         "deep_review": "Deep reviews",
-        "resume_extraction": "CV analysis"
+        "resume_extraction": "CV analysis",
+        "job_normalization": "Job requirements"
       },
       "summary": "{{calls}} calls · {{input}} input · {{output}} output tokens · {{searches}} web searches",
       "incomplete": "{{unpriced}} without a price · {{unmeasured}} without token totals",
@@ -1009,7 +1014,8 @@
       "attention": "Needs attention",
       "attentionDescription": "Loaded users who finished setup but have no stored matches.",
       "noVisibleJobs": "No stored matches",
-      "allHealthy": "No users in this list need attention."
+      "allHealthy": "No users in this list need attention.",
+      "snapshotNotice": "Metrics refresh in the background every five minutes."
     },
     "decision": {
       "eyebrow": "Beta decision",
@@ -1236,17 +1242,22 @@
       "experienceGap": "Your confirmed experience is below the stated minimum.",
       "educationInProgressMet": "Your current studies meet the listing’s student requirement.",
       "educationAlternativeMet": "Your confirmed relevant experience meets the listing’s education alternative.",
-      "educationAlternativeGap": "Your confirmed education and relevant experience do not meet either accepted option."
+      "educationAlternativeGap": "Your confirmed education and relevant experience do not meet either accepted option.",
+      "requirementUnknown": "This condition needs confirmation.",
+      "salaryUnknown": "The posting does not confirm your minimum salary."
     },
     "nextStep": {
       "education": "Confirm your education in your profile.",
       "educationAlternative": "Check the alternative qualification with the employer.",
       "skill": "Add this skill to your profile only if you have it.",
       "language": "Confirm your language proficiency in your profile.",
-      "experience": "Confirm your experience relevant to this role."
+      "experience": "Confirm your experience relevant to this role.",
+      "requirement": "Confirm this condition with the employer.",
+      "salary": "Confirm the salary range with the employer."
     },
     "requirements": {
       "experience": "At least {{years}} years of relevant experience"
-    }
+    },
+    "salaryRequirement": "Minimum salary"
   }
 }

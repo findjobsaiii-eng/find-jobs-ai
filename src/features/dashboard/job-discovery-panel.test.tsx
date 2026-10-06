@@ -11,7 +11,8 @@ import {
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
-  discoveryState: "complete" as "pending" | "running" | "complete" | "failed",
+  discoveryState: "complete" as
+    "queued" | "waiting" | "running" | "complete" | "failed",
   emailFrequency: "daily" as "daily" | "weekly" | "never",
   setApplication: vi.fn(),
   recordProductEvent: vi.fn(),
@@ -185,7 +186,7 @@ describe("job result cards", () => {
   it("shows a warm Hebrew search-in-progress state before discovery completes", async () => {
     await i18n.changeLanguage("he");
     hooks.jobs = [];
-    hooks.discoveryState = "pending";
+    hooks.discoveryState = "running";
 
     renderPanel();
 

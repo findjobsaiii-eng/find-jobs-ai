@@ -1,3 +1,4 @@
+import { refreshUserSearchText } from "./adminUserSearch";
 import Google from "@auth/core/providers/google";
 import { convexAuth } from "@convex-dev/auth/server";
 import { env } from "./_generated/server";
@@ -27,6 +28,7 @@ requireAuthSiteUrl(env.SITE_URL);
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   callbacks: {
     afterUserCreatedOrUpdated: async (ctx, { userId, existingUserId }) => {
+      await refreshUserSearchText(ctx as MutationCtx, userId);
       if (!existingUserId)
         await scheduleOnboardingReminders(ctx as MutationCtx, userId);
     },

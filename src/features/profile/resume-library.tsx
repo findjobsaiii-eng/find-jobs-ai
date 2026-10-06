@@ -39,9 +39,9 @@ const validResume = (file: File) => /\.(?:pdf|docx)$/iu.test(file.name);
 export function ResumeLibrary() {
   const { t, i18n } = useTranslation();
   const resumes = useQuery(api.resumes.listMine);
+  const retryProcessing = useMutation(api.resumes.retryProcessing);
   const generateUploadUrl = useMutation(api.resumes.generateUploadUrl);
   const createFromUpload = useMutation(api.resumes.createFromUpload);
-  const processResume = useAction(api.resumeActions.processResume);
   const prepareProfileUpdate = useAction(
     api.resumeActions.prepareProfileUpdate,
   );
@@ -102,7 +102,7 @@ export function ResumeLibrary() {
       });
       if (!response.ok) throw new Error("UPLOAD_FAILED");
       const { storageId } = (await response.json()) as { storageId: string };
-      const resumeId = await createFromUpload({
+      await createFromUpload({
         storageId: storageId as never,
         fileName: pendingFile.name,
         mimeType: pendingFile.type,
@@ -112,7 +112,6 @@ export function ResumeLibrary() {
         ...(note.trim() ? { note } : {}),
       });
       void captureProductEvent("resume_uploaded");
-      await processResume({ resumeId });
       setPendingFile(null);
       setLabel("");
       setNote("");
@@ -306,6 +305,26 @@ export function ResumeLibrary() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
+                  {resume.status === "failed" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy !== null}
+                      onClick={async () => {
+                        setBusy(resume.id);
+                        setError(null);
+                        try {
+                          await retryProcessing({ resumeId: resume.id });
+                        } catch (cause) {
+                          setError(processingErrorKey(cause));
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      {t("resumeLibrary.retry")}
+                    </Button>
+                  ) : null}
                   {resume.status !== "processing" &&
                   resume.status !== "failed" ? (
                     <Button

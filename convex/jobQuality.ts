@@ -12,9 +12,10 @@ import {
 } from "./jobActivityPolicy";
 import {
   evaluateRequirements,
+  matchingSkill,
   type RequirementAssessment,
 } from "./jobRequirements";
-import { resolveSkillIdentity, skillsEquivalent } from "./skillIdentity";
+import { resolveSkillIdentity } from "./skillIdentity";
 import { isDevelopmentFixtureJob } from "./jobSourceProvenance";
 
 export const MINIMUM_RELEVANCE_SCORE = 58;
@@ -87,6 +88,8 @@ type QualityJob = Omit<
   "workAuthorizationRequirements"
 > & {
   workAuthorizationRequirements?: string | null;
+  requirementsStatus?: "complete" | "incomplete";
+  additionalRequirements?: string[];
   geo?: { latitude: number; longitude: number; countryCode: string };
 };
 
@@ -216,6 +219,8 @@ function weightedTitleSimilarity(left: string, right: string) {
 
 type RoleConcept =
   | "development"
+  | "mobile"
+  | "security"
   | "frontend"
   | "backend"
   | "fullstack"
@@ -243,6 +248,10 @@ type RoleConcept =
 function roleConcepts(value: string) {
   const text = normalized(value);
   const concepts = new Set<RoleConcept>();
+  if (/(?:mobile|android|ios|מובייל|אפליקציות)/u.test(text))
+    concepts.add("mobile");
+  if (/(?:security|cyber|\bsoc\b|אבטחת מידע|סייבר)/u.test(text))
+    concepts.add("security");
   if (
     /(?:developer|engineer|programmer|software development|web development|מפתח|מפתחת|פיתוח תוכנה|מהנדס)/u.test(
       text,
@@ -386,14 +395,6 @@ function canonicalSkill(value: string, catalog?: IdentityCatalog) {
       );
 }
 
-function skillSimilarity(
-  left: string,
-  right: string,
-  catalog?: IdentityCatalog,
-) {
-  return skillsEquivalent(left, right, catalog) ? 1 : 0;
-}
-
 function skillWeight(value: string, catalog?: IdentityCatalog) {
   const skill = canonicalSkill(value, catalog);
   if (SOFT_SKILL_PATTERN.test(skill)) return 0.2;
@@ -424,10 +425,11 @@ function skillCoverage(
   const matched: string[] = [];
   for (const need of needed) {
     const weight = skillWeight(need, catalog);
-    const similarity = Math.max(
-      0,
-      ...profileSkills.map((skill) => skillSimilarity(need, skill, catalog)),
-    );
+    const similarity = matchingSkill(need, profileSkills, {
+      identityCatalog: catalog,
+    })
+      ? 1
+      : 0;
     totalWeight += weight;
     matchedWeight += weight * similarity;
     if (similarity >= 0.75) matched.push(need);
@@ -550,14 +552,8 @@ export function evaluateJobQuality(
 ): QualityEvaluation {
   const hardExclusions: string[] = [];
   const wantedFamilies = new Set(
-    [
-      ...profile.targetJobTitles,
-      ...(profile.currentRole ? [profile.currentRole] : []),
-      ...(profile.normalizedPastRoles ?? []),
-    ].flatMap((title) => [...specializedFamilies(title)]),
+    profile.targetJobTitles.flatMap((title) => [...specializedFamilies(title)]),
   );
-  if (wantedFamilies.has("commerce")) wantedFamilies.add("software");
-  if (wantedFamilies.has("software")) wantedFamilies.add("commerce");
   const jobFamilies = specializedFamilies(job.title);
   if (
     wantedFamilies.size &&
@@ -572,9 +568,6 @@ export function evaluateJobQuality(
     ],
     job.title,
   );
-  const currentRole = profile.currentRole
-    ? bestTitleMatch([profile.currentRole], job.title)
-    : { score: 0, value: undefined };
   const pastRole = (profile.normalizedPastRoles ?? []).reduce(
     (best, role, index) => {
       const match = bestTitleMatch([role], job.title);
@@ -583,11 +576,20 @@ export function evaluateJobQuality(
     },
     { score: 0, value: undefined as string | undefined },
   );
-  const roleMatch = Math.max(
-    targetRole.score,
-    currentRole.score * 0.92,
-    pastRole.score,
-  );
+  const roleMatch = targetRole.score;
+  const wantedConcepts = profile.targetJobTitles.map(roleConcepts);
+  const jobConcepts = roleConcepts(job.title);
+  const mobileOnly =
+    wantedConcepts.length > 0 &&
+    wantedConcepts.every((concepts) => concepts.has("mobile"));
+  if (
+    (mobileOnly && !jobConcepts.has("mobile")) ||
+    (jobConcepts.has("security") &&
+      !wantedConcepts.some((concepts) => concepts.has("security")))
+  )
+    hardExclusions.push("professional_mismatch");
+  if (roleMatch < 0.28 && !hardExclusions.includes("professional_mismatch"))
+    hardExclusions.push("professional_mismatch");
 
   const required = skillCoverage(
     job.requiredSkills,
@@ -631,6 +633,20 @@ export function evaluateJobQuality(
     profile,
     relevantExperience,
   );
+  if (
+    profile.minimumMonthlySalaryIls > 0 &&
+    (job.salaryMax === null ||
+      normalized(job.salaryCurrency ?? "") !== "ils" ||
+      job.salaryPeriod !== "month")
+  ) {
+    requirementAssessments.push({
+      requirement: "jobMatching.salaryRequirement",
+      importance: "must_have",
+      status: "unknown",
+      evidence: "jobMatching.evidence.salaryUnknown",
+      nextStep: "jobMatching.nextStep.salary",
+    });
+  }
   const mandatory = requirementAssessments.filter(
     (item) => item.importance === "must_have",
   );
@@ -673,11 +689,17 @@ export function evaluateJobQuality(
   }
 
   const jobSeniority = inferredJobSeniority(job.title);
-  const candidateSeniority = profileSeniorityLevel(profile.seniority);
+  const candidateSeniority =
+    profileSeniorityLevel(profile.seniority) ??
+    (profile.yearsOfExperience >= 5
+      ? 2
+      : profile.yearsOfExperience >= 2
+        ? 1
+        : 0);
   let seniority = 0.75;
   if (jobSeniority !== null && candidateSeniority !== null) {
     const gap = Math.abs(jobSeniority - candidateSeniority);
-    seniority = gap === 0 ? 1 : gap === 1 ? 0.5 : gap === 2 ? 0.15 : 0;
+    seniority = gap === 0 ? 1 : gap === 1 ? 0.5 : gap === 2 ? -2 : -3.5;
   }
 
   if (
@@ -738,10 +760,11 @@ export function evaluateJobQuality(
     (item) => item.importance === "must_have" && item.status !== "met",
   );
   const matchQuality =
+    job.requirementsStatus !== "complete" ||
     hasUnconfirmedMandatory ||
     (jobSeniority !== null &&
       candidateSeniority !== null &&
-      jobSeniority > candidateSeniority + 1) ||
+      Math.abs(jobSeniority - candidateSeniority) > 1) ||
     !workArrangementCompatible ||
     !employmentTypeCompatible
       ? relevanceScore >= PARTIAL_MATCH_MINIMUM_SCORE

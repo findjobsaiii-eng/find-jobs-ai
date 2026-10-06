@@ -10,6 +10,9 @@
 
 import type * as accountData from "../accountData.js";
 import type * as admin from "../admin.js";
+import type * as adminMetrics from "../adminMetrics.js";
+import type * as adminMetricsModel from "../adminMetricsModel.js";
+import type * as adminUserSearch from "../adminUserSearch.js";
 import type * as aiUsage from "../aiUsage.js";
 import type * as aiUsageModel from "../aiUsageModel.js";
 import type * as auth from "../auth.js";
@@ -40,6 +43,8 @@ import type * as jobGeography from "../jobGeography.js";
 import type * as jobGeographyData from "../jobGeographyData.js";
 import type * as jobMatching from "../jobMatching.js";
 import type * as jobQuality from "../jobQuality.js";
+import type * as jobRequirementActions from "../jobRequirementActions.js";
+import type * as jobRequirementEvidence from "../jobRequirementEvidence.js";
 import type * as jobRequirements from "../jobRequirements.js";
 import type * as jobReviewActions from "../jobReviewActions.js";
 import type * as jobReviewModel from "../jobReviewModel.js";
@@ -78,6 +83,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   accountData: typeof accountData;
   admin: typeof admin;
+  adminMetrics: typeof adminMetrics;
+  adminMetricsModel: typeof adminMetricsModel;
+  adminUserSearch: typeof adminUserSearch;
   aiUsage: typeof aiUsage;
   aiUsageModel: typeof aiUsageModel;
   auth: typeof auth;
@@ -108,6 +116,8 @@ declare const fullApi: ApiFromModules<{
   jobGeographyData: typeof jobGeographyData;
   jobMatching: typeof jobMatching;
   jobQuality: typeof jobQuality;
+  jobRequirementActions: typeof jobRequirementActions;
+  jobRequirementEvidence: typeof jobRequirementEvidence;
   jobRequirements: typeof jobRequirements;
   jobReviewActions: typeof jobReviewActions;
   jobReviewModel: typeof jobReviewModel;

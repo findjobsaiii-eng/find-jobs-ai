@@ -140,3 +140,18 @@ export function evaluateSuggestionFreshness(args: {
 export function freshnessSortValue(postedAt: string | null | undefined) {
   return postingTimestamp(postedAt) ?? Number.NEGATIVE_INFINITY;
 }
+/** Only vacancy publication labels or isolated relative-date chips are date evidence. */
+export function publicationDateLines(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        /(?:posted|published|listed)\s+(?:today|yesterday|\d+\s+\w+\s+ago)|פורסם.{0,15}(?:היום|אתמול|לפני)/iu.test(
+          line,
+        ) ||
+        /^(?:today|yesterday|\d+\s+(?:minutes?|hours?|days?|weeks?|months?|years?)\s+ago|היום|אתמול|לפני\s+\d+\s+(?:דקות?|שעות?|ימים?|שבועות?|חודשים?|שנים?))[.!]?$/iu.test(
+          line,
+        ),
+    );
+}

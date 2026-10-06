@@ -195,9 +195,9 @@ const rawJob: OpenAIJob = {
   workArrangement: "hybrid" as const,
   employmentType: "full-time" as const,
   salaryMin: null,
-  salaryMax: null,
-  salaryCurrency: null,
-  salaryPeriod: null,
+  salaryMax: 30000,
+  salaryCurrency: "ILS",
+  salaryPeriod: "month" as const,
   postedAt: null,
   applicationDeadline: null,
   workAuthorizationRequirements: null,
@@ -213,7 +213,7 @@ const rawJob: OpenAIJob = {
 function normalizedJob() {
   const job = normalizeJob(rawJob, new Set([rawJob.sourceUrl]));
   if (!job) throw new Error("Test job did not normalize");
-  return job;
+  return { ...job, requirementsStatus: "complete" as const };
 }
 
 function verification(): SourceVerification {
@@ -837,14 +837,14 @@ describe("shared job discovery", () => {
     expect(plan.generatedQueries[0]).toContain("מיישם/ת CRM");
   });
 
-  it("shares national discovery across user radii and Israeli locations", () => {
+  it("shares coarse regional facets across radii while distinguishing underserved regions", () => {
     const district = buildSearchPlan({
       ...searchProfile,
       location: { ...searchProfile.location, radiusKm: 60 },
     });
     const country = buildSearchPlan({
       ...searchProfile,
-      location: { ...searchProfile.location, radiusKm: 100 },
+      location: { ...searchProfile.location, radiusKm: 25 },
     });
     const south = buildSearchPlan({
       ...searchProfile,
@@ -859,11 +859,11 @@ describe("shared job discovery", () => {
       },
     });
     expect(district.generatedQueries).toEqual(country.generatedQueries);
-    expect(south.generatedQueries).toEqual(country.generatedQueries);
+    expect(south.generatedQueries).not.toEqual(country.generatedQueries);
     expect(district.queryPlans.map((query) => query.fingerprint)).toEqual(
       country.queryPlans.map((query) => query.fingerprint),
     );
-    expect(south.queryPlans.map((query) => query.fingerprint)).toEqual(
+    expect(south.queryPlans.map((query) => query.fingerprint)).not.toEqual(
       country.queryPlans.map((query) => query.fingerprint),
     );
   });
@@ -927,7 +927,7 @@ describe("shared job discovery", () => {
       cursor: null,
     });
     const continuation = await t.run(async (ctx) => {
-      expect(await ctx.db.query("jobMatches").collect()).toHaveLength(32);
+      expect(await ctx.db.query("jobMatches").collect()).toHaveLength(8);
       const scheduled = await ctx.db.system
         .query("_scheduled_functions")
         .collect();
@@ -941,12 +941,26 @@ describe("shared job discovery", () => {
       };
     });
     expect(continuation.cursor).toBeTruthy();
-    await t.mutation(internal.jobMatching.reconcileUserPage, {
-      userId,
-      lifecycleStatus: "verified_active",
-      cursor: continuation.cursor,
-      expectedProfileRevision: continuation.expectedProfileRevision,
-    });
+    let cursor: string | null = continuation.cursor;
+    while (cursor) {
+      await t.mutation(internal.jobMatching.reconcileUserPage, {
+        userId,
+        lifecycleStatus: "verified_active",
+        cursor,
+        expectedProfileRevision: continuation.expectedProfileRevision,
+      });
+      cursor = await t.run(async (ctx) => {
+        const scheduled = await ctx.db.system
+          .query("_scheduled_functions")
+          .order("desc")
+          .first();
+        const args = scheduled?.args[0] as {
+          lifecycleStatus: string;
+          cursor: string | null;
+        };
+        return args.lifecycleStatus === "verified_active" ? args.cursor : null;
+      });
+    }
     await t.run(async (ctx) => {
       expect(await ctx.db.query("jobMatches").collect()).toHaveLength(33);
     });
@@ -1734,7 +1748,7 @@ describe("stored job activity", () => {
       { view: "suggestions" },
     );
     expect(pendingFeed.jobs).toHaveLength(0);
-    expect(pendingFeed.discoveryState).toBe("pending");
+    expect(pendingFeed.discoveryState).toBe("waiting");
 
     await t.run((ctx) =>
       ctx.db.insert("dailyDiscoveryAttempts", {
@@ -1964,4 +1978,258 @@ it("keeps a completed profile and its existing suggestions after deleting the ac
     (await user.query(api.candidateProfiles.getCurrent)).profile,
   ).toMatchObject({ onboardingCompleted: true, updatedAt: 1 });
   expect(await user.query(api.resumes.getCurrent)).toBeNull();
+});
+
+it("opens a shared circuit on exhausted credits without consuming another user's daily search budget", async () => {
+  const t = convexTest(schema, modules);
+  const [firstUser, secondUser] = await t.run(async (ctx) => [
+    await ctx.db.insert("users", {}),
+    await ctx.db.insert("users", {}),
+  ]);
+  const first = await t.mutation(
+    internal.jobDiscovery.beginSearch,
+    beginArgs(firstUser, "credit-outage"),
+  );
+  if (!first) throw new Error("Expected reservation");
+  await t.mutation(internal.jobDiscovery.failSearch, {
+    userId: firstUser,
+    runId: first.runId,
+    reservationId: first.reservationId,
+    errorCategory: "provider_billing",
+  });
+  await expect(
+    t.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs(secondUser, "other-role"),
+    ),
+  ).rejects.toThrow("provider_billing");
+  const runs = await t.run((ctx) =>
+    ctx.db
+      .query("jobSearchRuns")
+      .withIndex("by_userId_and_startedAt", (q) => q.eq("userId", secondUser))
+      .collect(),
+  );
+  expect(runs).toHaveLength(0);
+});
+
+it("preserves primary qualifications when a secondary summary is re-ingested, but downgrades changed incomplete primary evidence", async () => {
+  const t = convexTest(schema, modules);
+  const userId = await t.run((ctx) => ctx.db.insert("users", {}));
+  const primary = {
+    ...normalizedJob(),
+    additionalRequirements: ["Security clearance required"],
+    requirementsSourceHash: "verified-primary",
+  };
+  await ingestCandidates(t, userId, [
+    { job: primary, verification: verification() },
+  ]);
+  const secondary = {
+    ...normalizedJob(),
+    requiredSkills: [],
+    languages: [],
+    additionalRequirements: [],
+    requiredExperienceYearsMin: null,
+    contentHash: "secondary-summary",
+    requirementsStatus: "incomplete" as const,
+  };
+  await ingestCandidates(t, userId, [
+    {
+      job: secondary,
+      verification: { ...verification(), sourceTier: "aggregator" },
+    },
+  ]);
+  const read = () => t.run((ctx) => ctx.db.query("jobs").first());
+  expect(await read()).toMatchObject({
+    requirementsStatus: "complete",
+    requiredExperienceYearsMin: 5,
+    requiredSkills: ["React", "TypeScript"],
+    additionalRequirements: ["Security clearance required"],
+    requirementsSourceHash: "verified-primary",
+  });
+  await ingestCandidates(t, userId, [
+    {
+      job: { ...secondary, contentHash: "changed-primary" },
+      verification: verification(),
+    },
+  ]);
+  expect(await read()).toMatchObject({ requirementsStatus: "incomplete" });
+});
+
+it("allows one owner-scoped support retry per day and reports a current failure over yesterday's completion", async () => {
+  const t = convexTest(schema, modules);
+  const [userId, otherId] = await t.run(async (ctx) => [
+    await ctx.db.insert("users", {}),
+    await ctx.db.insert("users", {}),
+  ]);
+  await t.mutation(internal.dailyDiscovery.claimDailyRole, {
+    userId,
+    roles: ["QA Engineer"],
+  });
+  const run = await t.mutation(
+    internal.jobDiscovery.beginSearch,
+    beginArgs(userId, "failed-coverage"),
+  );
+  if (!run) throw new Error("Expected run");
+  await t.mutation(internal.jobDiscovery.failSearch, {
+    userId,
+    runId: run.runId,
+    reservationId: run.reservationId,
+    errorCategory: "provider_failure",
+  });
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimFailedCoverageRetry, {
+      userId: otherId,
+      runId: run.runId,
+    }),
+  ).toBe(false);
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimFailedCoverageRetry, {
+      userId,
+      runId: run.runId,
+    }),
+  ).toBe(true);
+  expect(
+    await t.mutation(internal.dailyDiscovery.claimFailedCoverageRetry, {
+      userId,
+      runId: run.runId,
+    }),
+  ).toBe(false);
+  const { currentDiscoveryState } = await import("./jobDiscovery");
+  const failed = (await t.run((ctx) =>
+    ctx.db.get("jobSearchRuns", run.runId),
+  ))!;
+  const attempt = (await t.run((ctx) =>
+    ctx.db
+      .query("dailyDiscoveryAttempts")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique(),
+  ))!;
+  expect(
+    currentDiscoveryState(
+      { ...attempt, dayKey: "2026-01-01", lastOutcome: "completed" },
+      [failed],
+      Date.now(),
+    ),
+  ).toBe("failed");
+  expect(
+    currentDiscoveryState(
+      {
+        ...attempt,
+        lastOutcome: "queued",
+        lastAttemptAt: failed.startedAt - 1,
+      },
+      [failed],
+      Date.now(),
+    ),
+  ).toBe("failed");
+  expect(
+    currentDiscoveryState(
+      {
+        ...attempt,
+        lastOutcome: "queued",
+        lastAttemptAt: failed.startedAt + 1,
+      },
+      [failed],
+      Date.now(),
+    ),
+  ).toBe("queued");
+});
+
+it("recovers an expired shared claim before reusing it and frees its reservation", async () => {
+  const t = convexTest(schema, modules);
+  const [userId, otherId] = await t.run(async (ctx) => [
+    await ctx.db.insert("users", {}),
+    await ctx.db.insert("users", {}),
+  ]);
+  const first = await t.mutation(
+    internal.jobDiscovery.beginSearch,
+    beginArgs(userId, "expired-shared-claim"),
+  );
+  if (!first) throw new Error("Expected reservation");
+  await t.run((ctx) =>
+    ctx.db.patch("jobSearchRuns", first.runId, {
+      startedAt: Date.now() - 11 * 60_000,
+    }),
+  );
+  expect(
+    await t.mutation(
+      internal.jobDiscovery.beginSearch,
+      beginArgs(otherId, "expired-shared-claim"),
+    ),
+  ).not.toBeNull();
+  expect(
+    await t.run((ctx) => ctx.db.get("jobSearchRuns", first.runId)),
+  ).toMatchObject({ status: "failed", errorCategory: "run_timeout" });
+  const second = await t.mutation(
+    internal.jobDiscovery.beginSearch,
+    beginArgs(userId, "watchdog-claim"),
+  );
+  if (!second) throw new Error("Expected reservation");
+  await t.run((ctx) =>
+    ctx.db.patch("jobSearchRuns", second.runId, {
+      startedAt: Date.now() - 11 * 60_000,
+    }),
+  );
+  expect(
+    await t.mutation(internal.jobDiscovery.recoverStalledSearches, {}),
+  ).toBe(1);
+  expect(
+    await t.mutation(internal.jobDiscovery.recoverStalledSearches, {}),
+  ).toBe(0);
+});
+
+it("finishes a feed rebuild across chained small catalog pages", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const userId = await createUser(t);
+    await addCompletedProfile(t, userId);
+    await t.run(async (ctx) => {
+      const { aiAssessment: _assessment, ...job } = normalizedJob();
+      const now = Date.now();
+      for (let index = 0; index < 19; index++) {
+        const url = `${job.sourceUrl}-${index}`;
+        const jobId = await ctx.db.insert("jobs", {
+          ...job,
+          sourceUrl: url,
+          normalizedSourceUrl: url,
+          jobFingerprint: `${job.jobFingerprint}-${index}`,
+          contentHash: `${job.contentHash}-${index}`,
+          firstDiscoveredAt: now,
+          lastDiscoveredAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "active",
+          lifecycleStatus: "verified_active",
+        });
+        const sourceId = await ctx.db.insert("jobSources", {
+          jobId,
+          sourceUrl: url,
+          normalizedUrl: url,
+          finalUrl: url,
+          domain: "careers.example.com",
+          sourceTier: "employer",
+          firstSeenAt: now,
+          lastSeenAt: now,
+          lastVerifiedAt: now,
+          activityStatus: "verified_active",
+          activeEvidenceType: "active_application_flow",
+        });
+        await ctx.db.patch("jobs", jobId, { bestSourceId: sourceId });
+      }
+    });
+    await t.mutation(internal.jobMatching.reconcileUserPage, {
+      userId,
+      lifecycleStatus: "verified_active",
+      cursor: null,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const feed = await asUser(t, userId).query(
+      api.jobDiscovery.listCurrentUserJobs,
+      { view: "suggestions" },
+    );
+    expect(feed.jobs).toHaveLength(19);
+    expect(new Set(feed.jobs.map((job) => job.id)).size).toBe(19);
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -138,7 +138,7 @@ export function JobDiscoveryPanel({
     view === "suggestions" ? result?.emptyState?.reason : undefined;
   const discoveryPending =
     view === "suggestions" &&
-    (result?.discoveryState === "pending" ||
+    (result?.discoveryState === "queued" ||
       result?.discoveryState === "running");
 
   useEffect(() => {
@@ -233,26 +233,30 @@ export function JobDiscoveryPanel({
                   {t(
                     view === "inProgress"
                       ? "applications.emptyTitle"
-                      : discoveryPending
-                        ? "jobDiscovery.pendingTitle"
-                        : emptyReason === "location"
-                          ? "jobDiscovery.locationEmptyTitle"
-                          : emptyReason === "no_active_jobs"
-                            ? "jobDiscovery.noActiveEmptyTitle"
-                            : "jobDiscovery.emptyTitle",
+                      : result?.discoveryState === "queued"
+                        ? "jobDiscovery.queuedTitle"
+                        : discoveryPending
+                          ? "jobDiscovery.pendingTitle"
+                          : emptyReason === "location"
+                            ? "jobDiscovery.locationEmptyTitle"
+                            : emptyReason === "no_active_jobs"
+                              ? "jobDiscovery.noActiveEmptyTitle"
+                              : "jobDiscovery.emptyTitle",
                   )}
                 </h2>
                 <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7 text-pretty">
                   {t(
                     view === "inProgress"
                       ? "applications.emptyDescription"
-                      : discoveryPending
-                        ? "jobDiscovery.pendingDescription"
-                        : emptyReason === "location"
-                          ? "jobDiscovery.locationEmptyDescription"
-                          : emptyReason === "no_active_jobs"
-                            ? "jobDiscovery.noActiveEmptyDescription"
-                            : "jobDiscovery.emptyDescription",
+                      : result?.discoveryState === "queued"
+                        ? "jobDiscovery.queuedDescription"
+                        : discoveryPending
+                          ? "jobDiscovery.pendingDescription"
+                          : emptyReason === "location"
+                            ? "jobDiscovery.locationEmptyDescription"
+                            : emptyReason === "no_active_jobs"
+                              ? "jobDiscovery.noActiveEmptyDescription"
+                              : "jobDiscovery.emptyDescription",
                     emptyReason === "location"
                       ? { radius: result?.emptyState?.radiusKm }
                       : undefined,

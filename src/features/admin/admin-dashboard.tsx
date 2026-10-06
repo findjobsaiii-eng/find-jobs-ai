@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -353,6 +353,10 @@ function SearchField({
 function Overview({ dateKey }: { dateKey: string }) {
   const { t, i18n } = useTranslation();
   const range = useMemo(() => dateRange(dateKey), [dateKey]);
+  const requestMetrics = useMutation(api.admin.requestMetrics);
+  useEffect(() => {
+    void requestMetrics({ dayKey: dateKey, ...range });
+  }, [dateKey, range, requestMetrics]);
   const data = useQuery(api.admin.overview, { dayKey: dateKey, ...range });
   const decision = useQuery(api.admin.decisionMetrics, { now: range.end });
   const {
@@ -367,6 +371,9 @@ function Overview({ dateKey }: { dateKey: string }) {
   );
   return (
     <div className="space-y-6">
+      <p className="text-muted-foreground text-xs">
+        {t("admin.overview.snapshotNotice")}
+      </p>
       {data.truncated || decision.truncated ? (
         <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           {t("admin.overview.truncated")}
@@ -1292,15 +1299,7 @@ function UsersSection() {
   } = useAdminUsers(search);
   const recordView = useMutation(api.admin.recordUserView);
   const [selected, setSelected] = useState<Id<"users"> | null>(null);
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    if (!users || !term) return users ?? [];
-    return users.filter(({ user }) =>
-      `${user.name ?? ""} ${user.email ?? ""}`
-        .toLocaleLowerCase()
-        .includes(term),
-    );
-  }, [search, users]);
+  const filtered = users;
   if (usersStatus === "LoadingFirstPage") return <LoadingBlock />;
   const openUser = (userId: Id<"users">) => {
     setSelected(userId);

@@ -10,6 +10,7 @@ export const recordResponse = internalMutation({
     userId: v.id("users"),
     operation: v.union(
       v.literal("job_search"),
+      v.literal("job_normalization"),
       v.literal("deep_review"),
       v.literal("resume_extraction"),
     ),

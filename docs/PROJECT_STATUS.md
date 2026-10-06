@@ -652,3 +652,39 @@ values and private/embedded document contents. Consent regression tests cover
 missing/declined/superseded consent, withdrawal and a deferred SDK-load race.
 `npm run check`, all 510 tests, `npm run build` (Turbopack), and React Doctor
 passed (no reported issues).
+
+## Production audit repairs (2026-10-06)
+
+Implemented and deployed to production Convex `famous-badger-815`: source-backed
+requirement normalization with evidence/completeness checks; conservative source
+classification and primary ATS following; explicit desired-role scope; skill OR
+and conjunction reasoning; stronger seniority ranking; canonical bilingual and
+regional/career-level discovery identities; truthful discovery states; bounded
+location exclusion summaries; durable leased resume workers/watchdog/retry;
+billing-outage circuit; requester-specific accepted/strong/partial measurements;
+and indexed admin user search with shared background metric snapshots.
+
+Frontend production deployment `dpl_4xWu79Zgdcb86iwTE2X8P6tpauG3` is Ready and
+serves jobmiter.com. Its build passed with Turbopack and uploaded browser/server
+Sentry source maps. `/api/health` returned `{"status":"ok"}`. Local checks and all
+548 tests passed; local Webpack production build passed. React Doctor found no
+React issues and five bounded sequential backend loop warnings. No browser tests
+were run, following the owner's preference.
+
+Sixty-four affected sources were rechecked, including Palantir and UpNEXT; three
+legacy textless resumes, both recent schema failures and five older failed
+uploads were repaired. A further 353-record source repair addresses URL
+transport, page-size and inferred identity faults, recovering 89 verified active
+sources. Full-feed pages now contain eight jobs with one-pass skill detection;
+the production rebuild completed 3,278 matching operations with zero failures.
+All 85 completed-profile feed reads succeeded; 77 contained suggestions. All 96
+resumes at readback have text, with none failed or processing. Admin
+search was rebuilt for all 120 accounts at final readback, and the current metric snapshot
+was generated. Final coverage and older failed-upload recovery results are in
+`docs/PRODUCTION_FIXES_2026-10-06.md`.
+
+A 10,000-account backend test proves bounded admin pages/indexed lookup and
+uncapped background totals. Real 10,000-user concurrency, refresh costs under
+large event history, provider capacity and hiring outcomes remain unproven.
+Background summaries still assemble bounded paginated history; fully incremental
+counters are not implemented. No commits or pushes were made for this work.

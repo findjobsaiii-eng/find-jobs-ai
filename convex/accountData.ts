@@ -75,6 +75,13 @@ export const deleteBatch = internalMutation({
           .take(BATCH_SIZE);
         hasRows = rows.length > 0;
         for (const row of rows) await ctx.db.delete("jobMatches", row._id);
+        const exclusions = await ctx.db
+          .query("jobMatchExclusions")
+          .withIndex("by_userId_and_jobId", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows ||= exclusions.length > 0;
+        for (const row of exclusions)
+          await ctx.db.delete("jobMatchExclusions", row._id);
         break;
       }
       case 4: {
