@@ -67,3 +67,22 @@ fix until the owner approves release and new production evidence is available.
 3. Verify future Sentry events show browser identification, bounded sanitized
    request/navigation breadcrumbs and online/visibility/translation context.
    Authentication network and DOM errors remain reported for diagnosis.
+
+## Daily check — 7 October, 09:01 Israel time
+
+Read the live unresolved-issue list across all environments and the latest
+changed group's detailed event. Local HEAD is now `c8b0cf7`; the earlier local
+fixes are committed and the worktree was clean before this documentation update.
+No production release was verified during this check.
+
+- [JOBMITER-4](https://find-job-ai.sentry.io/issues/7749310985/) increased from
+  48 to 49 events. The new event occurred at 08:17 Israel time, but identifies
+  the older release `031ca45d665b04476c98ac6086779fbfaac7ddca`, created on
+  5 October. Its exception still contains only `TypeError`, with no original
+  message or stack frames. The event does not establish the cause or whether
+  it represents an old client session; no speculative code change was made.
+- All other unresolved groups have unchanged counts and last-seen timestamps
+  relative to the previous inspection. Intentional test groups remain excluded.
+- No application code changed, so code tests/builds were not repeated. This
+  documentation update passed Prettier and `git diff --check`. No issue status,
+  production data, commits, pushes or deployments were changed by this check.
