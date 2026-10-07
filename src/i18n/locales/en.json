@@ -926,6 +926,7 @@
     "retry": "Try again"
   },
   "admin": {
+    "dateLabel": "Date",
     "eyebrow": "Operations console",
     "navigation": "Admin navigation",
     "loading": "Loading operational data…",

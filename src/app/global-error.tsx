@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { captureBoundaryError } from "@/lib/sentry-errors";
+import {
+  captureBoundaryError,
+  recoverBoundaryError,
+} from "@/lib/sentry-errors";
 import en from "@/i18n/locales/en.json";
 import he from "@/i18n/locales/he.json";
 
@@ -56,7 +59,7 @@ export default function GlobalError({
             <p style={{ lineHeight: 1.7 }}>{copy.description}</p>
             <button
               type="button"
-              onClick={retry}
+              onClick={() => recoverBoundaryError(error, retry)}
               style={{
                 padding: "0.75rem 1.25rem",
                 marginTop: "1rem",

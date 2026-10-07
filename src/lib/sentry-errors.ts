@@ -28,3 +28,22 @@ export function captureBoundaryError(error: unknown, boundary: string) {
     tags: { boundary, ...errorDiagnosticTags(error) },
   });
 }
+
+export function recoverBoundaryError(
+  error: Error,
+  retry: () => void,
+  reload: () => void = () => window.location.reload(),
+) {
+  const staleChunk =
+    error.name === "ChunkLoadError" ||
+    /(?:Loading chunk \S+ failed|Failed to load chunk\b)/iu.test(error.message);
+  const brokenDom =
+    error.name === "NotFoundError" &&
+    /Failed to execute '(?:insertBefore|removeChild)' on 'Node'/u.test(
+      error.message,
+    );
+  // These failures retain a broken module/DOM tree across a segment retry.
+  // Reload only on an explicit Retry click, never automatically in a loop.
+  if (staleChunk || brokenDom) reload();
+  else retry();
+}

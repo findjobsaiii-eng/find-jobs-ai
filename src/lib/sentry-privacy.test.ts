@@ -148,3 +148,169 @@ describe("Sentry privacy boundary", () => {
     ).toBeUndefined();
   });
 });
+
+it("keeps safe request and navigation breadcrumbs without bodies, secrets or click text", () => {
+  const cleaned = scrubSentryEvent({
+    type: undefined,
+    breadcrumbs: [
+      {
+        category: "fetch",
+        message: "private CV",
+        data: {
+          url: "https://jobmiter.com/api/auth?token=secret",
+          method: "POST",
+          status_code: 503,
+          body: "private CV",
+          headers: { Authorization: "Bearer secret" },
+        },
+      },
+      {
+        category: "navigation",
+        data: { from: "/?code=secret", to: "/profile#private" },
+      },
+      { category: "console", message: "private CV" },
+      { category: "ui.click", message: "candidate@example.com" },
+    ],
+  });
+  expect(cleaned.breadcrumbs).toHaveLength(2);
+  expect(cleaned.breadcrumbs?.[0].data).toMatchObject({
+    url: "https://jobmiter.com/api/auth",
+    method: "POST",
+    status_code: 503,
+  });
+  expect(cleaned.breadcrumbs?.[1].data).toEqual({
+    from: "https://jobmiter.com/",
+    to: "https://jobmiter.com/profile",
+  });
+  expect(JSON.stringify(cleaned)).not.toMatch(
+    /secret|private CV|candidate@example|Authorization/u,
+  );
+});
+
+it("labels auth refresh network errors while retaining the exception and source stack", () => {
+  const event: ErrorEvent = {
+    type: undefined,
+    exception: {
+      values: [
+        {
+          type: "TypeError",
+          value: "Failed to fetch",
+          mechanism: {
+            type: "auto.browser.global_handlers.onunhandledrejection",
+            handled: false,
+          },
+          stacktrace: {
+            frames: [
+              {
+                filename: "node_modules/@convex-dev/auth/src/nextjs/client.tsx",
+                lineno: 28,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+  const cleaned = scrubSentryEvent(event);
+  expect(cleaned.tags?.error_category).toBe("auth_refresh_network");
+  expect(cleaned.exception?.values?.[0].value).toBe("Failed to fetch");
+  expect(cleaned.exception?.values?.[0].mechanism?.handled).toBe(false);
+  expect(cleaned.exception?.values?.[0].stacktrace?.frames?.[0].lineno).toBe(
+    28,
+  );
+  expect(cleaned.contexts?.app).toMatchObject({
+    network_online: true,
+    dom_translated: false,
+  });
+});
+
+it("retains browser identification and translation diagnostics without credentials or arbitrary context", () => {
+  document.documentElement.classList.add("translated-rtl");
+  try {
+    const cleaned = scrubSentryEvent({
+      type: undefined,
+      request: {
+        url: "https://jobmiter.com/",
+        headers: {
+          "User-Agent": "Example Browser 123",
+          Cookie: "secret",
+          Authorization: "secret",
+        },
+      },
+      contexts: { candidate: { resumeText: "private CV" } },
+    });
+    expect(cleaned.request?.headers).toEqual({
+      "User-Agent": "Example Browser 123",
+    });
+    expect(cleaned.contexts?.app?.dom_translated).toBe(true);
+    expect(JSON.stringify(cleaned)).not.toMatch(/secret|private CV|candidate/u);
+  } finally {
+    document.documentElement.classList.remove("translated-rtl");
+  }
+});
+
+it("bounds safe breadcrumb history and does not mislabel unrelated fetch failures as auth failures", () => {
+  const cleaned = scrubSentryEvent({
+    type: undefined,
+    exception: {
+      values: [
+        {
+          type: "TypeError",
+          value: "Failed to fetch",
+          stacktrace: {
+            frames: [{ filename: "src/features/profile/upload.ts" }],
+          },
+        },
+      ],
+    },
+    breadcrumbs: Array.from({ length: 40 }, (_, index) => ({
+      category: "fetch",
+      data: { url: `https://jobmiter.com/api/example/${index}` },
+    })),
+  });
+  expect(cleaned.breadcrumbs).toHaveLength(25);
+  expect(cleaned.tags?.error_category).toBeUndefined();
+});
+
+it("uses the SDK's failed auth-request breadcrumb before production source maps are applied", () => {
+  const event: ErrorEvent = {
+    type: undefined,
+    exception: {
+      values: [
+        {
+          type: "TypeError",
+          value: "Failed to fetch",
+          stacktrace: {
+            frames: [
+              {
+                filename: "https://jobmiter.com/_next/static/chunks/hashed.js",
+                lineno: 1,
+              },
+            ],
+          },
+        },
+      ],
+    },
+    breadcrumbs: [
+      {
+        category: "fetch",
+        level: "error",
+        data: { url: "/api/auth", method: "POST" },
+      },
+    ],
+  };
+  expect(scrubSentryEvent(event).tags?.error_category).toBe(
+    "auth_refresh_network",
+  );
+  const laterRequest = {
+    category: "fetch",
+    level: "error" as const,
+    data: { url: "/api/upload", method: "POST" },
+  };
+  expect(
+    scrubSentryEvent({
+      ...event,
+      breadcrumbs: [...event.breadcrumbs!, laterRequest],
+    }).tags?.error_category,
+  ).toBeUndefined();
+});

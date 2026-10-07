@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { captureBoundaryError } from "@/lib/sentry-errors";
+import {
+  captureBoundaryError,
+  recoverBoundaryError,
+} from "@/lib/sentry-errors";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -39,7 +42,7 @@ export default function AdminJobsPreviewError({
           {t("admin.preview.loadErrorDescription")}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Button onClick={retry}>
+          <Button onClick={() => recoverBoundaryError(error, retry)}>
             <RefreshCw aria-hidden="true" />
             {t("admin.preview.retry")}
           </Button>

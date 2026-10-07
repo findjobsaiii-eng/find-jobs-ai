@@ -60,15 +60,20 @@ also report client failures, including Convex function/request IDs when present.
 Authenticated events attach only a verified internal user ID and clear it on
 logout; no email, name or profile attributes are attached.
 
-The privacy allowlist retains redacted exception messages, stack locations,
-source-map debug IDs, safe URL paths, route metadata and digests. It strips
-query strings/fragments, request headers/cookies/bodies, breadcrumbs, arbitrary
-contexts/extras, stack locals and validation payloads. Sentry does not collect
-session replay or performance traces. Production Vercel builds upload browser
+The diagnostic allowlist retains redacted exception messages, stack locations,
+source-map debug IDs, safe URL paths, route metadata and digests. It also retains
+browser identification through the User-Agent header, online/visibility/UI-language
+and browser-translation state, and at most 25 sanitized request/navigation
+breadcrumbs (URL path, HTTP method/status). It strips query strings/fragments,
+other headers/cookies/bodies, console/click text, arbitrary contexts/extras,
+stack locals and validation payloads. Sentry does not collect session replay
+or performance traces. Production Vercel builds upload browser
 and server maps using `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN`.
 The 2026-10-05 production build logs confirm successful artifact-bundle uploads.
-Actual event symbolication must still be checked in Sentry after deploying these
-changes: a source map cannot repair stack frames removed by the previous scrubber.
+The 2026-10-07 Sentry inspection confirmed symbolicated client frames and source
+context in current production events. A source map cannot restore frames removed
+from older events by the previous scrubber; current original production server
+exception capture still needs a live event to verify end to end.
 
 The temporary `/sentry-test` page reports one controlled client error and displays
 its event ID. Remove that route after verification. Convex runs separately from
@@ -78,6 +83,22 @@ For original Convex backend events in Sentry, configure the native Sentry
 exception integration under production deployment Settings → Integrations
 (requires Convex Pro): [Convex exception reporting](https://docs.convex.dev/production/integrations/exception-reporting).
 Its current production configuration has not been verified.
+
+Local issue inspection uses `JOBMITER_SENTRY_AUTH_TOKEN` in this project's
+ignored `.env.local`, with `project:read`, `event:read` and `org:read` access for
+organization `find-job-ai`, project `jobmiter`. This is separate from the
+source-map upload token `SENTRY_AUTH_TOKEN` and is never exposed through a
+`NEXT_PUBLIC_` variable. When using the Sentry skill helper, pass the Jobmiter
+credential only as a temporary child-process `SENTRY_AUTH_TOKEN`. Omit the
+API environment filter for all environments; `production` alone misses our
+`vercel-production` events, and an empty environment value is not equivalent
+to omitting the filter.
+
+The owner-authorized daily local Sentry check is scheduled in Codex for 09:00
+Asia/Jerusalem (`daily-jobmiter-sentry-fixes`). It reads issues, makes confirmed
+local fixes, validates them and reports meaningful changes. It never commits,
+pushes, deploys, changes production data, or resolves/mutes Sentry issues.
+See [`docs/SENTRY_TRIAGE.md`](docs/SENTRY_TRIAGE.md) for the current findings.
 
 ## Launch documents and consent
 

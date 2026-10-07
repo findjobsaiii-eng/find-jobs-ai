@@ -688,3 +688,23 @@ uncapped background totals. Real 10,000-user concurrency, refresh costs under
 large event history, provider capacity and hiring outcomes remain unproven.
 Background summaries still assemble bounded paginated history; fully incremental
 counters are not implemented. No commits or pushes were made for this work.
+
+## Sentry maintenance (2026-10-07, local changes)
+
+Project-specific Sentry issue/event access now works with
+`JOBMITER_SENTRY_AUTH_TOKEN` in the ignored project `.env.local`. Current events
+confirm symbolicated client stacks and source context. Older stripped events
+cannot be reconstructed; live original production server capture and the native
+Convex integration remain separate verification questions.
+
+Fixed the reproducible admin date-picker crash from cleared/partial dates and
+locale-dependent keys. Explicit Retry reloads stale chunks/broken DOM; ordinary
+errors retain segment retry. Added bounded sanitized HTTP/navigation breadcrumbs,
+browser identification and online/visibility/translation context. Authentication
+refresh failures remain reported; the old events do not establish why the network
+request failed. The DOM error's root cause also remains unconfirmed.
+
+Validation: npm run check, 562 tests, local Webpack production build and React
+Doctor passed. No browser tests, production changes, commits or pushes. The daily
+local Codex heartbeat is active at 09:00 Asia/Jerusalem and cannot release fixes
+without explicit owner approval. Details: docs/SENTRY_TRIAGE.md.

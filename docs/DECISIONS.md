@@ -1213,3 +1213,22 @@ existing matching results while avoiding a separate scan per alias. Full-feed
 rebuilds chain eight-job pages; changed-job reconciliation keeps a shared
 identity catalog per profile page. Production scheduler failures, rather than
 synthetic row counts alone, determine whether a page size is safe.
+
+### D-058: Sentry maintenance uses scoped credentials and evidence-based local fixes
+
+Status: Accepted (2026-10-07).
+
+Use the ignored project's JOBMITER_SENTRY_AUTH_TOKEN for issue/event inspection,
+separately from the source-map upload credential SENTRY_AUTH_TOKEN. Read all
+Sentry environments by omitting the environment filter; production-only filters
+miss vercel-production. Daily maintenance compares event time/release with local
+fixes, preserves owner changes and makes confirmed local repairs without release
+or production mutations. Historical stripped events cannot establish a root cause.
+
+Retain bounded, sanitized HTTP/navigation breadcrumbs and browser/network/DOM
+translation context alongside original stacks and source-map identities. Preserve
+reported failures rather than adding ignore filters. Stale-chunk and DOM placement
+errors can require document replacement: use full reload on explicit Retry, with
+normal segment retry for other errors and no automatic reload loop. Admin date
+keys are explicitly constructed ISO calendar dates; incomplete edits never become
+query ranges, and Jerusalem calendar ranges preserve DST day lengths.

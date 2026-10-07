@@ -40,6 +40,13 @@ import { Button } from "@/components/ui/button";
 import { useAdminUsers } from "./use-admin-users";
 import { CatalogReview } from "./catalog-review";
 import { cn } from "@/lib/utils";
+import { AdminDateInput } from "./admin-date-input";
+import {
+  dateRange,
+  israelDateKey,
+  formatDateTime,
+  formatShortDate,
+} from "./admin-dates";
 
 type Section =
   | "overview"
@@ -49,15 +56,6 @@ type Section =
   | "jobs"
   | "inspector"
   | "catalog";
-
-function israelDateKey(timestamp = Date.now()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jerusalem",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(timestamp);
-}
 
 function experienceRequirement(
   min: number | null,
@@ -163,70 +161,6 @@ function JobDiagnosticDisclosure({
       ) : null}
     </div>
   );
-}
-
-function zonedDateParts(timestamp: number) {
-  const values = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Jerusalem",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  })
-    .formatToParts(timestamp)
-    .reduce<Record<string, number>>((result, part) => {
-      if (part.type !== "literal") result[part.type] = Number(part.value);
-      return result;
-    }, {});
-  return values;
-}
-
-function israelMidnight(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const desiredUtc = Date.UTC(year, month - 1, day);
-  let guess = desiredUtc;
-  for (let iteration = 0; iteration < 2; iteration += 1) {
-    const parts = zonedDateParts(guess);
-    const representedUtc = Date.UTC(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hour,
-      parts.minute,
-      parts.second,
-    );
-    guess -= representedUtc - desiredUtc;
-  }
-  return guess;
-}
-
-function dateRange(dateKey: string) {
-  const start = israelMidnight(dateKey);
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const nextKey = new Date(Date.UTC(year, month - 1, day + 1))
-    .toISOString()
-    .slice(0, 10);
-  return { start, end: israelMidnight(nextKey) };
-}
-
-function formatDateTime(value: number | null, language: string) {
-  if (value === null) return "—";
-  return new Intl.DateTimeFormat(language, {
-    timeZone: "Asia/Jerusalem",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
-}
-
-function formatShortDate(value: number, language: string) {
-  return new Intl.DateTimeFormat(language, {
-    timeZone: "Asia/Jerusalem",
-    month: "short",
-    day: "numeric",
-  }).format(value);
 }
 
 function formatPercentage(value: number | null) {
@@ -1841,12 +1775,10 @@ function AdminDashboard() {
             section === "tokenUsage" ? (
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <CalendarDays className="size-4" />
-                <input
-                  type="date"
+                <AdminDateInput
                   value={dateKey}
-                  max={israelDateKey()}
-                  onChange={(event) => setDateKey(event.target.value)}
-                  className="border-input bg-background text-foreground h-10 rounded-xl border px-3 text-sm outline-none focus:ring-3 focus:ring-blue-500/20"
+                  onValueChange={setDateKey}
+                  label={t("admin.dateLabel")}
                 />
               </label>
             ) : null}
