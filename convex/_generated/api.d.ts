@@ -60,6 +60,7 @@ import type * as onboardingReminderTemplate from "../onboardingReminderTemplate.
 import type * as onboardingReminderUnsubscribe from "../onboardingReminderUnsubscribe.js";
 import type * as onboardingReminders from "../onboardingReminders.js";
 import type * as openAIJobProvider from "../openAIJobProvider.js";
+import type * as privateJobs from "../privateJobs.js";
 import type * as productAnalytics from "../productAnalytics.js";
 import type * as referenceCatalogData from "../referenceCatalogData.js";
 import type * as referenceData from "../referenceData.js";
@@ -133,6 +134,7 @@ declare const fullApi: ApiFromModules<{
   onboardingReminderUnsubscribe: typeof onboardingReminderUnsubscribe;
   onboardingReminders: typeof onboardingReminders;
   openAIJobProvider: typeof openAIJobProvider;
+  privateJobs: typeof privateJobs;
   productAnalytics: typeof productAnalytics;
   referenceCatalogData: typeof referenceCatalogData;
   referenceData: typeof referenceData;

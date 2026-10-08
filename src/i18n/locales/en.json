@@ -759,7 +759,7 @@
     "suggestions": "Suggestions",
     "inProgress": "Saved",
     "savedTitle": "Saved jobs",
-    "savedDescription": "Keep saved jobs and every application stage in one calm place.",
+    "savedDescription": "Manage saved jobs and applications from anywhere.",
     "sentResume": "I sent my résumé",
     "undo": "Remove",
     "saveJob": "Save job",
@@ -773,7 +773,7 @@
     "statusRemoved": "Status removed. Your timeline is still here.",
     "error": "Couldn’t update this job. Please try again.",
     "emptyTitle": "No saved jobs yet",
-    "emptyDescription": "Choose a status for a suggestion and it will appear here.",
+    "emptyDescription": "Choose a status for a suggestion, or add a job you found anywhere.",
     "sentAt": "Applied {{date}}",
     "lastUpdated": "Updated {{date}}",
     "status": {
@@ -818,7 +818,9 @@
       "noteAdded": "Note added",
       "showAll": "Show all {{count}} updates",
       "showLess": "Show less"
-    }
+    },
+    "privateUpdated": "Job updated.",
+    "privateDeleted": "Job deleted."
   },
   "common": {
     "save": "Save",
@@ -1260,5 +1262,28 @@
       "experience": "At least {{years}} years of relevant experience"
     },
     "salaryRequirement": "Minimum salary"
+  },
+  "privateJobs": {
+    "add": "Add job",
+    "edit": "Edit job",
+    "save": "Save changes",
+    "delete": "Delete job",
+    "private": "Private",
+    "onlyYou": "Only you can see this job.",
+    "openLink": "Open link",
+    "deleteTitle": "Delete this job?",
+    "deleteDescription": "“{{title}}” and its notes and history will be permanently deleted.",
+    "error": "Could not save your changes. Please try again.",
+    "invalidUrl": "Enter a valid http:// or https:// link.",
+    "loadMore": "Load more jobs",
+    "fields": {
+      "title": "Job title",
+      "companyName": "Company",
+      "sourceUrl": "Job link (optional)",
+      "locationText": "Location (optional)",
+      "descriptionText": "Description (optional)"
+    },
+    "close": "Close job dialog",
+    "deleteError": "Could not delete this job. Please try again."
   }
 }

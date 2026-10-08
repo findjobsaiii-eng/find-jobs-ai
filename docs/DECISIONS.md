@@ -1232,3 +1232,26 @@ errors can require document replacement: use full reload on explicit Retry, with
 normal segment retry for other errors and no automatic reload loop. Admin date
 keys are explicitly constructed ISO calendar dates; incomplete edits never become
 query ranges, and Jerusalem calendar ranges preserve DST day lengths.
+
+### D-059: Owner-private jobs share the existing tracking interface
+
+Status: Accepted (2026-10-08); production rollout pending.
+
+Store manually added jobs in `privateJobs`, with a required application status,
+separate from the shared discovery inventory. Their owner-only event history lives
+in `privateJobEvents`; no discovery, verification, matching, AI review, or job email
+pipeline ingests these records. Derive ownership from authentication for every
+public operation, reject writes during account deletion, and validate required
+text, field lengths and optional HTTP(S) links server-side.
+
+The Saved jobs header exposes Add job. Only title and company are required;
+location, link and description are optional, including for offline opportunities.
+New jobs start as Saved. Merge private jobs with discovered tracked jobs in the
+existing Saved view, ordered by latest update and using the same status filters,
+comment dialog and timeline. Paginate private jobs in twenty-record pages; history
+shows the latest hundred events, consistent with the existing tracking history
+limit. Keep private details out of admin previews and mark cards and their portal
+dialogs as private for session replay. Private status cannot be removed, including
+through the API; owners can edit details or confirm deletion of the entire job.
+Deletion removes the job immediately and drains events in bounded scheduled batches.
+Account deletion removes both tables in its existing bounded cleanup workflow.

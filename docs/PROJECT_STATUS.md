@@ -40,6 +40,16 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented (2026-10-08, production rollout pending): owner-private jobs from
+  anywhere can be added from Saved jobs, edited, deleted, annotated and moved
+  between existing application statuses. New jobs start as Saved and always
+  retain a status. Private jobs share the Saved list and filters, with paginated
+  loading, while staying outside shared discovery and admin previews. Ownership,
+  URL/input limits, history retention through edits, batched deletion and account
+  cleanup are covered by tests. English/Hebrew desktop and mobile layouts were
+  checked using an isolated local preview with sample data. The personal
+  development backend was updated; no production release is implied.
+
 - Implemented: expanded bilingual reference catalogs (216 skills, 103 roles,
   34 experience areas, 57 education/qualification options); shared identities
   supersede equivalent private entries in search and profile saves. Seed/approved

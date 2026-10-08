@@ -44,6 +44,11 @@ vi.mock("convex/react", async () => {
       if (name === "resumes:getCurrent") return hooks.resume;
       return args ? { jobs: [] } : null;
     },
+    usePaginatedQuery: () => ({
+      results: [],
+      status: "Exhausted",
+      loadMore: vi.fn(),
+    }),
     useMutation: () => hooks.save,
     useAction: () => vi.fn(),
   };

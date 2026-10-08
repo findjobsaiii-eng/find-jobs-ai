@@ -1,4 +1,8 @@
 import { useQuery } from "convex/react";
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PrivateJobDialog } from "./private-job-dialog";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import { PageHeader } from "@/components/ui/product-layout";
@@ -8,17 +12,46 @@ import {
   type JobDiscoveryData,
 } from "./job-discovery-panel";
 
-function DashboardHeader({ view }: { view: "suggestions" | "inProgress" }) {
+function DashboardHeader({
+  view,
+  readOnly = false,
+}: {
+  view: "suggestions" | "inProgress";
+  readOnly?: boolean;
+}) {
   const { t } = useTranslation();
   const isSaved = view === "inProgress";
+  const [adding, setAdding] = useState(false);
 
   return (
-    <PageHeader
-      title={t(isSaved ? "applications.savedTitle" : "dashboard.jobsTitle")}
-      description={t(
-        isSaved ? "applications.savedDescription" : "dashboard.supportingText",
-      )}
-    />
+    <>
+      <PageHeader
+        title={t(isSaved ? "applications.savedTitle" : "dashboard.jobsTitle")}
+        description={t(
+          isSaved
+            ? "applications.savedDescription"
+            : "dashboard.supportingText",
+        )}
+        actions={
+          isSaved && !readOnly ? (
+            <Button
+              variant="outline"
+              className="min-h-11"
+              onClick={() => setAdding(true)}
+            >
+              <Plus aria-hidden="true" />
+              {t("privateJobs.add")}
+            </Button>
+          ) : undefined
+        }
+      />
+      {adding ? (
+        <PrivateJobDialog
+          onClose={() => setAdding(false)}
+          onSaved={() => setAdding(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -31,7 +64,7 @@ export function DashboardLoadingScreen({
 
   return (
     <>
-      <DashboardHeader view={view} />
+      <DashboardHeader view={view} readOnly />
       <section
         role="status"
         aria-label={t("jobDiscovery.loading")}
@@ -75,7 +108,7 @@ export function DashboardScreen({
   );
   return (
     <>
-      <DashboardHeader view={view} />
+      <DashboardHeader view={view} readOnly={readOnly} />
       <JobDiscoveryPanel
         view={view}
         onEdit={onEdit}

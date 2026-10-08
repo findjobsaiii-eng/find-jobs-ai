@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LocalizedDate } from "@/components/ui/localized-date";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -21,6 +21,7 @@ import { AnimatePresence, domAnimation, LazyMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
+import { PrivateJobCard } from "./private-job-card";
 import { JobMatchScore } from "./job-match-score";
 import { requirementLabel } from "./requirement-label";
 import { ApplicationTimeline } from "./application-timeline";
@@ -107,6 +108,12 @@ export function JobDiscoveryPanel({
   );
   const result = data?.result ?? currentResult;
   const emailPreference = data?.emailPreference ?? currentEmailPreference;
+  const privateEnabled = view === "inProgress" && !readOnly;
+  const privateJobs = usePaginatedQuery(
+    api.privateJobs.listMine,
+    privateEnabled ? {} : "skip",
+    { initialNumItems: 20 },
+  );
 
   useEffect(() => {
     if (!result || readOnly) return;
@@ -117,7 +124,21 @@ export function JobDiscoveryPanel({
     });
   }, [captureProductEvent, readOnly, result, view]);
 
-  const jobs = result?.jobs ?? [];
+  const jobs = [
+    ...(result?.jobs ?? []),
+    ...(privateEnabled
+      ? privateJobs.results.map((job) => ({
+          id: job._id,
+          trackingStatus: job.status,
+          trackingUpdatedAt: job.updatedAt,
+          privateJob: job,
+        }))
+      : []),
+  ];
+  if (view === "inProgress")
+    jobs.sort(
+      (a, b) => (b.trackingUpdatedAt ?? 0) - (a.trackingUpdatedAt ?? 0),
+    );
   const availableStatuses = applicationStatusesInUse(
     jobs.map((job) => job.trackingStatus as ApplicationStatus | undefined),
   );
@@ -149,7 +170,14 @@ export function JobDiscoveryPanel({
 
   return (
     <LazyMotion features={domAnimation}>
-      <section aria-label={t("dashboard.jobsTitle")} className="min-w-0">
+      <section
+        aria-label={t(
+          view === "inProgress"
+            ? "applications.savedTitle"
+            : "dashboard.jobsTitle",
+        )}
+        className="min-w-0"
+      >
         <AnimatePresence>
           {notice ? (
             <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4">
@@ -173,7 +201,8 @@ export function JobDiscoveryPanel({
             </p>
           ) : null}
           <AnimatePresence initial={false} mode="wait">
-            {result === undefined ? (
+            {result === undefined ||
+            (privateEnabled && privateJobs.status === "LoadingFirstPage") ? (
               <m.div
                 key="loading"
                 exit={{ opacity: 0 }}
@@ -302,6 +331,23 @@ export function JobDiscoveryPanel({
                   <m.ul className="space-y-3">
                     <AnimatePresence initial={false} propagate>
                       {visibleJobs.map((job) => {
+                        if ("privateJob" in job)
+                          return (
+                            <m.li
+                              key={job.id}
+                              exit={{ opacity: 0, y: -10, scale: 0.985 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                            >
+                              <PrivateJobCard
+                                job={job.privateJob}
+                                onChanged={(key) => {
+                                  setError(false);
+                                  setNotice({ key });
+                                }}
+                                onError={() => setError(true)}
+                              />
+                            </m.li>
+                          );
                         const trackingStatus = job.trackingStatus as
                           ApplicationStatus | undefined;
                         const displayLocation = job.locationNames
@@ -665,6 +711,23 @@ export function JobDiscoveryPanel({
                       })}
                     </AnimatePresence>
                   </m.ul>
+                ) : null}
+                {privateEnabled &&
+                (privateJobs.status === "CanLoadMore" ||
+                  privateJobs.status === "LoadingMore") ? (
+                  <div className="mt-5 flex justify-center">
+                    <Button
+                      variant="outline"
+                      disabled={privateJobs.status === "LoadingMore"}
+                      onClick={() => privateJobs.loadMore(20)}
+                    >
+                      {t(
+                        privateJobs.status === "LoadingMore"
+                          ? "jobDiscovery.loading"
+                          : "privateJobs.loadMore",
+                      )}
+                    </Button>
+                  </div>
                 ) : null}
                 {view === "suggestions" && discoveryPending ? (
                   <m.aside

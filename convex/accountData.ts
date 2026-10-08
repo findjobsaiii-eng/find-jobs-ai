@@ -316,6 +316,28 @@ export const deleteBatch = internalMutation({
           await ctx.db.delete("onboardingReminders", row._id);
         break;
       }
+      case 23: {
+        const rows = await ctx.db
+          .query("privateJobEvents")
+          .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        await Promise.all(
+          rows.map((row) => ctx.db.delete("privateJobEvents", row._id)),
+        );
+        break;
+      }
+      case 24: {
+        const rows = await ctx.db
+          .query("privateJobs")
+          .withIndex("by_userId_and_updatedAt", (q) => q.eq("userId", userId))
+          .take(BATCH_SIZE);
+        hasRows = rows.length > 0;
+        await Promise.all(
+          rows.map((row) => ctx.db.delete("privateJobs", row._id)),
+        );
+        break;
+      }
       default: {
         await ctx.db.delete("users", userId);
         await ctx.db.delete("accountDeletionJobs", jobId);

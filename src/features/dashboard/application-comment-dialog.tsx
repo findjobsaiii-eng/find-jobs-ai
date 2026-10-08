@@ -16,6 +16,7 @@ const MAX_COMMENT_LENGTH = 3_000;
 
 export function ApplicationCommentDialog({
   open,
+  privateContent,
   status,
   saving,
   error,
@@ -23,6 +24,7 @@ export function ApplicationCommentDialog({
   onSubmit,
 }: {
   open: boolean;
+  privateContent?: boolean;
   status?: ApplicationStatus;
   saving: boolean;
   error: boolean;
@@ -48,7 +50,11 @@ export function ApplicationCommentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md" initialFocus={commentRef}>
+      <DialogContent
+        className="max-w-md"
+        initialFocus={commentRef}
+        data-analytics-private={privateContent || undefined}
+      >
         <div className="flex items-start justify-between gap-4">
           <DialogHeader>
             <div className="flex items-center gap-3">

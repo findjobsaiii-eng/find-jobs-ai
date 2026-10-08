@@ -11,6 +11,11 @@ import {
 
 const hooks = vi.hoisted(() => ({
   jobs: [] as Array<Record<string, unknown>>,
+  privateJobs: [] as Array<Record<string, unknown>>,
+  privateMutation: vi.fn(),
+  privatePagination: vi.fn(),
+  loadMore: vi.fn(),
+  privateStatus: "Exhausted",
   discoveryState: "complete" as
     "queued" | "waiting" | "running" | "complete" | "failed",
   emailFrequency: "daily" as "daily" | "weekly" | "never",
@@ -23,18 +28,30 @@ vi.mock("convex/react", async () => {
   const { getFunctionName } = await import("convex/server");
   return {
     useQuery: (reference: unknown) =>
-      getFunctionName(reference as never) === "emailPreferences:getMine"
-        ? { frequency: hooks.emailFrequency }
-        : {
-            jobs: hooks.jobs,
-            plan: "pro",
-            discoveryState: hooks.discoveryState,
-          },
+      getFunctionName(reference as never) === "privateJobs:timeline"
+        ? []
+        : getFunctionName(reference as never) === "emailPreferences:getMine"
+          ? { frequency: hooks.emailFrequency }
+          : {
+              jobs: hooks.jobs,
+              plan: "pro",
+              discoveryState: hooks.discoveryState,
+            },
+    usePaginatedQuery: (_reference: unknown, args: unknown) => {
+      hooks.privatePagination(args);
+      return {
+        results: args === "skip" ? [] : hooks.privateJobs,
+        status: hooks.privateStatus,
+        loadMore: hooks.loadMore,
+      };
+    },
     useMutation: (reference: unknown) =>
-      getFunctionName(reference as never) ===
-      "productAnalytics:recordClientEvent"
-        ? hooks.recordProductEvent
-        : hooks.setApplication,
+      getFunctionName(reference as never).startsWith("privateJobs:")
+        ? hooks.privateMutation
+        : getFunctionName(reference as never) ===
+            "productAnalytics:recordClientEvent"
+          ? hooks.recordProductEvent
+          : hooks.setApplication,
     useAction: () => hooks.runReview,
   };
 });
@@ -108,6 +125,21 @@ function job(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function privateJob() {
+  return {
+    _id: "privateJobs:one",
+    _creationTime: 1,
+    userId: "users:one",
+    title: "External Engineer",
+    companyName: "Other company",
+    sourceUrl: "https://example.com/job",
+    locationText: "Tel Aviv",
+    descriptionText: "Build useful products",
+    status: "saved",
+    updatedAt: Date.UTC(2026, 9, 8),
+  };
+}
+
 describe("job result cards", () => {
   beforeAll(async () => {
     await initializeI18n();
@@ -115,6 +147,11 @@ describe("job result cards", () => {
 
   beforeEach(async () => {
     hooks.jobs = [job()];
+    hooks.privateJobs = [];
+    hooks.privateStatus = "Exhausted";
+    hooks.privateMutation.mockReset().mockResolvedValue(null);
+    hooks.privatePagination.mockReset();
+    hooks.loadMore.mockReset();
     hooks.discoveryState = "complete";
     hooks.emailFrequency = "daily";
     hooks.setApplication.mockReset().mockResolvedValue(null);
@@ -133,7 +170,9 @@ describe("job result cards", () => {
       screen.getByRole("heading", { name: "עדיין אין משרות שמורות" }),
     ).toBeVisible();
     expect(
-      screen.getByText("בחרו סטטוס למשרה בהצעות, והיא תופיע כאן."),
+      screen.getByText(
+        "בחרו סטטוס למשרה בהצעות, או הוסיפו משרה שמצאתם בכל מקום.",
+      ),
     ).toBeVisible();
   });
 
@@ -646,5 +685,128 @@ describe("job result cards", () => {
       jobId: "jobs:one",
       language: "he",
     });
+  });
+  it("merges private and discovered jobs, routes status and note changes privately, and hides status removal", async () => {
+    hooks.jobs = [job({ trackingStatus: "interview" })];
+    hooks.privateJobs = [privateJob()];
+    const user = userEvent.setup();
+    renderPanel("/?tab=in-progress");
+    expect(
+      screen.getByRole("heading", { name: "External Engineer" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open link" })).toHaveAttribute(
+      "href",
+      "https://example.com/job",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Change status: Saved" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Remove status" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Applied$/ }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "Sent my CV",
+    );
+    await user.click(screen.getByRole("button", { name: "Update status" }));
+    expect(hooks.privateMutation).toHaveBeenCalledWith({
+      jobId: "privateJobs:one",
+      status: "applied",
+      note: "Sent my CV",
+    });
+    expect(hooks.setApplication).not.toHaveBeenCalled();
+    await user.click(
+      screen.getAllByRole("button", { name: "Add a comment" })[0],
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "Follow up Friday",
+    );
+    await user.click(screen.getByRole("button", { name: "Add comment" }));
+    expect(hooks.privateMutation).toHaveBeenCalledWith({
+      jobId: "privateJobs:one",
+      note: "Follow up Friday",
+    });
+  });
+
+  it("edits private details and keeps the delete confirmation open on failure", async () => {
+    hooks.jobs = [];
+    hooks.privateJobs = [privateJob()];
+    const user = userEvent.setup();
+    renderPanel("/?tab=in-progress");
+    await user.click(screen.getByRole("button", { name: "Edit job" }));
+    const title = screen.getByRole("textbox", { name: "Job title" });
+    await user.clear(title);
+    await user.type(title, "Updated role");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(hooks.privateMutation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "privateJobs:one",
+        title: "Updated role",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete job" }));
+    const confirmation = screen.getByRole("alertdialog");
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Cancel" }),
+    );
+    expect(hooks.privateMutation).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Delete job" }));
+    hooks.privateMutation.mockRejectedValueOnce(new Error("offline"));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete job",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toBeVisible();
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete job",
+      }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Job deleted.");
+  });
+
+  it("keeps private jobs out of suggestions and admin previews and exposes further pages", async () => {
+    hooks.privateJobs = [privateJob()];
+    const first = renderPanel();
+    expect(hooks.privatePagination).toHaveBeenLastCalledWith("skip");
+    expect(
+      screen.queryByRole("heading", { name: "External Engineer" }),
+    ).not.toBeInTheDocument();
+    first.unmount();
+    const preview = renderPanel("/?tab=in-progress", { readOnly: true });
+    expect(hooks.privatePagination).toHaveBeenLastCalledWith("skip");
+    expect(
+      screen.queryByRole("heading", { name: "External Engineer" }),
+    ).not.toBeInTheDocument();
+    preview.unmount();
+    hooks.privateStatus = "CanLoadMore";
+    renderPanel("/?tab=in-progress");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Load more jobs" }));
+    expect(hooks.loadMore).toHaveBeenCalledWith(20);
+  });
+
+  it("supports private job editing and status selection in Hebrew RTL", async () => {
+    await i18n.changeLanguage("he");
+    hooks.jobs = [];
+    hooks.privateJobs = [privateJob()];
+    const user = userEvent.setup();
+    renderPanel("/?tab=in-progress");
+    await user.click(screen.getByRole("button", { name: "עריכת משרה" }));
+    expect(screen.getByRole("textbox", { name: "שם המשרה" })).toHaveValue(
+      "External Engineer",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "קישור למשרה (לא חובה)" }),
+    ).toHaveAttribute("dir", "ltr");
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "עריכת משרה" })).toHaveFocus();
   });
 });

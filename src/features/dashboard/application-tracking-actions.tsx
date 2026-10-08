@@ -15,12 +15,12 @@ type DialogMode =
 
 export function ApplicationTrackingActions({
   jobId,
+  privateJob,
   inSuggestions,
   status,
   onChanged,
   onRemoveError,
 }: {
-  jobId: Id<"jobs">;
   inSuggestions: boolean;
   status?: ApplicationStatus;
   onChanged: (
@@ -32,11 +32,16 @@ export function ApplicationTrackingActions({
       | "statusRemoved",
   ) => void;
   onRemoveError: () => void;
-}) {
+} & (
+  | { jobId: Id<"jobs">; privateJob?: false }
+  | { jobId: Id<"privateJobs">; privateJob: true }
+)) {
   const { t } = useTranslation();
   const updateTracking = useMutation(api.jobDiscovery.updateJobTracking);
   const addNote = useMutation(api.jobDiscovery.addJobTrackingNote);
   const removeTracking = useMutation(api.jobDiscovery.removeJobTracking);
+  const updatePrivateTracking = useMutation(api.privateJobs.updateTracking);
+  const addPrivateNote = useMutation(api.privateJobs.addNote);
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -47,17 +52,22 @@ export function ApplicationTrackingActions({
     setError(false);
     try {
       if (dialogMode.kind === "status") {
-        await updateTracking({
-          jobId,
+        const change = {
           status: dialogMode.status,
           ...(comment.trim() ? { note: comment } : {}),
-        });
-        void captureProductEvent(
-          dialogMode.status === "saved"
-            ? "job_saved"
-            : "application_status_changed",
-          { status: dialogMode.status },
-        );
+        };
+        if (privateJob) {
+          await updatePrivateTracking({ jobId, ...change });
+        } else {
+          await updateTracking({ jobId, ...change });
+        }
+        if (!privateJob)
+          void captureProductEvent(
+            dialogMode.status === "saved"
+              ? "job_saved"
+              : "application_status_changed",
+            { status: dialogMode.status },
+          );
         onChanged(
           inSuggestions && dialogMode.status !== "saved"
             ? "movedToSaved"
@@ -66,7 +76,11 @@ export function ApplicationTrackingActions({
               : "trackingSaved",
         );
       } else {
-        await addNote({ jobId, note: comment });
+        if (privateJob) {
+          await addPrivateNote({ jobId, note: comment });
+        } else {
+          await addNote({ jobId, note: comment });
+        }
         onChanged(status ? "trackingSaved" : "commentAdded");
       }
       setDialogMode(null);
@@ -78,7 +92,7 @@ export function ApplicationTrackingActions({
   };
 
   const remove = async () => {
-    if (saving) return;
+    if (saving || privateJob) return;
     setSaving(true);
     try {
       await removeTracking({ jobId });
@@ -103,7 +117,7 @@ export function ApplicationTrackingActions({
               setDialogMode({ kind: "status", status: nextStatus });
             }
           }}
-          onRemove={status ? remove : undefined}
+          onRemove={status && !privateJob ? remove : undefined}
         />
         <Button
           type="button"
@@ -123,6 +137,7 @@ export function ApplicationTrackingActions({
       {dialogMode ? (
         <ApplicationCommentDialog
           open
+          privateContent={privateJob}
           status={dialogMode.kind === "status" ? dialogMode.status : undefined}
           saving={saving}
           error={error}

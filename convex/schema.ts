@@ -179,6 +179,14 @@ export const applicationStatus = v.union(
   v.literal("withdrawn"),
 );
 
+export const privateJobDetails = v.object({
+  title: v.string(),
+  companyName: v.string(),
+  locationText: v.string(),
+  sourceUrl: v.string(),
+  descriptionText: v.string(),
+});
+
 export const applicationTimelineEvent = v.union(
   v.object({
     id: v.id("jobApplicationEvents"),
@@ -731,6 +739,34 @@ const schema = defineSchema({
       "profileRevision",
       "score",
     ]),
+  privateJobs: defineTable(
+    privateJobDetails.extend({
+      userId: v.id("users"),
+      status: applicationStatus,
+      updatedAt: v.number(),
+    }),
+  ).index("by_userId_and_updatedAt", ["userId", "updatedAt"]),
+  privateJobEvents: defineTable(
+    v.union(
+      v.object({
+        userId: v.id("users"),
+        jobId: v.id("privateJobs"),
+        kind: v.literal("status_change"),
+        status: applicationStatus,
+        note: v.optional(v.string()),
+        createdAt: v.number(),
+      }),
+      v.object({
+        userId: v.id("users"),
+        jobId: v.id("privateJobs"),
+        kind: v.literal("note"),
+        note: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  )
+    .index("by_jobId_and_createdAt", ["jobId", "createdAt"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
   jobApplications: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
