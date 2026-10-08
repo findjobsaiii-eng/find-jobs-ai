@@ -1,6 +1,9 @@
 "use client";
 
-import { captureBoundaryError } from "@/lib/sentry-errors";
+import {
+  captureBoundaryError,
+  recoverBoundaryError,
+} from "@/lib/sentry-errors";
 import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -16,17 +19,17 @@ import type { CurrentProfile } from "./profile-types";
 
 type ErrorBoundaryProps = {
   children: ReactNode;
-  fallback: ReactNode;
+  fallback: (error: Error) => ReactNode;
 };
 
 class ProfileErrorBoundary extends Component<
   ErrorBoundaryProps,
-  { hasError: boolean }
+  { error: Error | null }
 > {
-  state = { hasError: false };
+  state: { error: Error | null } = { error: null };
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
   }
 
   componentDidCatch(error: Error, _info: ErrorInfo) {
@@ -34,7 +37,9 @@ class ProfileErrorBoundary extends Component<
   }
 
   render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
+    return this.state.error
+      ? this.props.fallback(this.state.error)
+      : this.props.children;
   }
 }
 
@@ -117,7 +122,7 @@ export function ProfileGate({
 }) {
   const { t } = useTranslation();
   const [attempt, setAttempt] = useState(0);
-  const fallback = (
+  const fallback = (error: Error) => (
     <AuthShell>
       <section
         className="max-w-md text-center"
@@ -138,7 +143,9 @@ export function ProfileGate({
         </p>
         <Button
           className="mt-6"
-          onClick={() => setAttempt((value) => value + 1)}
+          onClick={() =>
+            recoverBoundaryError(error, () => setAttempt((value) => value + 1))
+          }
         >
           <RefreshCw aria-hidden="true" />
           {t("onboarding.retry")}

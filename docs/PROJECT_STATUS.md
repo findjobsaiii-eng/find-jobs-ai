@@ -708,3 +708,14 @@ Validation: npm run check, 562 tests, local Webpack production build and React
 Doctor passed. No browser tests, production changes, commits or pushes. The daily
 local Codex heartbeat is active at 09:00 Asia/Jerusalem and cannot release fixes
 without explicit owner approval. Details: docs/SENTRY_TRIAGE.md.
+
+### 8 October Sentry maintenance — local recovery fix
+
+New production events verify the client diagnostics/source maps are working on
+`c8b0cf7`/`1b2abed`. Auth refresh failures occurred in hidden tabs; the cause
+remains unconfirmed. Six DOM errors reached the profile boundary, which bypassed
+route-level reload recovery. Locally fixed its explicit Retry to use the same
+DOM/chunk document reload helper; ordinary query retries still remount. The DOM
+mutation cause remains unknown (translation was active for only two of six new
+events). Focused tests, check and Webpack build pass. No production operations,
+commits or pushes; this recovery fix awaits release. See docs/SENTRY_TRIAGE.md.

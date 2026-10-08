@@ -86,3 +86,45 @@ No production release was verified during this check.
 - No application code changed, so code tests/builds were not repeated. This
   documentation update passed Prettier and `git diff --check`. No issue status,
   production data, commits, pushes or deployments were changed by this check.
+
+## Daily check — 8 October, 09:04 Israel time
+
+Live read-only inspection across all environments at local HEAD `1b2abed`.
+The worktree was clean before this run. Compared issue counts with 7 October
+and read detailed events for the three changed groups (up to six each).
+
+- [JOBMITER-A](https://find-job-ai.sentry.io/issues/7776071259/) increased from
+  5 to 10 events. Five new auth-refresh network failures include three on
+  releases `c8b0cf7`/`1b2abed` with working symbolicated source stacks, browser
+  identification, bounded request breadcrumbs and `auth_refresh_network` tags.
+  All three contextualized events report a hidden page and online status true.
+  Failed POST attempts follow earlier successful requests. This supports a
+  background-tab/network investigation, but navigator online status does not
+  prove endpoint reachability, and the events do not establish an application
+  auth-state bug. Keep SDK retries and error reporting; no auth patch or filter.
+- [JOBMITER-B](https://find-job-ai.sentry.io/issues/7776843948/) increased from
+  1 to 7 events. All six new events on `1b2abed` were caught by the **profile**
+  boundary, with symbolicated React DOM placement stacks. Two at 16:16 on
+  7 October report translation active; four at 22:07–22:09 report it inactive.
+  Translation therefore cannot explain every recurrence. The source of the
+  DOM mutation remains unconfirmed.
+- Confirmed recovery gap: `ProfileErrorBoundary` intercepted those exceptions
+  before the route boundary and its Retry only remounted the subtree, bypassing
+  the existing document-reload recovery. It now retains the caught error and
+  passes it to the shared recovery helper: explicit Retry reloads for DOM
+  placement/stale-chunk failures; ordinary query failures remount normally. No
+  automatic reload, error suppression or claim that the mutation cause is fixed.
+- [JOBMITER-4](https://find-job-ai.sentry.io/issues/7749310985/) increased from
+  49 to 50 with another stripped TypeError from old release `031ca45`, at
+  22:37 on 7 October. Still no message/stack to establish a root cause.
+- Other issue counts and last-seen timestamps are unchanged. Intentional test
+  groups were excluded. New production events verify the earlier client
+  diagnostic changes are active; they do not certify server exception capture
+  or this run's local recovery fix.
+
+Validation: `npm run check`, the 10 focused profile-boundary/recovery tests and
+`npm run build -- --webpack` pass. React Doctor (cached installed CLI) scanned
+the two changed frontend files and found no issues; the latest-package fetch and
+remote score API were unavailable due to network/DNS restrictions. Prettier and
+`git diff --check` pass. No browser tests, production data/status changes, commits,
+pushes or deployments. Local recovery fix awaits an owner-approved release.

@@ -8,16 +8,30 @@ import type { CurrentProfile } from "./profile-types";
 const state = vi.hoisted(() => ({
   profile: null as unknown,
   resume: null as unknown,
+  error: null as Error | null,
+  reload: vi.fn(),
+  capture: vi.fn(),
 }));
+vi.mock("@/lib/sentry-errors", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/sentry-errors")>();
+  return {
+    ...actual,
+    captureBoundaryError: state.capture,
+    recoverBoundaryError: (error: Error, retry: () => void) =>
+      actual.recoverBoundaryError(error, retry, state.reload),
+  };
+});
 vi.mock("convex/react", async () => {
   const { getFunctionName } = await import("convex/server");
   return {
-    useQuery: (reference: never, args: unknown) =>
-      getFunctionName(reference) === "candidateProfiles:getCurrent"
+    useQuery: (reference: never, args: unknown) => {
+      if (state.error) throw state.error;
+      return getFunctionName(reference) === "candidateProfiles:getCurrent"
         ? state.profile
         : args === "skip"
           ? undefined
-          : state.resume,
+          : state.resume;
+    },
   };
 });
 vi.mock("./resume-onboarding", () => ({
@@ -63,6 +77,9 @@ describe("onboarding draft source", () => {
   beforeEach(() => {
     state.profile = initialData;
     state.resume = null;
+    state.error = null;
+    state.reload.mockClear();
+    state.capture.mockClear();
   });
   it("opens a completed profile without depending on the deleted resume query", () => {
     state.profile = {
@@ -116,5 +133,54 @@ describe("onboarding draft source", () => {
     };
     view.rerender(content());
     expect(screen.getByRole("textbox")).toHaveValue("My correction");
+  });
+  it.each([
+    new DOMException(
+      "Failed to execute 'insertBefore' on 'Node': The reference is not a child.",
+      "NotFoundError",
+    ),
+    Object.assign(new Error("Loading chunk 12 failed"), {
+      name: "ChunkLoadError",
+    }),
+  ])(
+    "reloads the document only after Retry for a broken DOM or chunk (%s)",
+    (error) => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      try {
+        state.error = error;
+        render(content());
+        expect(state.capture).toHaveBeenCalledWith(error, "profile");
+        expect(state.reload).not.toHaveBeenCalled();
+        state.error = null;
+        fireEvent.click(
+          screen.getByRole("button", { name: /ניסיון נוסף|Try again/iu }),
+        );
+        expect(state.reload).toHaveBeenCalledOnce();
+        expect(screen.queryByText("Manual entry")).not.toBeInTheDocument();
+      } finally {
+        consoleError.mockRestore();
+      }
+    },
+  );
+  it("retries an ordinary profile query without reloading the document", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    try {
+      state.error = new Error(
+        "[CONVEX Q(candidateProfiles:getCurrent)] Server Error",
+      );
+      render(content());
+      state.error = null;
+      fireEvent.click(
+        screen.getByRole("button", { name: /ניסיון נוסף|Try again/iu }),
+      );
+      expect(screen.getByText("Manual entry")).toBeInTheDocument();
+      expect(state.reload).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
