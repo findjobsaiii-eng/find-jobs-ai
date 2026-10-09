@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import {
-  Building2,
-  ExternalLink,
-  LoaderCircle,
-  MapPin,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { Building2, LoaderCircle, MapPin, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -23,6 +16,7 @@ import {
 import { ApplicationTimeline } from "./application-timeline";
 import { ApplicationTrackingActions } from "./application-tracking-actions";
 import { PrivateJobDialog } from "./private-job-dialog";
+import { JobPostingLink } from "./job-posting-link";
 
 export function PrivateJobCard({
   job,
@@ -118,34 +112,18 @@ export function PrivateJobCard({
           >
             <Trash2 aria-hidden="true" />
           </Button>
-          {job.sourceUrl ? (
-            <Button
-              variant="outline"
-              nativeButton={false}
-              role="link"
-              render={
-                <a
-                  href={job.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t("privateJobs.openLink")}
-                />
-              }
-              className="min-h-11"
-            >
-              {t("privateJobs.openLink")}
-              <ExternalLink aria-hidden="true" />
-            </Button>
-          ) : null}
         </div>
-        <ApplicationTrackingActions
-          jobId={job._id}
-          privateJob
-          inSuggestions={false}
-          status={job.status}
-          onChanged={onChanged}
-          onRemoveError={onError}
-        />
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          <ApplicationTrackingActions
+            jobId={job._id}
+            privateJob
+            inSuggestions={false}
+            status={job.status}
+            onChanged={onChanged}
+            onRemoveError={onError}
+          />
+          {job.sourceUrl ? <JobPostingLink href={job.sourceUrl} /> : null}
+        </div>
       </div>
       {editing ? (
         <PrivateJobDialog

@@ -9,7 +9,6 @@ import {
   CalendarDays,
   Check,
   CircleOff,
-  ExternalLink,
   MapPin,
   Search,
   Sparkles,
@@ -22,6 +21,7 @@ import * as m from "motion/react-m";
 import { api } from "../../../convex/_generated/api";
 import { JobDeepReview } from "./job-deep-review";
 import { PrivateJobCard } from "./private-job-card";
+import { JobPostingLink } from "./job-posting-link";
 import { JobMatchScore } from "./job-match-score";
 import { requirementLabel } from "./requirement-label";
 import { ApplicationTimeline } from "./application-timeline";
@@ -678,11 +678,8 @@ export function JobDiscoveryPanel({
                                         }}
                                       />
                                     ) : null}
-                                    <a
+                                    <JobPostingLink
                                       href={job.sourceUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      aria-label={t("jobDiscovery.openPosting")}
                                       onClick={() =>
                                         captureProductEvent(
                                           "job_source_clicked",
@@ -692,16 +689,7 @@ export function JobDiscoveryPanel({
                                           },
                                         )
                                       }
-                                      className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring/40 inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-3 motion-reduce:transition-none @2xl:px-3.5"
-                                    >
-                                      <span className="hidden @2xl:inline">
-                                        {t("jobDiscovery.openPosting")}
-                                      </span>
-                                      <ExternalLink
-                                        aria-hidden="true"
-                                        className="size-4"
-                                      />
-                                    </a>
+                                    />
                                   </div>
                                 }
                               />

@@ -694,10 +694,13 @@ describe("job result cards", () => {
     expect(
       screen.getByRole("heading", { name: "External Engineer" }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open link" })).toHaveAttribute(
-      "href",
-      "https://example.com/job",
-    );
+    expect(
+      within(
+        screen
+          .getByRole("heading", { name: "External Engineer" })
+          .closest("article")!,
+      ).getByRole("link", { name: "View job" }),
+    ).toHaveAttribute("href", "https://example.com/job");
     await user.click(
       screen.getByRole("button", { name: "Change status: Saved" }),
     );

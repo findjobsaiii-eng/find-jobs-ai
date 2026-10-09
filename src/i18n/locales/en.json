@@ -1270,7 +1270,6 @@
     "delete": "Delete job",
     "private": "Private",
     "onlyYou": "Only you can see this job.",
-    "openLink": "Open link",
     "deleteTitle": "Delete this job?",
     "deleteDescription": "“{{title}}” and its notes and history will be permanently deleted.",
     "error": "Could not save your changes. Please try again.",
