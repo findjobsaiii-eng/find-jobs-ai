@@ -1687,6 +1687,12 @@ export const completeSearch = internalMutation({
         jobId,
         cursor: null,
       });
+      // Make the requesting user's feed ready before its daily email is prepared.
+      // Global fan-out for other candidates remains asynchronous.
+      await ctx.runMutation(internal.jobMatching.reconcileUserJob, {
+        userId,
+        jobId,
+      });
       await ctx.db.insert("jobDiscoveries", {
         jobId,
         searchRunId: run._id,

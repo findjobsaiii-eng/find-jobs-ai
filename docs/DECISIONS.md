@@ -1255,3 +1255,18 @@ dialogs as private for session replay. Private status cannot be removed, includi
 through the API; owners can edit details or confirm deletion of the entire job.
 Deletion removes the job immediately and drains events in bounded scheduled batches.
 Account deletion removes both tables in its existing bounded cleanup workflow.
+
+## Job notifications contain new visible search additions — 13 October 2026
+
+Existing suggestions, provider accepted counts and central inventory insert
+counts do not justify a notification. Capture the user's visible suggestion IDs
+before the automatic search. Delivery uses the shared feed policy, retains only
+match records created since the search started and absent from that snapshot,
+then applies the email limit. Updated old matches retain their creation time;
+old suggestions are not relabelled new on daily reconciliation. Empty and
+cross-Israel-calendar-day deliveries are skipped. Weekly preferences remain
+a sending interval, not a backlog digest of old jobs.
+
+Reconcile the requesting user's persisted search jobs before preparing email
+to avoid racing the background matching fan-out. No schema migration,
+production backfill or deployment is part of this local change.

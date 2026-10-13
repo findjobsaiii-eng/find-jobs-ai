@@ -530,7 +530,13 @@ export const runDailyBatch = internalAction({
     for (const userId of args.userIds) {
       let outcome = "completed";
       let shouldNotify = false;
+      const searchStartedAt = Date.now();
+      let previouslyVisibleJobIds: Id<"jobs">[] = [];
       try {
+        previouslyVisibleJobIds = await ctx.runQuery(
+          internal.emailPreferences.getVisibleJobIds,
+          { userId },
+        );
         const result = await discoverForUser(ctx, userId);
         const hasVisibleJobs = await ctx.runQuery(
           internal.jobDiscovery.hasVisibleJobsForUser,
@@ -557,6 +563,8 @@ export const runDailyBatch = internalAction({
           {
             userId,
             dayKey: globalDayKey(Date.now()),
+            searchStartedAt,
+            previouslyVisibleJobIds,
           },
         );
       }

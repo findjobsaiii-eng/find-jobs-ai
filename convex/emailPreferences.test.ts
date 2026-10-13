@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { globalDayKey } from "./jobSearchPolicy";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -172,6 +173,110 @@ async function createJob(
 }
 
 describe("email preferences", () => {
+  it("does not email yesterday's jobs after an empty search or re-evaluation", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createCandidate(t, "empty-search@example.com");
+    const jobId = await createJob(t, { userId, now: Date.now() });
+    const previouslyVisibleJobIds = await t.query(
+      internal.emailPreferences.getVisibleJobIds,
+      { userId },
+    );
+    expect(previouslyVisibleJobIds).toContain(jobId);
+    const searchStartedAt = Date.now() + 1000;
+    await t.mutation(internal.jobMatching.reconcileUserJob, { userId, jobId });
+    expect(
+      await t.mutation(internal.emailPreferences.prepareDelivery, {
+        userId,
+        dayKey: globalDayKey(searchStartedAt),
+        now: searchStartedAt,
+        searchStartedAt,
+        previouslyVisibleJobIds,
+      }),
+    ).toBeNull();
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("emailPreferences")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .unique(),
+      ),
+    ).toBeNull();
+  });
+
+  it("filters old suggestions before taking five and rechecks current feed visibility", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createCandidate(t, "new-only@example.com");
+    for (let i = 0; i < 5; i++)
+      await createJob(t, { userId, now: Date.now(), key: `old-${i}` });
+    const previouslyVisibleJobIds = await t.query(
+      internal.emailPreferences.getVisibleJobIds,
+      { userId },
+    );
+    const newId = await createJob(t, {
+      userId,
+      now: Date.now(),
+      key: "new-visible",
+    });
+    const hiddenId = await createJob(t, {
+      userId,
+      now: Date.now(),
+      key: "new-hidden",
+    });
+    await t.run((ctx) =>
+      ctx.db.patch("jobs", hiddenId, {
+        lifecycleStatus: "closed",
+        activityStatus: "inactive",
+      }),
+    );
+    const now = Date.now();
+    const delivery = await t.mutation(
+      internal.emailPreferences.prepareDelivery,
+      {
+        userId,
+        dayKey: globalDayKey(now),
+        now,
+        searchStartedAt: now - 1000,
+        previouslyVisibleJobIds,
+      },
+    );
+    expect(delivery?.jobs.map((job) => job.companyName)).toEqual([
+      "new-visible",
+    ]);
+    expect(
+      await t.query(internal.emailPreferences.getVisibleJobIds, { userId }),
+    ).toContain(newId);
+    await t.mutation(internal.emailPreferences.finishDelivery, {
+      userId,
+      deliveryKey: delivery!.deliveryKey,
+      sent: true,
+      now,
+    });
+    expect(
+      await t.mutation(internal.emailPreferences.prepareDelivery, {
+        userId,
+        dayKey: globalDayKey(now),
+        now,
+        searchStartedAt: now - 1000,
+        previouslyVisibleJobIds,
+      }),
+    ).toBeNull();
+  });
+
+  it("does not send a delayed search email on a later calendar day", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await createCandidate(t, "delayed@example.com");
+    const now = Date.now();
+    await createJob(t, { userId, now });
+    expect(
+      await t.mutation(internal.emailPreferences.prepareDelivery, {
+        userId,
+        dayKey: globalDayKey(now - 86400000),
+        now,
+        searchStartedAt: now - 86400000,
+        previouslyVisibleJobIds: [],
+      }),
+    ).toBeNull();
+  });
   it("defaults to daily and lets only the signed-in user change frequency", async () => {
     const t = convexTest(schema, modules);
     const userId = await t.run((ctx) =>
@@ -205,7 +310,9 @@ describe("email preferences", () => {
       internal.emailPreferences.prepareDelivery,
       {
         userId,
-        dayKey: "2026-09-23",
+        dayKey: globalDayKey(now),
+        searchStartedAt: now - 1,
+        previouslyVisibleJobIds: [],
         now,
       },
     );
@@ -222,7 +329,9 @@ describe("email preferences", () => {
         },
       ],
     });
-    expect(delivery?.deliveryKey).toContain(`${userId}/daily:2026-09-23`);
+    expect(delivery?.deliveryKey).toContain(
+      `${userId}/daily:${globalDayKey(now)}`,
+    );
   });
 
   it("does not email a stale materialized match that fails experience eligibility", async () => {
@@ -234,7 +343,9 @@ describe("email preferences", () => {
     await expect(
       t.mutation(internal.emailPreferences.prepareDelivery, {
         userId,
-        dayKey: "2026-09-24",
+        dayKey: globalDayKey(now),
+        searchStartedAt: now - 1,
+        previouslyVisibleJobIds: [],
         now,
       }),
     ).resolves.toBeNull();
@@ -267,7 +378,9 @@ describe("email preferences", () => {
     expect(partition?.matchQuality).toBe("partial");
     const first = await t.mutation(internal.emailPreferences.prepareDelivery, {
       userId,
-      dayKey: "2026-10-01",
+      dayKey: globalDayKey(now),
+      searchStartedAt: now - 1,
+      previouslyVisibleJobIds: [],
       now,
     });
     expect(first?.jobs).toHaveLength(5);
@@ -292,7 +405,9 @@ describe("email preferences", () => {
     });
     const second = await t.mutation(internal.emailPreferences.prepareDelivery, {
       userId,
-      dayKey: "2026-10-02",
+      dayKey: globalDayKey(now),
+      searchStartedAt: now - 1,
+      previouslyVisibleJobIds: [],
       now,
     });
     expect(second?.jobs).toHaveLength(5);

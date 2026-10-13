@@ -729,3 +729,18 @@ DOM/chunk document reload helper; ordinary query retries still remount. The DOM
 mutation cause remains unknown (translation was active for only two of six new
 events). Focused tests, check and Webpack build pass. No production operations,
 commits or pushes; this recovery fix awaits release. See docs/SENTRY_TRIAGE.md.
+
+### 13 October — new-job email gating (local)
+
+Fixed automatic job emails selecting old top suggestions. Capture the visible
+feed before search, then select only newly created matches absent from that
+snapshot, revalidated by the current feed rules. Filter before the five-job
+email limit and skip empty or cross-day deliveries. Persisted search results
+reconcile the searching user's matches synchronously before notification;
+global candidate fan-out remains asynchronous. Existing daily/weekly/never
+preferences and per-period delivery claims remain in effect.
+
+Implemented locally; production behavior has not been changed by this task.
+Validation: npm run check, 70 focused backend tests and all 579 repository tests
+pass. No browser testing,
+commits, pushes or production operations.

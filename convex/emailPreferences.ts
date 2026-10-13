@@ -4,12 +4,14 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
   internalMutation,
+  internalQuery,
   mutation,
   query,
   type QueryCtx,
 } from "./_generated/server";
 import { loadSuggestionMatches } from "./jobDiscovery";
 import { recordProductEvent } from "./productAnalytics";
+import { globalDayKey } from "./jobSearchPolicy";
 
 export const emailFrequencyValidator = v.union(
   v.literal("daily"),
@@ -90,6 +92,8 @@ export const prepareDelivery = internalMutation({
     userId: v.id("users"),
     dayKey: v.string(),
     now: v.number(),
+    searchStartedAt: v.number(),
+    previouslyVisibleJobIds: v.array(v.id("jobs")),
   },
   returns: v.union(
     v.null(),
@@ -101,6 +105,14 @@ export const prepareDelivery = internalMutation({
     }),
   ),
   handler: async (ctx, args) => {
+    // A delayed worker must not advertise yesterday's inventory as today's.
+    if (
+      !Number.isFinite(args.searchStartedAt) ||
+      args.searchStartedAt > args.now ||
+      globalDayKey(args.now) !== args.dayKey ||
+      globalDayKey(args.searchStartedAt) !== args.dayKey
+    )
+      return null;
     const [user, profile, preference] = await Promise.all([
       ctx.db.get("users", args.userId),
       ctx.db
@@ -132,9 +144,16 @@ export const prepareDelivery = internalMutation({
     )
       return null;
 
+    const previouslyVisible = new Set(args.previouslyVisibleJobIds);
     const matches = (
       await loadSuggestionMatches(ctx, args.userId, profile.updatedAt)
-    ).slice(0, 5);
+    )
+      .filter(
+        (match) =>
+          match._creationTime >= args.searchStartedAt &&
+          !previouslyVisible.has(match.jobId),
+      )
+      .slice(0, 5);
     const jobs = [];
     for (const match of matches) {
       const job = await ctx.db.get("jobs", match.jobId);
@@ -172,6 +191,21 @@ export const prepareDelivery = internalMutation({
         profile.preferredDisplayName ?? profile.googleDisplayName ?? null,
       jobs,
     };
+  },
+});
+
+export const getVisibleJobIds = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.array(v.id("jobs")),
+  handler: async (ctx, { userId }) => {
+    const profile = await ctx.db
+      .query("candidateProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!profile?.onboardingCompleted) return [];
+    return (await loadSuggestionMatches(ctx, userId, profile.updatedAt)).map(
+      (match) => match.jobId,
+    );
   },
 });
 

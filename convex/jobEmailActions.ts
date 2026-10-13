@@ -8,7 +8,12 @@ import { buildJobMatchesEmail } from "./jobEmailTemplate";
 import { requirePublicAppUrl } from "./jobEmailUrl";
 
 export const sendJobMatches = internalAction({
-  args: { userId: v.id("users"), dayKey: v.string() },
+  args: {
+    userId: v.id("users"),
+    dayKey: v.string(),
+    searchStartedAt: v.number(),
+    previouslyVisibleJobIds: v.array(v.id("jobs")),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const siteUrl = requirePublicAppUrl(env.PUBLIC_APP_URL);

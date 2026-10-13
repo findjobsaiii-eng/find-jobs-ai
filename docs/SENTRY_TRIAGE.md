@@ -128,3 +128,87 @@ the two changed frontend files and found no issues; the latest-package fetch and
 remote score API were unavailable due to network/DNS restrictions. Prettier and
 `git diff --check` pass. No browser tests, production data/status changes, commits,
 pushes or deployments. Local recovery fix awaits an owner-approved release.
+
+## Daily check — 9 October, 09:04 Israel time
+
+Read live unresolved groups across all environments at local HEAD `50cc034`;
+the worktree was clean. Compared with 8 October and inspected six recent
+auth-refresh events plus both events in the new streaming group.
+
+- [JOBMITER-A](https://find-job-ai.sentry.io/issues/7776071259/) increased from
+  10 to 16. All four new events with browser context report a hidden page;
+  the latest at 09:04 on 9 October also reports **offline**. The others report
+  online, which does not prove endpoint reachability. Symbolicated stacks still
+  reach the SDK's auth-refresh POST after retries; no application auth-state
+  root cause is established. One event identifies current release `50cc034`.
+  Retain reporting and SDK retries; do not replace authentication or suppress
+  exhausted requests merely to reduce the count.
+- New [JOBMITER-C](https://find-job-ai.sentry.io/issues/7781880015/) contains
+  two `The destination stream closed early.` events at 22:57 on 8 October,
+  both explicitly in **development**, release `5857fa4`, route `GET /`.
+  Frames reach Node stream close and Next's development render runtime, where
+  the destination `close` handler cancels rendering with this error. No
+  application frame or production occurrence establishes a product defect;
+  why the destination closed is unknown. No speculative patch or ignore filter.
+- These server events preserve the original message, stack, route context and
+  digest through `auto.function.nextjs.on_request_error`. This verifies the
+  server capture hook in development, not production end-to-end capture.
+- All other group counts/last-seen timestamps are unchanged, including the DOM
+  group. Yesterday's profile-retry fix is now committed in `5857fa4`, included
+  in local `50cc034`; no duplicate patch. The absence of recurrence does not
+  prove the unknown DOM-mutation cause is fixed. Intentional tests excluded.
+
+No confirmed new application root cause and no code changes. Code checks/tests
+and build were not repeated for this documentation-only update; Prettier and
+`git diff --check` pass. No issue-status or production data changes, commits,
+pushes or deployments performed by this run.
+
+## Daily check — 11 October, 03:05 Israel time
+
+Live read-only inspection across all environments at local HEAD `cdcff17`.
+Preserved the existing uncommitted 9 October triage entry. Previous temporary
+snapshots had been removed, so compared against the durable triage record.
+
+- [JOBMITER-A](https://find-job-ai.sentry.io/issues/7776071259/) increased from
+  16 to 21 since 9 October. Reviewed all five new detailed events: same
+  symbolicated Convex Auth refresh stack, releases `1b2abed`, `50cc034` and
+  `f065c31`. All four with browser context report hidden pages and online true;
+  the older diagnostic release has no browser context. No new root-cause
+  evidence or confirmed application defect; preserve SDK retries/reporting.
+- [JOBMITER-4](https://find-job-ai.sentry.io/issues/7749310985/) increased from
+  50 to 51. Latest event at 19:33 on 10 October still identifies old `031ca45`
+  and contains no message/stack, so cannot establish a cause.
+- No new unresolved groups. Other counts/last-seen timestamps remain unchanged,
+  including DOM errors (7), development stream closures (2), admin date errors
+  (1) and jobs-query errors (4). No absence-of-recurrence claim of resolution.
+  Intentional tests excluded; existing recovery fixes not patched again.
+
+No application code changed; code tests/build were not repeated. Documentation
+passed Prettier and `git diff --check`. No production mutations, issue-status
+changes, commits, pushes or deployments. Unchanged patterns do not require a
+new owner action.
+
+Follow-up at 09:04 Israel time on 11 October: live all-environment unresolved
+groups have identical counts and last-seen timestamps to the 03:05 inspection.
+No new events to inspect or fixes to repeat. Existing local changes preserved;
+only this check record added. Prettier and `git diff --check` pass. No code
+checks/build repeated or production actions performed.
+
+## Daily check — 12 October, 09:03 Israel time
+
+Live read-only review across all environments at local HEAD `cdcff17`,
+preserving the existing uncommitted triage notes.
+
+- [JOBMITER-A](https://find-job-ai.sentry.io/issues/7776071259/) increased from
+  21 to 25. Reviewed all four new events: unchanged symbolicated SDK
+  auth-refresh network stack. Three with browser context report hidden pages
+  and online true; one old `f065c31` event lacks that context. The latest
+  identifies `cdcff17`, confirming the current release is represented in
+  production telemetry. No new evidence establishes an application root cause.
+- No new unresolved groups. All other counts and last-seen timestamps remain
+  unchanged, including DOM errors, admin dates and jobs-query errors.
+  Intentional test groups excluded; existing fixes not patched again.
+
+Documentation only; Prettier and `git diff --check` pass. No code tests/build
+repeated, production mutations, issue-status changes, commits, pushes or
+deployments. No new owner action required for the unchanged error pattern.

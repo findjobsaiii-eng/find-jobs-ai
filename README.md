@@ -386,9 +386,15 @@ Use at least `4000` for `JOB_SEARCH_OUTPUT_TOKEN_LIMIT`; the structured job
 batch can contain up to ten candidates and a smaller limit can truncate useful
 provider results.
 
-After an automatic search finds visible matches, Convex schedules a Hebrew RTL
-notification through Resend from `JOBMITER <info@jobmiter.com>`. The first
-search after onboarding uses the same path. Users can choose daily, weekly, or
+After an automatic search adds new visible suggestions, Convex schedules a Hebrew
+RTL notification through Resend from `JOBMITER <info@jobmiter.com>`. A feed snapshot
+before the search and match creation time distinguish new additions from existing
+or re-evaluated matches. At sending time, the same feed visibility/quality policy
+is checked again; only new additions from that search are eligible, up to five,
+and an empty selection sends nothing. Delayed deliveries crossing the Israel
+calendar day are skipped. The searching user’s matches are reconciled before
+email preparation; other candidates still use the background matching fan-out.
+The first search after onboarding uses the same rule. Users can choose daily, weekly, or
 never at `/profile/emails`; the default is daily. Delivery claims are stored per
 user and Resend idempotency keys prevent duplicate sends during retries. The
 sending domain `jobmiter.com` must be verified in Resend.
