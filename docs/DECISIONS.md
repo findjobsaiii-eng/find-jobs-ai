@@ -1270,3 +1270,12 @@ a sending interval, not a backlog digest of old jobs.
 Reconcile the requesting user's persisted search jobs before preparing email
 to avoid racing the background matching fan-out. No schema migration,
 production backfill or deployment is part of this local change.
+
+## Diagnostic identity must not stop the application — 14 October 2026
+
+Treat Sentry identity lookup as optional. Use the Convex hook that returns
+query errors as values. On failure, clear the diagnostic user ID and report
+the original error. Do not send the failure to the root-layout fallback.
+Restore the ID when the query recovers. Keep authentication and application
+data errors visible through their normal handlers. This separates diagnostic
+failure from page rendering; it does not restore a disabled backend.

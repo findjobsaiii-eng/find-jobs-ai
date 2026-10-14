@@ -744,3 +744,17 @@ Implemented locally; production behavior has not been changed by this task.
 Validation: npm run check, 70 focused backend tests and all 579 repository tests
 pass. No browser testing,
 commits, pushes or production operations.
+
+### 14 October — Convex service limit and diagnostic isolation
+
+Production logs confirm that Convex disabled `famous-badger-815` after the
+free plan limit was exceeded. Authentication, profile and admin queries failed.
+The latest captured failure was at 08:34 Israel time. Service recovery is
+not verified. The owner must restore access through Convex account settings
+or support. No account plan change was made.
+
+Fixed a related local defect. A failed optional Sentry identity query no
+longer causes the root-layout error screen. It clears the diagnostic user ID
+and reports the original error. Other application functions still require
+backend service. Check, focused tests and the Webpack build pass. No release,
+commit or push. See docs/SENTRY_TRIAGE.md.

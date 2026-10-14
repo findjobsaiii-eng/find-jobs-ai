@@ -212,3 +212,73 @@ preserving the existing uncommitted triage notes.
 Documentation only; Prettier and `git diff --check` pass. No code tests/build
 repeated, production mutations, issue-status changes, commits, pushes or
 deployments. No new owner action required for the unchanged error pattern.
+
+## Daily check — 13 October, 08:59 Israel time
+
+Read unresolved issues in all environments. Local commit: `9cdb479`.
+Kept the existing production research document unchanged.
+
+[JOBMITER-A](https://find-job-ai.sentry.io/issues/7776071259/) increased from
+25 to 28 events. Read all three new events. They have the same Convex Auth
+token-refresh error and source stack. Releases: `f065c31`, `cdcff17`, `1b2abed`.
+The two events with browser details show hidden pages and online status true.
+The older release has no browser details. The cause of the failed network
+request is still unknown. No new evidence supports a code change.
+
+All other counts and last-event times are unchanged. No new unresolved issue
+groups. Excluded intentional test errors. Did not repeat existing fixes.
+
+Changed only this report. Prettier and `git diff --check` passed. Did not run
+code tests or a build because no code changed. Did not change production data
+or issue status. Did not commit, push or deploy. No user action is necessary.
+
+## Daily check — 14 October, 08:55 Israel time
+
+Read Sentry issues in all environments. Local commit: `9cdb479`.
+Kept the existing research report and previous local notes.
+
+Three new server errors have a confirmed cause:
+
+- [JOBMITER-D](https://find-job-ai.sentry.io/issues/7791398428/) and
+  [JOBMITER-E](https://find-job-ai.sentry.io/issues/7791398447/) failed in
+  `telemetry:getCurrentUserId`. Both caused the root-layout error screen.
+  Event time: 08:23 Israel time.
+- [JOBMITER-F](https://find-job-ai.sentry.io/issues/7791411224/) failed during
+  auth token refresh. Its server request reached `auth:signIn`.
+  Event time: 08:34 Israel time.
+
+Read 1,000 recent production log rows from `famous-badger-815`. Matched all
+three Sentry request IDs to backend failures. Convex reports that the free
+plan limits were exceeded and the deployment was disabled. The window has
+10 failures with that message. Affected functions include authentication,
+profile/resume reads, telemetry identity, and admin queries. Code changes
+cannot restore a deployment that the platform has disabled. The account
+owner must restore service through the plan settings or Convex support.
+The last captured quota failure was at 08:34. Later recovery is not verified.
+
+### Local fix
+
+`SentryUserSync` used `useQuery`, which throws a failed query during rendering.
+Thus an optional diagnostic query could stop the whole page. It now uses
+`useQueries`, which returns query failures as Error values. On failure, clear
+the Sentry user ID and report the original error with function/request tags.
+Keep normal page content available. Restore the ID after query recovery.
+Do not suppress the error or change authentication. This only fixes error
+isolation. Other application queries still require a working backend.
+
+Tests prove that page content remains available, the old user ID is cleared,
+the original error is reported once, and a recovered ID is attached. Existing
+logout/loading/unmount tests still pass.
+
+JOBMITER-A increased from 28 to 32. Read all four new events. They retain
+the previous auth-refresh network stack. Two with browser details show hidden
+pages and online status true. Those network errors do not prove the same
+quota cause. All other issue counts and last-event times are unchanged.
+Intentional test events remain excluded.
+
+Validation: npm run check, six focused tests, and the local Webpack production
+build passed. React Doctor found no issues in the two changed files. Its
+remote score service was unavailable. All 580 repository tests passed.
+No browser tests or backend code changes. No production data or
+issue-status changes. No commits, pushes or deployments. The local fix
+requires a separate approved release. Service restoration requires owner action.
