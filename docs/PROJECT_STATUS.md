@@ -758,3 +758,12 @@ longer causes the root-layout error screen. It clears the diagnostic user ID
 and reports the original error. Other application functions still require
 backend service. Check, focused tests and the Webpack build pass. No release,
 commit or push. See docs/SENTRY_TRIAGE.md.
+
+### 14 October — root-layout render loop in `23ec4cb`
+
+Sentry JOBMITER-G confirms a render loop in the release containing the Sentry
+identity isolation change. Convex is now serving read-only queries. The loop
+comes from a new useQueries input object on every render. Fixed locally by
+retaining the query map with useMemo. Tests now use the real Convex subscription
+hook and a simulated transport. Release requires owner-approved commit/push.
+No direct deployment or production mutation.

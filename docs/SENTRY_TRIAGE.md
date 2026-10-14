@@ -282,3 +282,29 @@ remote score service was unavailable. All 580 repository tests passed.
 No browser tests or backend code changes. No production data or
 issue-status changes. No commits, pushes or deployments. The local fix
 requires a separate approved release. Service restoration requires owner action.
+
+## Incident — 14 October, release `23ec4cb`
+
+[JOBMITER-G](https://find-job-ai.sentry.io/issues/?query=JOBMITER-G) reports
+“Too many re-renders” in the root layout on release `23ec4cb`. A sandboxed
+read-only production query succeeds, and recent matching functions also succeed.
+The earlier Convex plan block is not the cause of this incident.
+
+The previous Sentry identity change passed a new object to `useQueries` on
+each render. The installed Convex subscription hook requests an immediate
+render when that object changes. This creates a render loop. The authenticated
+and unauthenticated query definitions must both retain a stable reference.
+
+Local fix: memoize the query map by authentication state. Keep error-value
+handling and original-error reporting. Replace the test's mocked useQueries
+with the real Convex hook and a simulated transport, including update callbacks.
+The tests now cover real subscription rendering, logout, identity failure and
+recovery. Existing tests had missed the defect because they mocked the hook.
+
+The owner must approve commit and push for the Git-triggered frontend release.
+No direct deployment or production mutation was performed.
+
+Validation: the real-hook tests fail on the original release with “Too many
+re-renders” and pass with the fix. Both tests pass. npm run check and the
+local Webpack production build pass. React Doctor found no issues in the
+two changed files. No browser tests.
