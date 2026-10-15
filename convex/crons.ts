@@ -8,7 +8,7 @@ crons.interval(
   internal.jobDiscovery.recoverStalledSearches,
   {},
 );
-// Run hourly; dispatch maps the current Israel hour to one of ten user cohorts.
+// Run hourly; dispatch applies the configured cadence and Israel-time cohorts.
 crons.cron(
   "daily profile job discovery",
   "7 * * * *",

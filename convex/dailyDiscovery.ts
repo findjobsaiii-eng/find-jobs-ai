@@ -1,8 +1,14 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { globalDayKey, resolveJobSearchPlan } from "./jobSearchPolicy";
+import {
+  alreadyAttemptedInPeriod,
+  automaticDiscoveryCadence,
+  discoverySchedule,
+  israelDiscoveryBucket,
+} from "./jobDiscoverySchedule";
 
 const discoveryBucketValidator = v.union(
   v.null(),
@@ -17,7 +23,6 @@ const discoveryBucketValidator = v.union(
   v.literal(8),
   v.literal(9),
 );
-type DiscoveryBucket = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 type DailyDiscoveryStatus =
   "planned" | "queued" | "skipped" | "completed" | "failed";
@@ -57,26 +62,6 @@ async function recordDailyAudit(
   }
 }
 
-export function discoveryBucket(userId: string) {
-  let hash = 2166136261;
-  for (const character of userId) {
-    hash ^= character.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) % 10;
-}
-
-export function israelDiscoveryBucket(now: number): DiscoveryBucket | null {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Jerusalem",
-      hour: "2-digit",
-      hourCycle: "h23",
-    }).format(now),
-  );
-  return hour >= 8 && hour <= 17 ? ((hour - 8) as DiscoveryBucket) : null;
-}
-
 async function activePaidPlan(
   ctx: MutationCtx,
   userId: Id<"users">,
@@ -95,10 +80,14 @@ export const dispatch = internalMutation({
   args: {
     cursor: v.optional(v.union(v.string(), v.null())),
     bucket: v.optional(discoveryBucketValidator),
+    scheduledAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
+    const scheduledAt = args.scheduledAt ?? now;
+    if (globalDayKey(scheduledAt) !== globalDayKey(now)) return null;
+    const cadence = automaticDiscoveryCadence(env.JOB_SEARCH_AUTOMATIC_CADENCE);
     const bucket =
       args.bucket === undefined ? israelDiscoveryBucket(now) : args.bucket;
     if (bucket === null && args.bucket === undefined) return null;
@@ -111,14 +100,16 @@ export const dispatch = internalMutation({
       .paginate({ cursor: args.cursor ?? null, numItems: 5 });
     const userIds: Id<"users">[] = [];
     for (const profile of profiles.page) {
-      if (bucket !== null && discoveryBucket(profile.userId) !== bucket)
+      const slot = discoverySchedule(profile.userId, scheduledAt, cadence);
+      if (!slot.isScheduledDay || (bucket !== null && slot.bucket !== bucket))
         continue;
       const attempt = await ctx.db
         .query("dailyDiscoveryAttempts")
         .withIndex("by_userId", (q) => q.eq("userId", profile.userId))
         .unique();
-      // A repeat scheduler check must not overwrite the actual daily result.
-      if (attempt?.dayKey === dayKey) continue;
+      // A repeat scheduler check must not overwrite this period's actual result.
+      if (alreadyAttemptedInPeriod(attempt?.lastAttemptAt, now, cadence))
+        continue;
       const plan = await activePaidPlan(ctx, profile.userId, now);
       if (plan === "free") {
         await recordDailyAudit(ctx, {
@@ -158,12 +149,13 @@ export const dispatch = internalMutation({
       await ctx.scheduler.runAfter(
         0,
         internal.jobDiscoveryActions.runDailyBatch,
-        { userIds, cursor, bucket },
+        { userIds, cursor, bucket, scheduledAt },
       );
     } else if (cursor !== null) {
       await ctx.scheduler.runAfter(0, internal.dailyDiscovery.dispatch, {
         cursor,
         bucket,
+        scheduledAt,
       });
     }
     return null;
@@ -188,7 +180,16 @@ export const enqueueUser = internalMutation({
     ]);
     const dayKey = globalDayKey(now);
     if (!profile?.onboardingCompleted) return null;
-    if (attempt?.dayKey === dayKey) return null;
+    const cadence = automaticDiscoveryCadence(env.JOB_SEARCH_AUTOMATIC_CADENCE);
+    if (alreadyAttemptedInPeriod(attempt?.lastAttemptAt, now, cadence))
+      return null;
+    // Only the first attempt bypasses the weekly slot. Later profile saves and
+    // entitlement changes must not become extra automatic provider requests.
+    if (attempt && cadence === "weekly") {
+      const slot = discoverySchedule(args.userId, now, cadence);
+      if (!slot.isScheduledDay || slot.bucket !== israelDiscoveryBucket(now))
+        return null;
+    }
     if (!plan || plan === "free") {
       await recordDailyAudit(ctx, {
         userId: args.userId,
@@ -233,6 +234,7 @@ export const finishAttempt = internalMutation({
   args: {
     userId: v.id("users"),
     outcome: v.string(),
+    expectedDayKey: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -240,7 +242,11 @@ export const finishAttempt = internalMutation({
       .query("dailyDiscoveryAttempts")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
-    if (attempt) {
+    if (
+      attempt &&
+      (args.expectedDayKey === undefined ||
+        attempt.dayKey === args.expectedDayKey)
+    ) {
       const attemptCount = attempt.attemptCount ?? 1;
       const now = Date.now();
       await ctx.db.patch("dailyDiscoveryAttempts", attempt._id, {

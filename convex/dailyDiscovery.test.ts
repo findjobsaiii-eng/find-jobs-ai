@@ -1,14 +1,19 @@
 /// <reference types="vite/client" />
 // @vitest-environment edge-runtime
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { ConvexError } from "convex/values";
 import { discoveryFailureReason } from "./jobDiscoveryActions";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
-import { discoveryBucket, israelDiscoveryBucket } from "./dailyDiscovery";
+import {
+  discoveryBucket,
+  discoverySchedule,
+  israelDiscoveryBucket,
+} from "./jobDiscoverySchedule";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+beforeEach(() => vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "daily"));
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
@@ -83,6 +88,157 @@ it("spreads users over ten Israel-time hourly buckets", () => {
   expect(israelDiscoveryBucket(Date.parse("2026-09-08T05:00:00Z"))).toBe(0);
   expect(israelDiscoveryBucket(Date.parse("2026-09-08T14:00:00Z"))).toBe(9);
   expect(israelDiscoveryBucket(Date.parse("2026-09-08T15:00:00Z"))).toBeNull();
+});
+
+async function scheduledUser(t: TestConvex<typeof schema>) {
+  return t.run(async (ctx) => {
+    const userId = await ctx.db.insert("users", {});
+    await ctx.db.insert("candidateProfiles", {
+      userId,
+      email: "candidate@example.com",
+      onboardingCompleted: true,
+      onboardingStep: 4,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    return userId;
+  });
+}
+
+function weeklySlot(userId: string, week = 0) {
+  const base = Date.UTC(2026, 9, 11 + week * 7, 9);
+  const slot = discoverySchedule(userId, base, "weekly");
+  // These fixtures precede the 25 October DST change (UTC+3).
+  return Date.UTC(2026, 9, 11 + week * 7 + slot.weekday!, 5 + slot.bucket, 7);
+}
+
+it("queues a weekly user's first search immediately and counts it for that week", async () => {
+  vi.useFakeTimers();
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "weekly");
+  vi.setSystemTime(new Date("2026-10-11T01:00:00Z")); // Outside every scheduled hour.
+  const t = convexTest(schema, modules);
+  const userId = await scheduledUser(t);
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  const firstAttempt = await t.run((ctx) =>
+    ctx.db.query("dailyDiscoveryAttempts").unique(),
+  );
+  vi.setSystemTime(weeklySlot(userId));
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  expect(
+    await t.run((ctx) => ctx.db.query("dailyDiscoveryAttempts").unique()),
+  ).toEqual(firstAttempt);
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(1);
+  vi.setSystemTime(weeklySlot(userId, 1));
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(2);
+});
+
+it("dispatches weekly users only on their assigned weekday and rotating hour", async () => {
+  vi.useFakeTimers();
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "weekly");
+  const t = convexTest(schema, modules);
+  const userId = await scheduledUser(t);
+  const slot = weeklySlot(userId);
+  vi.setSystemTime(slot - 86400000);
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  vi.setSystemTime(slot - 3600000);
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  expect(
+    await t.run((ctx) => ctx.db.query("dailyDiscoveryAttempts").unique()),
+  ).toBeNull();
+  vi.setSystemTime(slot);
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  await t.mutation(internal.dailyDiscovery.dispatch, {});
+  const attempt = await t.run((ctx) =>
+    ctx.db.query("dailyDiscoveryAttempts").unique(),
+  );
+  expect(attempt).toMatchObject({ userId, lastAttemptAt: slot });
+  vi.setSystemTime(slot + 86400000);
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  expect(
+    await t.run((ctx) => ctx.db.query("dailyDiscoveryAttempts").unique()),
+  ).toEqual(attempt);
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(1);
+});
+
+it("changes back to daily without a duplicate search on the switching day", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-11T09:00:00Z"));
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "weekly");
+  const t = convexTest(schema, modules);
+  const userId = await scheduledUser(t);
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "daily");
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(1);
+  vi.setSystemTime(new Date("2026-10-12T09:00:00Z"));
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(2);
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "weekly");
+  vi.setSystemTime(new Date("2026-10-13T09:00:00Z"));
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(2);
+});
+
+it("does not resume yesterday's paginated sweep on a new calendar day", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-15T09:00:00Z"));
+  const t = convexTest(schema, modules);
+  await scheduledUser(t);
+  await t.mutation(internal.dailyDiscovery.dispatch, {
+    bucket: null,
+    scheduledAt: Date.parse("2026-10-14T09:00:00Z"),
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("dailyDiscoveryAttempts").unique()),
+  ).toBeNull();
+});
+
+it("does not let an expired worker overwrite a newer day's attempt", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-15T09:00:00Z"));
+  const t = convexTest(schema, modules);
+  const userId = await scheduledUser(t);
+  await t.mutation(internal.dailyDiscovery.enqueueUser, { userId });
+  const current = await t.run((ctx) =>
+    ctx.db.query("dailyDiscoveryAttempts").unique(),
+  );
+  await t.action(internal.jobDiscoveryActions.runDailyBatch, {
+    userIds: [userId],
+    cursor: null,
+    scheduledAt: Date.parse("2026-10-14T09:00:00Z"),
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("dailyDiscoveryAttempts").unique()),
+  ).toEqual(current);
+});
+
+it("claims one weekly attempt when onboarding and cron enqueue concurrently", async () => {
+  vi.useFakeTimers();
+  vi.stubEnv("JOB_SEARCH_AUTOMATIC_CADENCE", "weekly");
+  const t = convexTest(schema, modules);
+  const userId = await scheduledUser(t);
+  vi.setSystemTime(weeklySlot(userId));
+  await Promise.all([
+    t.mutation(internal.dailyDiscovery.enqueueUser, { userId }),
+    t.mutation(internal.dailyDiscovery.dispatch, {}),
+  ]);
+  expect(
+    await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect()),
+  ).toHaveLength(1);
 });
 
 it("queues a new pilot user immediately without a purchased entitlement", async () => {

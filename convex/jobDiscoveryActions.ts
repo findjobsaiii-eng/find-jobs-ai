@@ -524,10 +524,22 @@ export const runDailyBatch = internalAction({
     userIds: v.array(v.id("users")),
     cursor: v.union(v.string(), v.null()),
     bucket: v.optional(discoveryBucketValidator),
+    scheduledAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     for (const userId of args.userIds) {
+      if (
+        args.scheduledAt !== undefined &&
+        globalDayKey(args.scheduledAt) !== globalDayKey(Date.now())
+      ) {
+        await ctx.runMutation(internal.dailyDiscovery.finishAttempt, {
+          userId,
+          outcome: "schedule_expired",
+          expectedDayKey: globalDayKey(args.scheduledAt),
+        });
+        continue;
+      }
       let outcome = "completed";
       let shouldNotify = false;
       const searchStartedAt = Date.now();
@@ -573,6 +585,7 @@ export const runDailyBatch = internalAction({
       await ctx.scheduler.runAfter(0, internal.dailyDiscovery.dispatch, {
         cursor: args.cursor,
         bucket: args.bucket,
+        scheduledAt: args.scheduledAt,
       });
     }
     return null;

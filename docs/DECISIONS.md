@@ -1279,3 +1279,26 @@ the original error. Do not send the failure to the root-layout fallback.
 Restore the ID when the query recovers. Keep authentication and application
 data errors visible through their normal handlers. This separates diagnostic
 failure from page rendering; it does not restore a disabled backend.
+
+## Configurable weekly automatic discovery — 15 October 2026
+
+Owner approved reducing automatic discovery cost while matching quality is repaired.
+Use `JOB_SEARCH_AUTOMATIC_CADENCE=weekly|daily` in Convex, defaulting to weekly.
+Invalid values fail closed. Keep the first completed-profile attempt immediate;
+it counts toward the current Israel calendar week (Sunday–Saturday). Later
+profile/entitlement updates cannot bypass a weekly user's assigned slot. Existing
+attempt timestamps supply period deduplication; no schema migration is needed.
+Weekly users get a stable weekday and rotate through the ten 08:00–17:00 hourly
+groups each week. Daily mode retains the original fixed hourly cohorts. A sweep
+keeps its original slot across bounded continuations and expires at Israel date
+change, preventing work from spilling into another day's cohort. Explicit support
+retries and development manual searches retain existing limits/behavior. Email
+still requires new visible jobs and honors existing notification preferences.
+Source verification and shared inventory matching continue independently.
+
+This is an exploratory timing rotation, not proof that hour caused engagement.
+Use delivered-email denominators and existing delivery/open/click/activity times.
+Search completion, weekday, job quality, and notification preferences can confound
+results. Do not promise a seven-day minimum interval at calendar-week boundaries.
+Production cadence activation is authorized for this release; delivery remains
+through commit/push and the existing Git-triggered deployment only.

@@ -13,6 +13,7 @@ export default defineApp({
     OPENAI_CATALOG_MODEL: v.optional(v.string()),
     OPENAI_JOB_REVIEW_MODEL: v.optional(v.string()),
     JOB_SEARCH_ENABLED: v.string(),
+    JOB_SEARCH_AUTOMATIC_CADENCE: v.optional(v.string()),
     JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT: v.string(),
     JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT: v.string(),
     JOB_SEARCH_MAX_CONCURRENT_RUNS: v.string(),

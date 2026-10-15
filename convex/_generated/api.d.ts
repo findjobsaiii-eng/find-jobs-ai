@@ -35,6 +35,7 @@ import type * as jobActivityPolicy from "../jobActivityPolicy.js";
 import type * as jobDiscovery from "../jobDiscovery.js";
 import type * as jobDiscoveryActions from "../jobDiscoveryActions.js";
 import type * as jobDiscoveryModel from "../jobDiscoveryModel.js";
+import type * as jobDiscoverySchedule from "../jobDiscoverySchedule.js";
 import type * as jobEmailActions from "../jobEmailActions.js";
 import type * as jobEmailTemplate from "../jobEmailTemplate.js";
 import type * as jobEmailUrl from "../jobEmailUrl.js";
@@ -109,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   jobDiscovery: typeof jobDiscovery;
   jobDiscoveryActions: typeof jobDiscoveryActions;
   jobDiscoveryModel: typeof jobDiscoveryModel;
+  jobDiscoverySchedule: typeof jobDiscoverySchedule;
   jobEmailActions: typeof jobEmailActions;
   jobEmailTemplate: typeof jobEmailTemplate;
   jobEmailUrl: typeof jobEmailUrl;

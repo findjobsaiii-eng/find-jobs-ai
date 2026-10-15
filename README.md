@@ -347,11 +347,16 @@ additional AI request or salary-specific web search is added. Cached reviews
 gain an estimate when refreshed normally. A shared salary-table estimation and
 seniority-aware filtering mechanism remains planned in `docs/PROJECT_STATUS.md`.
 
-Paid users with completed profiles receive a daily discovery attempt without
-opening the app. Ten deterministic user cohorts run hourly from 08:00 through
-17:00 Israel time. A newly completed paid profile is queued immediately if it
-has not already received that day's attempt. Sequential workers select one unique target role per user per Israel calendar
-day, following the saved role order and wrapping after the last role, and call the OpenAI
+Paid users with completed profiles receive automatic discovery attempts without
+opening the app. `JOB_SEARCH_AUTOMATIC_CADENCE` selects `weekly` (the default)
+or `daily`. Weekly users have a fixed weekday and one of ten hourly groups from
+08:00 through 17:00 Israel time. Their hour advances by one group each week,
+wrapping after 17:00, so all ten hours can be compared over time. The week starts
+on Sunday at Israel midnight. Daily mode retains the same ten fixed hourly groups
+every day. A newly completed paid profile is queued immediately; this first
+attempt counts toward its current week/day. Later profile saves do not bypass
+the weekly slot. Sequential workers select one unique target role per attempt,
+following the saved role order and wrapping after the last role, and call the OpenAI
 Responses API with Web Search from a server action. Free users never enter this
 provider path; their feed is assembled only from jobs already stored in the
 central database. The browser never receives the API key, selected model,
@@ -373,6 +378,7 @@ OPENAI_CV_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
 OPENAI_JOB_REVIEW_MODEL # optional; falls back to OPENAI_JOB_SEARCH_MODEL
 OPENAI_CATALOG_MODEL # optional; monthly vocabulary cleanup otherwise uses OPENAI_JOB_SEARCH_MODEL
 JOB_SEARCH_ENABLED
+JOB_SEARCH_AUTOMATIC_CADENCE # optional: weekly (default) or daily
 JOB_SEARCH_GLOBAL_DAILY_RUN_LIMIT
 JOB_SEARCH_GLOBAL_DAILY_QUERY_LIMIT
 JOB_SEARCH_MAX_CONCURRENT_RUNS
@@ -385,6 +391,29 @@ PUBLIC_APP_URL # public HTTPS origin used in outbound email, e.g. https://jobmit
 Use at least `4000` for `JOB_SEARCH_OUTPUT_TOKEN_LIMIT`; the structured job
 batch can contain up to ten candidates and a smaller limit can truncate useful
 provider results.
+
+To change automatic cadence, set `JOB_SEARCH_AUTOMATIC_CADENCE` on the target
+Convex deployment. For production, after explicit owner approval:
+
+```sh
+npx convex env set JOB_SEARCH_AUTOMATIC_CADENCE weekly --deployment famous-badger-815
+# Restore the previous cadence with the same command and the value daily.
+```
+
+An invalid value stops scheduling rather than silently increasing spend. Switching
+from weekly to daily allows the next day's attempt; switching to weekly counts
+any automatic attempt already made that Israel week. Failed, empty, and cached
+attempts also count; existing support retries remain explicit exceptions. This is
+one attempt per calendar week, not a rolling seven-day interval: onboarding near
+the end of a week can be followed by the assigned slot early the next week.
+No production backfill or manual search is needed to change cadence.
+
+Resend delivery/open/click timestamps and existing authenticated activity events
+provide the timing data. Compare rates per delivered email over several weeks,
+not raw totals; search completion time and users' notification preferences affect
+send time. Rotation is exploratory and does not isolate the effect of hour from
+job quality or weekday. Source verification and shared job reconciliation continue
+at their existing rates; this setting reduces automatic provider searches only.
 
 After an automatic search adds new visible suggestions, Convex schedules a Hebrew
 RTL notification through Resend from `JOBMITER <info@jobmiter.com>`. A feed snapshot
@@ -759,13 +788,13 @@ The development match audit remains a bounded recent-catalog diagnostic sample;
 it is not the source of feed completeness. The materialized reconciliation
 pipeline described above is the authoritative suggestion path.
 
-The daily sweep runs the matching cohort hourly from 08:00 through 17:00 Israel
-time, with at most one automatic attempt per eligible paid profile on an Israel
-calendar day. New completed paid profiles are queued immediately. No browser
+The automatic sweep runs hourly from 08:00 through 17:00 Israel time and applies
+the configured weekly/daily cohort and period limit. New completed paid profiles
+are queued immediately. No browser
 session is required. Failures are recorded in
 `dailyDiscoveryAttempts.lastOutcome`. Repeat scheduler checks preserve the day's
 original queued or finished admin audit, including the specific provider failure
-category. Existing jobs do not prevent the next day's search. A failed shared-query claim may be retried
+category. Existing jobs do not prevent the next scheduled period's search. A failed shared-query claim may be retried
 by another eligible user.
 
 ## Page URLs and layouts

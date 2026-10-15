@@ -40,6 +40,14 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented (2026-10-15; release verification pending): automatic search cadence
+  is configurable with `JOB_SEARCH_AUTOMATIC_CADENCE=weekly|daily`, defaulting to
+  weekly. Weekly cohorts have stable weekdays and rotating Israel-time hours.
+  Onboarding still queues the first search immediately and counts it in the
+  current calendar week; later profile saves cannot add extra weekly attempts.
+  Daily mode, explicit support retries, development manual search and new-only
+  email filtering retain their existing behavior. Source verification is separate.
+
 - Implemented locally (2026-10-15; release pending): onboarding now observes the
   latest replacement CV while it processes or needs a retry. The previous CV
   remains active until replacement succeeds. This prevents the upload form from
