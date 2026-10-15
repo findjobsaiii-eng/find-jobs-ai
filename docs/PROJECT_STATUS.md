@@ -40,6 +40,13 @@ Node.js 22 or newer is documented and enforced through `package.json` engines; C
 
 ## Verified implemented features
 
+- Implemented locally (2026-10-15; release pending): onboarding now observes the
+  latest replacement CV while it processes or needs a retry. The previous CV
+  remains active until replacement succeeds. This prevents the upload form from
+  reappearing between upload and profile review. Regression tests cover processing,
+  failure, retry, successful activation, and preservation of active-CV reads for
+  completed profiles. No production changes were made for this fix.
+
 - Implemented (2026-10-08, production rollout pending): owner-private jobs from
   anywhere can be added from Saved jobs, edited, deleted, annotated and moved
   between existing application statuses. New jobs start as Saved and always

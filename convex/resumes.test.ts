@@ -383,6 +383,73 @@ describe("CV-derived effective profiles", () => {
     });
   });
 
+  it.each([false, true])(
+    "shows an onboarding replacement through processing, failure and retry (completed profile=%s)",
+    async (onboardingCompleted) => {
+      const t = convexTest(schema, modules);
+      const first = await seedUserAndResume(t);
+      await t.mutation(
+        internal.resumes.completeProcessing,
+        completion(first.resumeId, first.userId),
+      );
+      const user = asUser(t, first.userId);
+      await t.run(async (ctx) => {
+        const profile = await ctx.db
+          .query("candidateProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", first.userId))
+          .unique();
+        await ctx.db.patch("candidateProfiles", profile!._id, {
+          onboardingCompleted,
+        });
+      });
+      const storageId = await t.run((ctx) =>
+        ctx.storage.store(
+          new Blob(["replacement"], { type: "application/pdf" }),
+        ),
+      );
+      const replacementId = await user.mutation(api.resumes.createFromUpload, {
+        storageId,
+        fileName: "replacement.pdf",
+        mimeType: "application/pdf",
+        size: 11,
+        replacementForId: first.resumeId,
+      });
+      const expectedId = onboardingCompleted ? first.resumeId : replacementId;
+      expect(await user.query(api.resumes.getCurrent)).toMatchObject({
+        id: expectedId,
+        status: onboardingCompleted ? "ready" : "processing",
+      });
+      expect(
+        (await user.query(api.candidateProfiles.getCurrent)).profile
+          ?.activeResumeId,
+      ).toBe(first.resumeId);
+      await t.mutation(internal.resumes.failProcessing, {
+        resumeId: replacementId,
+        userId: first.userId,
+        failureCode: "CV_AI_PARSE_FAILED",
+      });
+      expect(await user.query(api.resumes.getCurrent)).toMatchObject({
+        id: expectedId,
+        status: onboardingCompleted ? "ready" : "failed",
+      });
+      await user.mutation(api.resumes.retryProcessing, {
+        resumeId: replacementId,
+      });
+      expect(await user.query(api.resumes.getCurrent)).toMatchObject({
+        id: expectedId,
+        status: onboardingCompleted ? "ready" : "processing",
+      });
+      await t.mutation(
+        internal.resumes.completeProcessing,
+        completion(replacementId, first.userId),
+      );
+      expect(await user.query(api.resumes.getCurrent)).toMatchObject({
+        id: replacementId,
+        status: "ready",
+      });
+    },
+  );
+
   it("replaces a resume file without losing its label or leaving the old record", async () => {
     const t = convexTest(schema, modules);
     const first = await seedUserAndResume(t);

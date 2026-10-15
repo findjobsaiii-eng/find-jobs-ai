@@ -216,7 +216,7 @@ describe("resume-first onboarding", () => {
         json: async () => ({ storageId: "_storage:replacement" }),
       }),
     );
-    render(
+    const view = render(
       <ResumeOnboarding
         resume={readyResume as never}
         replaceMode
@@ -243,5 +243,44 @@ describe("resume-first onboarding", () => {
         replacementForId: "resumeDocuments:one",
       }),
     );
+
+    view.rerender(
+      <ResumeOnboarding
+        resume={
+          {
+            ...readyResume,
+            id: "resumeDocuments:new",
+            status: "processing",
+          } as never
+        }
+        replaceMode
+        onCancelReplacement={onCancelReplacement}
+      />,
+    );
+    expect(
+      screen.getByRole("status", { name: "Reading your CV…" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Upload your CV" }),
+    ).not.toBeInTheDocument();
+
+    view.rerender(
+      <ResumeOnboarding
+        resume={
+          {
+            ...readyResume,
+            id: "resumeDocuments:new",
+            status: "failed",
+            failureCode: "CV_AI_PARSE_FAILED",
+          } as never
+        }
+        replaceMode
+        onCancelReplacement={onCancelReplacement}
+      />,
+    );
+    expect(screen.getByText(/couldn’t analyze the CV/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /try again/i }),
+    ).toBeInTheDocument();
   });
 });

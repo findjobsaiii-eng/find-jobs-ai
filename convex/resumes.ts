@@ -322,14 +322,23 @@ export const getCurrent = query({
     const active = profile?.activeResumeId
       ? await ctx.db.get("resumeDocuments", profile.activeResumeId)
       : null;
-    const resume =
-      active?.userId === userId
-        ? active
-        : await ctx.db
+    const ownedActive = active?.userId === userId ? active : null;
+    const latest =
+      !ownedActive || !profile?.onboardingCompleted
+        ? await ctx.db
             .query("resumeDocuments")
             .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
             .order("desc")
-            .first();
+            .first()
+        : null;
+    // Keep the previous CV active until processing succeeds, but let onboarding
+    // observe the replacement's progress and any failure that needs a retry.
+    const pendingReplacement =
+      ownedActive &&
+      latest?.replacementForId === ownedActive._id &&
+      latest.activateOnSuccess &&
+      (latest.status === "processing" || latest.status === "failed");
+    const resume = pendingReplacement ? latest : (ownedActive ?? latest);
     return resume
       ? await summarizeResume(ctx, resume, profile, resume._id)
       : null;
